@@ -2,7 +2,7 @@
 
 目标：Windows 原生优先，兼容 macOS/Linux，保留 Antigravity MCP UI 和 Git Worktree 隔离；优化 Gemini↔Codex 通信及本地性能，保证审批和正确性。
 
-除 D00 外，各卡仍为 PROPOSED。D00 方案 A 已获用户批准，在 dev/d00 完成固定快照导入及 SHA/权限核验，目前 REVIEW，待人工验收及合并。未运行模型、未开始 D01/D02。每张卡经用户选择后才进入实施；依赖卡通过验收并获合并许可后才进入下一卡。
+除 D00 外，各卡仍为 PROPOSED。D00 方案 A 已获用户批准，固定快照导入及 SHA/权限核验通过，用户已验收并授权合并 PR #1，状态 DONE。未运行模型、未开始 D01/D02。每张卡经用户选择后才进入实施；依赖卡通过验收并获合并许可后才进入下一卡。
 
 ## 阶段顺序
 
@@ -10,7 +10,7 @@
 
 | 卡片 | 内容 | 依赖 | 状态 |
 |---|---|---|---|
-| [D00](decisions/D00.md) | 独立仓库与上游基线 | 无 | REVIEW |
+| [D00](decisions/D00.md) | 独立仓库与上游基线 | 无 | DONE |
 | [D01](decisions/D01.md) | 基线测试与可复现基准 | D00 | PROPOSED |
 | [D02](decisions/D02.md) | 开发与验收治理 | D00 | PROPOSED |
 

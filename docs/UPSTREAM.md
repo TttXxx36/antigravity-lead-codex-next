@@ -12,3 +12,5 @@
 ## D00 导入记录
 
 方案 A 已批准，导入提交：`7f6bebddc5a895a1da707d66b187f2221a7cca3e`。原始 README 移至根目录 README_UPSTREAM.md，以保留相对图片/文档链接；原始 LICENSE 保存为 LICENSE.upstream；根 LICENSE 保留本仓库原版权并加入上游版权。除此之外 43 个上游文件保留原路径。45/45 上游 Blob SHA 和 Git 文件 mode 与基线一致，见 [完整性证据](evidence/D00-import.md)。原有规划文档保留，仅状态与来源说明在独立文档提交更新。工作流仍保存在上游原位置 docs/workflows/，未激活 GitHub Actions。未进行功能/实机测试或依赖安装。
+
+2026-11-27：用户明确批准 D00 验收并合并 [PR #1](https://github.com/TttXxx36/antigravity-lead-codex-next/pull/1)，合并提交 `b7358f748c58cb183c8926a93afd9660c71de872`，固定源码成为 main 正式基线。D00 DONE；D01 未开始。
