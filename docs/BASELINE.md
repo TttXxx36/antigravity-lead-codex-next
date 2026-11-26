@@ -32,3 +32,17 @@
     python benchmarks/run_benchmark.py --repeat 5 --output benchmarks/results/local-baseline.json
 
 若 Node 依赖未安装，MCP 探针会记录 NOT_RUN；本次不擅自安装依赖、不启用远程 CI。不把工具自检的耗时作为上游性能。
+
+## 第二轮：固定源码片段集成（2026-11-27 对话）
+
+直接 GitHub 下载仍失败。通过连接器从固定源码提取 20 个函数、以三份 Git Blob SHA 核验后在 Linux 临时目录执行，实际验证执行/恢复/Worktree/状态写入/报告解析；路由与 CLI 边界为 Mock。6 场景各 2 次，12/12 PASS，18 个 Mock 进程，真实模型调用 0。与第一轮工具自检分开统计。详见 [第二轮证据](evidence/D01-dispatch-contract.md) 和 [原始结果](../benchmarks/results/d01-dispatch-contract-linux.json)。
+
+运行方式（已验证片段模式，不需要 Node 依赖）：
+
+    python benchmarks/dispatch_contract.py --excerpt-dir benchmarks/fixtures/dispatch_contract --repeat 2 --output benchmarks/results/local-contract-excerpts.json
+
+完整固定 dispatcher 模块模式（本轮未运行）：
+
+    python benchmarks/dispatch_contract.py --repeat 5 --output benchmarks/results/local-contract-full.json
+
+原 `run_benchmark.py` 已增加 9 个相关源码/配置文件的 Blob SHA 校验、checkout_commit 字段及隔离断言；第二轮工具自检 8/8 PASS，缺源码模式 10 NOT_RUN 并非通过。CRLF 文本规范化后可核验；固定基线运行器拒绝候选业务源码变化，候选比较机制在后续卡片明确实现。完整模块、MCP、Windows/macOS 仍 NOT_RUN，D01 保持 REVIEW。

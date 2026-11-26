@@ -3,6 +3,7 @@
 """
 import argparse
 import contextlib
+import hashlib
 from concurrent.futures import ThreadPoolExecutor
 import importlib.util
 import io
@@ -27,6 +28,38 @@ SUITE = json.loads((ROOT / 'benchmarks/task_suite.json').read_text(encoding='utf
 MOCK = ROOT / 'tests/mock_codex.py'
 DISPATCH = ROOT / 'skills/multi-agent-dispatch/scripts/dispatch.py'
 SERVER = ROOT / 'plugins/codex-console/server/index.mjs'
+DISPATCH_FILES = {
+    'skills/multi-agent-dispatch/scripts/dispatch.py': '2057553f544c0ef605eb2c9ad8ae0f8fb59df84a',
+    'skills/multi-agent-dispatch/resources/report_schema.json': '36d5a817785eeaf04a972c5c363ab04beb5c482e',
+}
+MCP_FILES = {
+    'plugins/codex-console/server/index.mjs': '4eadeaa1c669162f3727d1498fa5f7bca90763d5',
+    'plugins/codex-console/server/runner.mjs': '30d32e12771391c19523a8a726cf43d4083d72b0',
+    'plugins/codex-console/server/codex-store.mjs': '25b9a0a0fdb766805a7686fa5144cea0a4243b80',
+    'plugins/codex-console/server/console-db.mjs': 'bdbd08cf975ff8f2ba51a8241613750607f0ff4f',
+    'plugins/codex-console/server/quota.mjs': '2c8b6302fb6607d94c3c3d0a6b607e2b4b24b409',
+    'plugins/codex-console/package.json': '993f605304dfa4148028dac582f2bdbbc8b1befe',
+    'plugins/codex-console/package-lock.json': '489de3cc311ff985f960aa09a70b0fbb8c8dcab4',
+}
+
+
+def blob_sha(data):
+    return hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest()
+
+
+def verify_sources(pins):
+    for rel, expected in pins.items():
+        raw = (ROOT / rel).read_bytes()
+        if expected not in (blob_sha(raw), blob_sha(raw.replace(b'\r\n', b'\n'))):
+            raise ValueError('source differs from fixed baseline: ' + rel)
+
+
+def checkout_sha():
+    try:
+        p = subprocess.run(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], capture_output=True, text=True, timeout=10)
+        return p.stdout.strip() if p.returncode == 0 else None
+    except (OSError, subprocess.TimeoutExpired):
+        return None
 
 
 def run(cmd, *, cwd, env, input=None, timeout=30):
@@ -96,6 +129,7 @@ def mcp_probe(case, home, env, warm):
     node = shutil.which('node')
     if not node or not SERVER.is_file() or not (SERVER.parent.parent / 'node_modules/@modelcontextprotocol/sdk').is_dir():
         raise FileNotFoundError('Node/server dependencies unavailable; no install attempted')
+    verify_sources(MCP_FILES)
     fixture_db(home)
     # A real Codex executable is never passed. The Python executable cannot run app-server.
     child = subprocess.Popen([node, '--no-warnings', str(SERVER), '--data-dir', str(home / 'plugin')], cwd=home,
@@ -141,8 +175,7 @@ def mcp_probe(case, home, env, warm):
 
 
 def dispatch_probe(case, home, env):
-    if not DISPATCH.is_file():
-        raise FileNotFoundError('upstream source unavailable')
+    verify_sources(DISPATCH_FILES)
     with patch.dict(os.environ, env, clear=True):
         spec = importlib.util.spec_from_file_location('d01_dispatch', DISPATCH)
         d = importlib.util.module_from_spec(spec)
@@ -150,10 +183,10 @@ def dispatch_probe(case, home, env):
         cwd = home / '中文 空格'; cwd.mkdir(); init_git(cwd, env)
         original = d.run_subprocess_with_timeout
         def mock_boundary(cmd, **kwargs):
-            if cmd[0] != 'D01_MOCK_ONLY' or 'exec' not in cmd:
+            if cmd[0] != 'D01_MOCK_ONLY' or 'exec' not in cmd or any('network_access=true' in x or 'danger-full-access' in x for x in cmd):
                 raise RuntimeError('unexpected CLI invocation; refused')
             kwargs['env'] = dict(env, ALC_MOCK_CASE=case['id'])
-            return original([sys.executable, str(MOCK), *cmd[1:]], **kwargs)
+            return original([sys.executable, '-I', str(MOCK), *cmd[1:]], **kwargs)
         def once(n):
             return d.execute_single_task(prompt=case['prompt'], cwd=cwd, backend='codex', difficulty='low', model='mock-model', effort='low', quality='balanced', alternate=False, prefer_wide=False, sandbox='workspace-write', network=False, isolation='worktree', timeout=20, files_hint=None, task_id='d01-' + str(n), dry_run=False)
         with patch.object(d, 'get_codex_bin', return_value='D01_MOCK_ONLY'), patch.object(d, 'run_subprocess_with_timeout', side_effect=mock_boundary):
@@ -161,6 +194,7 @@ def dispatch_probe(case, home, env):
                 with ThreadPoolExecutor(max_workers=2) as pool:
                     results = list(pool.map(once, [1, 2]))
                 assert results[0]['workdir'] != results[1]['workdir']
+                assert results[0]['branch'] != results[1]['branch']
             elif case['id'] == 'B04':
                 results = [once(1), once(2)]
             else:
@@ -172,6 +206,10 @@ def dispatch_probe(case, home, env):
                 assert result['report']['verification_passed'] is False
                 if case['expected'] == 'completed':
                     assert (Path(result['workdir']) / 'answer.txt').read_text(encoding='utf-8') == 'mock result\n'
+                    if case['id'] == 'B02':
+                        assert (Path(result['workdir']) / 'second.txt').read_text(encoding='utf-8') == 'mock result\n'
+                else:
+                    assert not (Path(result['workdir']) / 'answer.txt').exists()
             if case['id'] == 'B03':
                 buf = io.StringIO()
                 args = d.build_parser().parse_args(['resume', '--task-id', 'd01-1', '--prompt', 'Update answer.txt'])
@@ -181,6 +219,10 @@ def dispatch_probe(case, home, env):
                 assert resumed['session_id'] == results[0]['session_id']
                 assert (Path(results[0]['workdir']) / 'answer.txt').read_text(encoding='utf-8') == 'mock resume\n'
                 results.append(resumed)
+            state = json.loads(d.STATE_FILE.read_text(encoding='utf-8'))['tasks']
+            assert len(state) == (2 if case['id'] in ('B04', 'B07') else 1)
+            assert all(t['status'] == case['expected'] and not t['network'] for t in state.values())
+            assert not (cwd / 'answer.txt').exists() and not (cwd / 'second.txt').exists()
             return sum((Path(x['run_dir']) / 'events.jsonl').stat().st_size for x in results)
 
 
@@ -207,8 +249,8 @@ def sample(case, harness, warm):
                     assert mock_run(case, cwd, env)[0] == 7
             else:
                 size = dispatch_probe(case, home, env)
-    except FileNotFoundError as exc:
-        status, detail = 'NOT_RUN', str(exc)
+    except (FileNotFoundError, ImportError) as exc:
+        status, detail = 'NOT_RUN', type(exc).__name__
     except Exception as exc:
         status, detail = 'FAIL', type(exc).__name__  # avoid leaking local paths/logs
     return dict(case=case['id'], status=status, detail=detail, latency_ms=round(latency if latency is not None else (time.perf_counter()-start)*1000, 3),
@@ -217,6 +259,8 @@ def sample(case, harness, warm):
 
 
 def main():
+    if not __debug__:
+        raise SystemExit('assertions required; do not use python -O')
     ap = argparse.ArgumentParser(); ap.add_argument('--harness-only', action='store_true'); ap.add_argument('--repeat', type=int, default=5); ap.add_argument('--output', type=Path, required=True)
     args = ap.parse_args()
     if not 1 <= args.repeat <= 100:
@@ -227,7 +271,7 @@ def main():
         for state in sorted({r['cache_state'] for r in rows if r['case']==c['id']}):
             group=[r for r in rows if r['case']==c['id'] and r['cache_state']==state]
             groups.append(dict(case=c['id'], cache_state=state, counts={s:sum(r['status']==s for r in group) for s in ('PASS','FAIL','NOT_RUN')}, latency=summarize([r['latency_ms'] for r in group if r['status']=='PASS'])))
-    result=dict(schema_version=1, mode='harness-only' if args.harness_only else 'upstream-mock', upstream_commit=SUITE['upstream_commit'], baseline_commit=SUITE['baseline_commit'], environment=dict(os=platform.system(), python=platform.python_version(), node='not probed', codex='mock only', antigravity='NOT_RUN'), repeat=args.repeat, samples=rows, groups=groups)
+    result=dict(schema_version=1, mode='harness-only' if args.harness_only else 'upstream-mock', upstream_commit=SUITE['upstream_commit'], baseline_commit=SUITE['baseline_commit'], checkout_commit=checkout_sha(), environment=dict(os=platform.system(), python=platform.python_version(), node='not probed', codex='mock only', antigravity='NOT_RUN'), repeat=args.repeat, samples=rows, groups=groups)
     args.output.parent.mkdir(parents=True,exist_ok=True); args.output.write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
     print(json.dumps(groups,indent=2))
     return 1 if any(r['status']!='PASS' for r in rows) else 0
