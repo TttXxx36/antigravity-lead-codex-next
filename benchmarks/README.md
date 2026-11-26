@@ -1,0 +1,12 @@
+# D01 — offline reproducible baseline
+
+Python 3.10+ and Git; Node 22 with node:sqlite and **already installed** console dependencies for MCP probes. Do not install dependencies or invoke paid models without authorization. Run from repository root with Python (on Windows use python.exe if needed). Do not use python -O: assertions are test checks.
+
+    python benchmarks/run_benchmark.py --harness-only --repeat 5 --output benchmarks/results/local-harness.json
+    python benchmarks/run_benchmark.py --repeat 5 --output benchmarks/results/local-baseline.json
+
+First command exercises the synthetic CLI and fixture generation only. It does not exercise upstream dispatch, MCP or actual parallel Worktree. B05/B06 harness-only are SQLite fixture sanity checks; B07 harness-only is a single CLI smoke check. Second command probes actual upstream dispatcher with subprocess boundary replaced by Python CLI double; B03 resumes the stored session; B04 runs two deliberate failures (not an automatic retry test); B07 creates two separate Worktrees; B05/B06 use actual MCP stdio with synthetic DB. B08 may fail on upstream native Windows (fcntl); retain the failure rather than patching business code. No real Codex invocation; no Gemini. All state and test repos live in disposable temp directories. No OS-level network sandbox is claimed; use a trusted checkout and local dependencies, with network disabled if available. No automatic installation.
+
+The suite fixes the reference commit but does not assert the actual checkout SHA; record git rev-parse HEAD alongside results before comparison. Use the same platform, version and task fixture for candidate comparisons; upstream-mock timing includes local setup for dispatcher, RPC-only timing for MCP. Cold/warm refers to first/repeated RPC in a fresh process, not model prompt cache. Payload bytes are JSONL for dispatcher and wire response bytes for MCP; do not compare them directly or convert bytes into precise model tokens. Missing usage is unknown/null. Zero real model calls is not a measurement of model usage. p95 uses nearest rank, and median/p95 are reported only for successful samples; failures and NOT_RUN counts are retained. Five repeats recommended, more for meaningful percentiles. A nonzero exit status means at least one failure or unavailable test; JSON is still written.
+
+Do not publish raw private prompts, database contents or logs. Store only sanitized results. The mock is not evidence of code quality, actual LLM token savings or Windows compatibility. See docs/BASELINE.md and docs/BENCHMARK.md.
