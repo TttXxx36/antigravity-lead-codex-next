@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Privacy & Hardcoded-Path Check
+        run: bash scripts/privacy-check.sh
+
+      - name: Syntax Check Shell & Python
+        run: |
+          bash -n scripts/install.sh
+          bash -n scripts/doctor.sh
+          bash -n scripts/package-release.sh
+          bash -n plugins/codex-console/bin/run-server.sh
+          python3 -m py_compile skills/multi-agent-dispatch/scripts/dispatch.py
+          python3 -m py_compile plugins/codex-auto-router/hooks/allow_dispatch.py
+
+      - name: Install & Build Codex Console UI
+        working-directory: plugins/codex-console
+        run: |
+          npm ci --no-audit --no-fund
+          node --check server/index.mjs
+          node --check server/codex-store.mjs
+          node --check server/console-db.mjs
+          node --check server/runner.mjs
+          npm run build:ui
+
+      - name: Run MCP Server & Console Tests
+        run: node --no-warnings tests/test-mcp-console.mjs
+
+      - name: Run Dispatcher & Hook Unit Tests
+        run: python3 -m unittest discover -s tests -p "test_*.py" -v

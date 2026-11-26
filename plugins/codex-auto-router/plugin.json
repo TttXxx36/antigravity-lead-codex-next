@@ -1,0 +1,7 @@
+{
+  "name": "codex-auto-router",
+  "displayName": "Codex Auto Router (Brain ↔ Hand Loop)",
+  "description": "Antigravity (Brain) ↔ Codex CLI (Hand) collaboration workflow plugin: Blackboard sync, isolated Git worktree dispatch with smart model routing, and human merge gate.",
+  "version": "1.0.2",
+  "repository": "https://github.com/Koala973/antigravity-lead-codex"
+}
