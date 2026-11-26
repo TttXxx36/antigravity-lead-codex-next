@@ -1,0 +1,102 @@
+{
+  "mode": "harness-only",
+  "baseline_commit": "77f9f9b95674ada26c8833b5057cebfb4ff70643",
+  "tool_commit": "fddfe4c85dbd862bb406dbb2af572e1d1d87f1f9",
+  "environment": {
+    "os": "Linux",
+    "python": "3.13.5",
+    "node": "22.16.0",
+    "git": "2.47.3"
+  },
+  "repeat": 2,
+  "pass": 16,
+  "fail": 0,
+  "not_run": 0,
+  "real_model_calls": 0,
+  "usage_source": "unknown",
+  "input_tokens": null,
+  "output_tokens": null,
+  "groups": [
+    {
+      "case": "B01",
+      "counts": {
+        "PASS": 2,
+        "FAIL": 0,
+        "NOT_RUN": 0
+      },
+      "median_ms": 1452.549,
+      "p95_ms": 1466.347
+    },
+    {
+      "case": "B02",
+      "counts": {
+        "PASS": 2,
+        "FAIL": 0,
+        "NOT_RUN": 0
+      },
+      "median_ms": 1152.609,
+      "p95_ms": 1190.286
+    },
+    {
+      "case": "B03",
+      "counts": {
+        "PASS": 2,
+        "FAIL": 0,
+        "NOT_RUN": 0
+      },
+      "median_ms": 2041.862,
+      "p95_ms": 2299.962
+    },
+    {
+      "case": "B04",
+      "counts": {
+        "PASS": 2,
+        "FAIL": 0,
+        "NOT_RUN": 0
+      },
+      "median_ms": 1965.072,
+      "p95_ms": 2054.912
+    },
+    {
+      "case": "B05",
+      "counts": {
+        "PASS": 2,
+        "FAIL": 0,
+        "NOT_RUN": 0
+      },
+      "median_ms": 29.349,
+      "p95_ms": 32.913
+    },
+    {
+      "case": "B06",
+      "counts": {
+        "PASS": 2,
+        "FAIL": 0,
+        "NOT_RUN": 0
+      },
+      "median_ms": 25.793,
+      "p95_ms": 26.837
+    },
+    {
+      "case": "B07",
+      "counts": {
+        "PASS": 2,
+        "FAIL": 0,
+        "NOT_RUN": 0
+      },
+      "median_ms": 1008.653,
+      "p95_ms": 1023.776
+    },
+    {
+      "case": "B08",
+      "counts": {
+        "PASS": 2,
+        "FAIL": 0,
+        "NOT_RUN": 0
+      },
+      "median_ms": 1026.914,
+      "p95_ms": 1038.26
+    }
+  ],
+  "limitations": "Tool smoke only; no upstream source, real MCP, Worktree concurrency or three-platform tests. Not a source baseline."
+}
