@@ -1,0 +1,47 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "summary",
+    "files_modified",
+    "commands_run",
+    "verification_passed",
+    "risks_or_followups",
+    "notes_for_orchestrator"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["completed", "partial", "blocked", "failed"],
+      "description": "Outcome of the delegated single-turn worker task."
+    },
+    "summary": {
+      "type": "string",
+      "description": "Concise summary (at most 5 sentences) of what was implemented and verified."
+    },
+    "files_modified": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Relative paths of files created, updated, or deleted."
+    },
+    "commands_run": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Key build, lint, or test commands executed and their brief outcome."
+    },
+    "verification_passed": {
+      "type": "boolean",
+      "description": "Whether the required verification checks succeeded."
+    },
+    "risks_or_followups": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Remaining edge cases, skipped checks, or follow-up items for the orchestrator."
+    },
+    "notes_for_orchestrator": {
+      "type": "string",
+      "description": "Any essential context Antigravity needs to decide merge or rework."
+    }
+  }
+}
