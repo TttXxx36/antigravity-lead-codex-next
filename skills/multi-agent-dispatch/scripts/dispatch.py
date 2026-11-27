@@ -1446,7 +1446,8 @@ def parse_codex_events(events_text: str) -> dict[str, Any]:
             usage = ev["usage"]
 
         if ev_type in ("error", "turn.failed"):
-            msg = ev.get("message") or (ev.get("error") or {}).get("message")
+            detail = ev.get("error")
+            msg = ev.get("message") or (detail.get("message") if isinstance(detail, dict) else None)
             if isinstance(msg, str) and msg.strip():
                 errors.append(msg.strip())
 
@@ -1567,6 +1568,8 @@ def validate_resume_binding(record: dict[str, Any], args: argparse.Namespace) ->
         raise ValueError("D06: resume sandbox escalation denied")
     if record.get("status") in ("reserved", "running", "interrupted"):
         raise ValueError("D06: incomplete task cannot be resumed")
+    if record.get("stream_events") is True and record.get("stream_integrity") != "complete":
+        raise ValueError("D14: incomplete stream requires reconciliation; no resume")
 
 
 def build_codex_exec_cmd(
@@ -1814,7 +1817,17 @@ def streamed_subprocess(cmd, *, cwd, stdin_text, timeout, run_dir, task_id, turn
             raise ValueError("line_limit")
         if not raw.strip():
             return
-        value = json.loads(raw.decode("utf-8", errors="strict"))
+        def unique(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_key")
+                result[key] = value
+            return result
+        def reject_constant(_):
+            raise ValueError("nonfinite_number")
+        value = json.loads(raw.decode("utf-8", errors="strict"),
+                           object_pairs_hook=unique, parse_constant=reject_constant)
         if not isinstance(value, dict):
             raise ValueError("invalid_jsonl")
         lines += 1
@@ -1890,7 +1903,7 @@ def streamed_subprocess(cmd, *, cwd, stdin_text, timeout, run_dir, task_id, turn
                 if now-last_publish >= 1 or (totals != last_counts and now-last_publish >= .25):
                     journal.emit("progress" if totals != last_counts else "heartbeat", *totals, lines)
                     last_publish, last_counts = now, totals
-                if len(eof)==2 and proc.poll() is not None and not threads[2].is_alive():
+                if len(eof)==2 and proc.poll() is not None and not threads[2].is_alive() and chunks.empty():
                     if line:
                         try:
                             parse_line(line)
@@ -1931,10 +1944,26 @@ def streamed_subprocess(cmd, *, cwd, stdin_text, timeout, run_dir, task_id, turn
         return proc.returncode, output.decode("utf-8"), errors.decode("utf-8", "replace"), False
 
 
+def mark_stream_interrupted(task_id, turn_id):
+    # A failure between process launch and durable settlement cannot reopen the
+    # task or claim zero use. Retain the active turn for forensic reconciliation.
+    with locked_state() as state:
+        record = state["tasks"].get(task_id)
+        if not record or record.get("status") != "running" or record.get("active_turn_id") != turn_id:
+            raise StateIntegrityError("D14: stream reservation changed")
+        store = record.get("usage_store", new_usage_store(prior_unknown=True))
+        record.update(status="interrupted", stream_integrity="incomplete",
+                      usage_store={**store, "prior_unknown": True}, updated_at=utc_now())
+
+
 def invoke_worker(cmd, *, cwd, stdin_text, timeout, run_dir, task_id, turn_id=None, stream_events=False):
     if stream_events:
-        return streamed_subprocess(cmd, cwd=cwd, stdin_text=stdin_text, timeout=timeout,
-                                   run_dir=run_dir, task_id=task_id, turn_id=turn_id)
+        try:
+            return streamed_subprocess(cmd, cwd=cwd, stdin_text=stdin_text, timeout=timeout,
+                                       run_dir=run_dir, task_id=task_id, turn_id=turn_id)
+        except BaseException:
+            mark_stream_interrupted(task_id, turn_id)
+            raise
     rc, out, err, timed_out = run_subprocess_with_timeout(cmd, cwd=cwd, stdin_text=stdin_text, timeout=timeout)
     (run_dir / "events.jsonl").write_text(out, encoding="utf-8")
     (run_dir / "stderr.log").write_text(err, encoding="utf-8")
@@ -2090,7 +2119,12 @@ def execute_single_task(
         rc,
         event_errors=parsed_events["errors"], protocol_v2=protocol_v2,
     )
-    session_id = context_session(stdout_text,None,False) if board is not None else parsed_events["session_id"]
+    try:
+        session_id = context_session(stdout_text,None,False) if board is not None else parsed_events["session_id"]
+    except (ValueError, StateIntegrityError):
+        if stream_events:
+            mark_stream_interrupted(tid, None)
+        raise
     sample=invocation_usage("" if stream_events and rc != 0 else stdout_text)
     usage={k:v for k,v in sample["counts"].items() if v is not None} or None
     store=finish_usage(store,sample,duration_ms,"initial")
@@ -2125,6 +2159,7 @@ def execute_single_task(
         "run_dir": str(run_dir),
         **protocol_meta(envelope),
         "budget":limits,"usage_store":store,"budget_route":use_budget_route,"stream_events":stream_events,
+        **({"stream_integrity": "incomplete" if rc in (124,125,127) else "complete"} if stream_events else {}),
     }
 
     result = {
@@ -2715,7 +2750,12 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         rc,
         event_errors=parsed_events["errors"], protocol_v2=args.protocol_v2,
     )
-    new_session_id = context_session(stdout_text,session_id,args.rebuild_context) if board is not None else (parsed_events["session_id"] or session_id)
+    try:
+        new_session_id = context_session(stdout_text,session_id,args.rebuild_context) if board is not None else (parsed_events["session_id"] or session_id)
+    except (ValueError, StateIntegrityError):
+        if stream_events:
+            mark_stream_interrupted(resume_tid, turn_id)
+        raise
     sample=invocation_usage("" if stream_events and rc != 0 else stdout_text)
     usage={k:v for k,v in sample["counts"].items() if v is not None} or None
     store=finish_usage(store,sample,duration_ms,turn_id)
@@ -2762,6 +2802,8 @@ def _cmd_resume(args: argparse.Namespace) -> int:
             current.update(context_state_fields(board))
         else:
             context_protect_legacy_session(state,resume_tid,new_session_id)
+        if stream_events:
+            current["stream_integrity"] = "incomplete" if rc in (124,125,127) else "complete"
         current.pop("active_turn_id", None)
     print(json.dumps(result.get("protocol_result",result), ensure_ascii=False, separators=(",",":") if envelope else None, indent=None if envelope else 2))
     return task_exit_code(result)
