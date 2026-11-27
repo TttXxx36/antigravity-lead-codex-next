@@ -40,3 +40,7 @@
 | ENV-07 | D01/D02/PR #4 未获合并许可 | 保持 Draft；按依赖验收，不强推 |
 
 见 [CI 证据](evidence/CI-RUNS.md)、[剩余路线](REMAINING_WORK.md)。缺陷关闭要求对应修复 commit、反向断言、三平台结果及人工验收；仅有候选不能标 CLOSED。
+
+## D03 当前候选
+
+RISK-01：已实现明确的运行时解析、统一配置路径、PATH 分隔符和 UTF-8；候选测试待 CI。BUG-004：复用 PR #4 基本锁作为 Windows 导入前置，D04 尚需完成数据完整性及竞争回归。BUG-005：原生 Node 测试入口复用，实际安装/宿主未验证。BUG-001/002/003 OPEN。

@@ -3,7 +3,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-const CODEX_HOME = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
+import { runtimePaths } from './platform.mjs';
+
+const CODEX_HOME = runtimePaths().codexHome;
 const CACHE_TTL_MS = 60_000;
 
 function formatWindowMeta(windowMins) {

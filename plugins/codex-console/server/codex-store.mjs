@@ -3,10 +3,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-const CODEX_HOME = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
-const DISPATCH_STATE_DIR =
-  process.env.AGY_DISPATCH_STATE_DIR ||
-  path.join(os.homedir(), '.local', 'state', 'multi-agent-dispatch');
+import { runtimePaths } from './platform.mjs';
+
+const { codexHome: CODEX_HOME, dispatchStateDir: DISPATCH_STATE_DIR } = runtimePaths();
 
 function withReadOnlyDb(dbFile, fn, fallback) {
   if (!fs.existsSync(dbFile)) return fallback;
@@ -87,6 +86,7 @@ function unwrapStructuredReply(rawText) {
 
 function parseWorktreeLabel(cwd) {
   if (!cwd) return null;
+  cwd = cwd.replaceAll('\\', '/');
   // Pattern 1: ~/.local/state/multi-agent-dispatch/worktrees/<repo>/<task>
   let m = cwd.match(/\/worktrees\/([^/]+)\/([^/]+)$/);
   if (m) return `${m[1]}/${m[2]}`;

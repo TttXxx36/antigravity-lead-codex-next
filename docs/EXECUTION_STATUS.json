@@ -107,15 +107,21 @@
         "D01",
         "D02"
       ],
-      "status": "PROPOSED",
-      "evidence": "PR #4 有候选 UTF-8/PATH 修复",
-      "next": "统一环境变量、exe 探测、路径校验、中文/空格/长路径测试",
+      "status": "IN_PROGRESS",
+      "evidence": "D03 platform adapters and native smoke; CI pending",
+      "next": "Three-platform smoke and human acceptance",
       "branch": "dev/d03",
-      "approval": null,
+      "approval": "2026-11-27 user approved A for D03–D22, dependency order and Actions",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D03 platform smoke",
+          "status": "NOT_RUN",
+          "ref": "pending Actions"
+        }
+      ]
     },
     {
       "id": "D04",

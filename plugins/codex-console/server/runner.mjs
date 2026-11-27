@@ -3,18 +3,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { runtimePaths, resolveExecutable, buildRuntimeEnv, normalizePath } from './platform.mjs';
 
 const execFileAsync = promisify(execFile);
 
-const DISPATCH_SCRIPT = path.join(
-  os.homedir(),
-  '.gemini',
-  'config',
-  'skills',
-  'multi-agent-dispatch',
-  'scripts',
-  'dispatch.py'
-);
+const DISPATCH_SCRIPT = path.join(runtimePaths().geminiConfigDir, 'skills', 'multi-agent-dispatch', 'scripts', 'dispatch.py');
 
 export const DIAGNOSE_BLOCKER_PROMPT =
   '请基于当前完整上下文和 Goal 目标，用 3~5 条要点精炼说明：' +
@@ -23,70 +16,16 @@ export const DIAGNOSE_BLOCKER_PROMPT =
   '3) 需要用户或主控做出的下一步最小决策/动作是什么。' +
   '请严格保持只读，不要修改任何文件或执行写操作。';
 
-function isExecutable(p) {
-  if (!p) return false;
-  try {
-    fs.accessSync(p, fs.constants.X_OK);
-    return fs.statSync(p).isFile();
-  } catch {
-    return false;
-  }
-}
-
-export function resolveCodexBin() {
-  const candidates = [
-    process.env.CODEX_BIN,
-    '/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex',
-    path.join(os.homedir(), '.local', 'bin', 'codex'),
-    path.join(os.homedir(), '.npm-global', 'bin', 'codex'),
-    path.join(os.homedir(), '.volta', 'bin', 'codex'),
-    '/opt/homebrew/bin/codex',
-    '/usr/local/bin/codex',
-  ];
-  for (const c of candidates) {
-    if (isExecutable(c)) return c;
-  }
-  return 'codex';
-}
-
-export function resolvePythonBin() {
-  const candidates = [
-    process.env.PYTHON_BIN,
-    path.join(os.homedir(), '.local', 'bin', 'python3'),
-    '/opt/homebrew/bin/python3',
-    '/usr/local/bin/python3',
-    '/usr/bin/python3',
-  ];
-  for (const c of candidates) {
-    if (isExecutable(c)) return c;
-  }
-  return 'python3';
-}
-
-export function buildExecEnv() {
-  const extraPaths = [
-    path.join(os.homedir(), '.local', 'bin'),
-    path.join(os.homedir(), '.npm-global', 'bin'),
-    path.join(os.homedir(), '.volta', 'bin'),
-    '/opt/homebrew/bin',
-    '/usr/local/bin',
-  ];
-  const curPath = process.env.PATH || '';
-  return {
-    ...process.env,
-    PATH: `${extraPaths.join(':')}:${curPath}`,
-  };
-}
+export function resolveCodexBin() { return resolveExecutable('codex'); }
+export function resolvePythonBin() { return resolveExecutable('python'); }
+export function buildExecEnv() { return buildRuntimeEnv(); }
 
 function safeCwd(cwd) {
-  if (cwd && fs.existsSync(cwd)) {
-    try {
-      if (fs.statSync(cwd).isDirectory()) return cwd;
-    } catch {
-      // fallback
-    }
+  const resolved = normalizePath(cwd || os.homedir());
+  if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
+    throw new Error('Invalid working directory: ' + resolved);
   }
-  return os.homedir();
+  return resolved;
 }
 
 export class CodexRunner {
@@ -94,11 +33,15 @@ export class CodexRunner {
     this.consoleDb = consoleDb;
     this.codexBin = resolveCodexBin();
     this.pythonBin = resolvePythonBin();
+    this.gitBin = resolveExecutable('git');
   }
 
   getRuntimeInfo() {
     return {
       codexBin: this.codexBin,
+      pythonBin: this.pythonBin,
+      gitBin: this.gitBin,
+      runtimeErrors: [['Codex', this.codexBin], ['Python', this.pythonBin], ['Git', this.gitBin]].filter(([, bin]) => !bin).map(([name]) => name + ' executable not found or invalid override'),
       dispatchAvailable: fs.existsSync(DISPATCH_SCRIPT),
       dispatchScript: DISPATCH_SCRIPT,
     };
@@ -108,6 +51,7 @@ export class CodexRunner {
    * Non-destructive read-only question / blocker diagnosis via `codex exec fork --ephemeral`
    */
   startReadonlyAsk({ threadId, prompt, cwd, opType = 'readonly_ask' }) {
+    if (!this.codexBin) throw new Error('Codex executable not found; set CODEX_BIN to a native executable');
     const actualPrompt = (prompt || '').trim() || DIAGNOSE_BLOCKER_PROMPT;
     const op = this.consoleDb.createOp({
       threadId,
@@ -226,6 +170,9 @@ export class CodexRunner {
       });
     }
 
+    if (mode === 'dispatch_resume' && taskId && fs.existsSync(DISPATCH_SCRIPT)) {
+      if (!this.pythonBin) throw new Error('Python executable not found; set PYTHON_BIN');
+    } else if (!this.codexBin) throw new Error('Codex executable not found; set CODEX_BIN');
     const dedupKey = this.consoleDb.makeDedupKey(threadId, mode, cleanMsg);
     if (!allowDuplicate) {
       const dup = this.consoleDb.findRecentDuplicate(dedupKey, 60_000);
@@ -384,7 +331,9 @@ export class CodexRunner {
     changeKey = '',
     goalTitle = '',
   }) {
-    const cleanCwd = (cwd || '').trim();
+    if (!this.pythonBin) throw new Error('Python executable not found; set PYTHON_BIN');
+    if (!this.codexBin) throw new Error('Codex executable not found; set CODEX_BIN');
+    const cleanCwd = cwd ? safeCwd(cwd) : '';
     const cleanPrompt = (prompt || '').trim();
     if (!cleanCwd || !fs.existsSync(cleanCwd)) {
       throw new Error(`目标工作目录不存在: ${cleanCwd || '(空)'}`);
@@ -501,10 +450,11 @@ export class CodexRunner {
     const blackboardPath = path.join(cwd, 'docs', 'BLACKBOARD.md');
     const hasBlackboard = fs.existsSync(blackboardPath);
     try {
+      if (!this.gitBin) throw new Error('Git executable not found; set GIT_BIN');
       const [{ stdout: branch }, { stdout: status }, { stdout: diffStat }] = await Promise.all([
-        execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, timeout: 5000 }),
-        execFileAsync('git', ['status', '--short'], { cwd, timeout: 5000 }),
-        execFileAsync('git', ['diff', '--stat'], { cwd, timeout: 5000 }),
+        execFileAsync(this.gitBin, ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, timeout: 5000 }),
+        execFileAsync(this.gitBin, ['status', '--short'], { cwd, timeout: 5000 }),
+        execFileAsync(this.gitBin, ['diff', '--stat'], { cwd, timeout: 5000 }),
       ]);
       const files = status
         .split('\n')
