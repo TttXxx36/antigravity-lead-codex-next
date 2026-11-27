@@ -651,9 +651,9 @@
         "D15",
         "D17"
       ],
-      "status": "IN_PROGRESS",
-      "evidence": "Initial D18 nine-test orchestration step passed on all four platforms; added native MCP read-only receipt integration and early repeated-failure retry rejection; latest CI pending",
-      "next": "Verify exact updated head, including real Python CLI status through native MCP and all cumulative jobs",
+      "status": "BLOCKED",
+      "evidence": "Exact-head 4-platform cumulative PASS; 36/36 state-machine tests and native MCP receipts",
+      "next": "D19 candidate may proceed; trusted host/reconciliation and dependencies formal acceptance blocked",
       "branch": "dev/d18",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no real model, permission or merge grant",
       "pr": 20,
@@ -661,11 +661,23 @@
       "merged": false,
       "checks": [
         {
-          "name": "D18 deterministic orchestration and cumulative CI",
-          "status": "NOT_RUN",
-          "ref": "Latest candidate CI pending"
+          "name": "D18 exact-head orchestration and cumulative CI",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45985424111",
+          "tested_commit": "fbd1dbc29cedf1c2d1900151dba11b8827f41788"
+        },
+        {
+          "name": "Trusted host acceptance and actual recovery",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D18-orchestration.md"
         }
-      ]
+      ],
+      "candidate": {
+        "ready": true,
+        "tested_commit": "fbd1dbc29cedf1c2d1900151dba11b8827f41788",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45985424111",
+        "limitations": "Mock subprocesses, real local Git/SQLite and MCP; trusted host acceptance/completed, actual host crash recovery and active cancellation unverified. No automatic merge."
+      }
     },
     {
       "id": "D19",
