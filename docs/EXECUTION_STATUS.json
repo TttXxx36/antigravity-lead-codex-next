@@ -768,21 +768,33 @@
         "D19",
         "D20"
       ],
-      "status": "IN_PROGRESS",
-      "evidence": "Paired native MCP synthetic display benchmark and evidence checks implemented; CI pending",
-      "next": "Run paired measurements on all four environments and record quality, bytes, deviations and unknown tokens",
+      "status": "BLOCKED",
+      "evidence": "Exact-head four-platform cumulative PASS; 24/24 summary tests, 48/48 paired batches and 240/240 polls; communication and latency measured, real tokens unknown",
+      "next": "D22 offline release preparation may proceed; real task quality, actual Token measurements and formal dependencies remain blocked",
       "branch": "dev/d21",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no real model, permission or release grant",
-      "pr": null,
+      "pr": 23,
       "accepted": false,
       "merged": false,
       "checks": [
         {
-          "name": "D21 paired benchmark and cumulative CI",
-          "status": "NOT_RUN",
-          "ref": "Latest candidate CI pending"
+          "name": "D21 paired native MCP benchmark and cumulative CI",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45999409240",
+          "tested_commit": "c1bff452b8718c759820ae919aa05c1c6246811b"
+        },
+        {
+          "name": "Actual paired model quality, Token and host acceptance",
+          "status": "BLOCKED",
+          "ref": "docs/RESULTS.md"
         }
-      ]
+      ],
+      "candidate": {
+        "ready": true,
+        "tested_commit": "c1bff452b8718c759820ae919aa05c1c6246811b",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45999409240",
+        "limitations": "Same-checkout native MCP synthetic polling comparison only; no historical model workload, actual Codex/Gemini usage, real task quality or production P0 verification. No model calls or release."
+      }
     },
     {
       "id": "D22",
