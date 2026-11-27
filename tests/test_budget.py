@@ -25,6 +25,18 @@ class BudgetTests(unittest.TestCase):
         self.assertIsNone(d.invocation_usage(self.event(dict(input_tokens=True,output_tokens=-1)))["counts"]["input_tokens"])
         self.assertIsNone(d.invocation_usage(self.event(dict(input_tokens=10,output_tokens=5,total_tokens=True)))["counts"]["total_tokens"])
         self.assertIsNone(d.invocation_usage(a+"\n"+json.dumps({"type":"turn.failed"}))["counts"]["total_tokens"])
+    def test_malformed_stream_and_unverifiable_total_fail_closed(self):
+        a=self.event(dict(input_tokens=10,output_tokens=5))
+        for bad in ("{broken","[]",'{"type":"turn.completed","usage":{"input_tokens":1,"input_tokens":2}}','{"value":NaN}'):
+            with self.subTest(bad=bad):
+                sample=d.invocation_usage(a+"\n"+bad)
+                self.assertIsNone(sample["counts"]["total_tokens"])
+                s=d.finish_usage(d.new_usage_store(),sample,10,"initial")
+                with self.assertRaises(ValueError):
+                    d.budget_timeout(d.make_budget(max_tokens=100),s,60)
+        self.assertIsNone(d.invocation_usage(self.event(dict(total_tokens=15)))["counts"]["total_tokens"])
+        self.assertEqual(d.invocation_usage(a+"\n\n")["counts"]["total_tokens"],15)
+
     def test_unknown_not_zero_and_no_double_settle(self):
         s=d.finish_usage(d.new_usage_store(),d.invocation_usage(self.event(dict(input_tokens=0,output_tokens=0))),10,"initial")
         self.assertEqual(d.usage_summary(s)["counts"]["total_tokens"],0)

@@ -1254,12 +1254,25 @@ def usage_int(v):
 def invocation_usage(events: str) -> dict[str,Any]:
     samples=[]
     invalid=False
+    def unique_keys(pairs):
+        out={}
+        for key,value in pairs:
+            if key in out:
+                raise ValueError("Duplicate JSONL key")
+            out[key]=value
+        return out
+    def reject_constant(_):
+        raise ValueError("Non-finite JSONL value")
     for line in events.splitlines():
+        if not line.strip():
+            continue
         try:
-            ev=json.loads(line)
+            ev=json.loads(line,object_pairs_hook=unique_keys,parse_constant=reject_constant)
         except (ValueError,RecursionError):
+            invalid=True
             continue
         if not isinstance(ev,dict):
+            invalid=True
             continue
         if ev.get("type") in ("error","turn.failed"):
             invalid=True
@@ -1296,6 +1309,9 @@ def invocation_usage(events: str) -> dict[str,Any]:
             counts["total_tokens"]=None
         else: # derived from observed fields, no estimate
             counts["total_tokens"]=derived
+    else:
+        # A total without both components has not established compatible semantics.
+        counts["total_tokens"]=None
     return {"source":"cli_reported" if any(v is not None for v in counts.values()) else "unknown",
             "counts":counts,"actual_model":model,"gemini_source":"unknown","gemini_tokens":None}
 
