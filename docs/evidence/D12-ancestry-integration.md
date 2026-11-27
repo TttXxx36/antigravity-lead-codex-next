@@ -1,0 +1,2 @@
+# D12 candidate ancestry integration
+2026-11-27: integrate D11 9605ad5263b2ff65e1cc53010dfedbbbe621e3c3 / Run 46010170648 completed/success; four actual checkout logs confirmed, context blackboard, cleanup denial and cumulative regressions pass. Preserve D12 usage telemetry/budget/cache implementation; D12 dispatch cleanup denial function and execution-policy test already equal D11 verified fix, while D11 MCP description metadata is carried forward. D12 candidate requires exact-head CI. No formal merge; provider/model/host gates unchanged.

@@ -1,0 +1,2 @@
+# D16 formal acceptance safety integration
+2026-11-27: Synchronize only verified D06 BUG-007 cleanup denial and regression from b9c3fe4df5636aa32bac3ee673e9a0ca5839ddeb / Run 46004369900 (4/4 success). Existing EPERM correction and regression retained, no D16 cache changes. Plain/force/delete-branch denied before state/Git access. Historical evidence retained; current candidate.ready=false until exact-head CI. No formal merge or permission change; reconcile stack ancestry before formal acceptance.
