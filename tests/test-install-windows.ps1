@@ -25,6 +25,23 @@ try {
       NodeBin=(Get-Command node.exe -CommandType Application | Select-Object -First 1).Source;
       PythonBin=(Get-Command python.exe -CommandType Application | Select-Object -First 1).Source;
       GitBin=(Get-Command git.exe -CommandType Application | Select-Object -First 1).Source;CodexBin=$mock}
+    # Verify actual disposable SQLite files, not just sentinel text.
+    $dbProbe=Join-Path $root 'db-probe.mjs'
+    [IO.File]::WriteAllText($dbProbe, @'
+import {DatabaseSync} from 'node:sqlite';
+const [mode,...files]=process.argv.slice(2);
+for(const file of files){
+ const db=new DatabaseSync(file,{readOnly:mode==='check'});
+ try {
+  if(mode==='create'){db.exec("CREATE TABLE sentinel(value TEXT); INSERT INTO sentinel VALUES ('keep');");}
+  else if(db.prepare("SELECT value FROM sentinel").get()?.value!=='keep')throw new Error('SQLite fixture changed');
+ } finally{db.close();}
+}
+'@)
+    $dbs=@((Join-Path $data 'console.sqlite'),(Join-Path $codexHome 'state_5.sqlite'))
+    & $params.NodeBin --no-warnings $dbProbe create @dbs
+    Check ($LASTEXITCODE -eq 0) 'SQLite fixture setup failed'
+    $hashes=@($dbs | ForEach-Object { (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash })
     $first=& $install @params -Mode All
     $console=Join-Path $config 'plugins\codex-console'
     Check (Test-Path -LiteralPath (Join-Path $console 'mcp_config.json')) 'Install missing config'
@@ -61,6 +78,9 @@ try {
     Check ($onlyDoctor.Status -eq 'PASS') 'ConsoleOnly diagnostic failed'
     & $install @consoleOnlyParams -Mode Uninstall | Out-Null
     foreach($dir in @($data,$state,$codexHome)){Check ((Get-Content -LiteralPath (Join-Path $dir 'sentinel.txt') -Raw) -eq 'keep') 'ConsoleOnly changed persistent data'}
+    & $params.NodeBin --no-warnings $dbProbe check @dbs
+    Check ($LASTEXITCODE -eq 0) 'SQLite fixture not readable'
+    for($i=0;$i -lt $dbs.Count;$i++){Check ((Get-FileHash -LiteralPath $dbs[$i] -Algorithm SHA256).Hash -eq $hashes[$i]) 'SQLite fixture bytes changed'}
     # Fault-inject the second staged move, exercising real first move, backup and rollback.
     $synthetic=Join-Path $root 'rollback-config';$txn=Join-Path $synthetic '.alc-backups\test'
     $one=Join-Path $synthetic 'one';$two=Join-Path $synthetic 'two'
@@ -76,7 +96,7 @@ try {
     Check ((Get-Content -LiteralPath (Join-Path $one 'old.txt') -Raw) -eq 'one') 'First old component not restored'
     Check ((Get-Content -LiteralPath (Join-Path $two 'old.txt') -Raw) -eq 'two') 'Second old component not restored'
     Check ((Get-Content -LiteralPath (Join-Path $txn 'journal.json') -Raw | ConvertFrom-Json).status -eq 'rolled_back') 'Rollback journal incorrect'
-    Write-Host 'PASS: install, upgrade, restore, uninstall, reinstall, native MCP initialize, missing dependency, injected rollback, persistent data, Unicode paths, console-only lifecycle'
+    Write-Host 'PASS: install, upgrade, restore, uninstall, reinstall, native MCP initialize, missing dependency, injected rollback, persistent data, Unicode paths, console-only lifecycle, SQLite bytes preserved'
 } finally {
     # Disposable test fixture only.
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction Stop

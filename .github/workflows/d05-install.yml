@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest, windows-11-arm, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -30,6 +30,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify Windows 11 desktop runner identity
+        if: matrix.os == 'windows-11-arm'
+        shell: pwsh
+        run: |
+          $os = Get-CimInstance Win32_OperatingSystem
+          $os | Select-Object Caption,Version,BuildNumber,ProductType,OSArchitecture | ConvertTo-Json -Compress
+          if ($os.ProductType -ne 1 -or [int]$os.BuildNumber -lt 22000 -or $os.Caption -notmatch 'Windows 11') { throw 'Not Windows 11 desktop' }
+          node -p "JSON.stringify({platform:process.platform,arch:process.arch,node:process.version})"
+          python -c "import platform,sys; print(platform.machine(),sys.version)"
+          git rev-parse HEAD
       - name: State and platform Python regression
         run: python -m unittest discover -s tests -p test_state*.py -v
       - name: Platform Python regression

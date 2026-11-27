@@ -22,3 +22,6 @@
 | No actual model test / permissions unchanged | NOT_RUN | |
 
 记录真实版本、SHA、实际结果、已知限制、备份/回滚路径（可脱敏）。可将报告提交 PR #7 评论或提供给开发代理；只有必需证据完整且精确 head 的 Actions 通过才按既有条件授权合并。D06 之后依赖 D05 DONE，不重复请求已获合并许可。
+
+## 托管 Windows 11 补测（新增）
+GitHub 官方公共仓库 runner [windows-11-arm](https://docs.github.com/en/actions/reference/runners/github-hosted-runners) 提供 Windows 11 ARM64 VM；新增到 D05 矩阵并验证 ProductType=1、Windows 11 Caption 和 BuildNumber >=22000。实际原生安装生命周期、合成 SQLite 文件 SHA256 与内容、MCP stdio 均需通过。此方式验证 Windows 11 OS，仍不代表 x64 桌面或实际登录的 Antigravity 宿主成功；两者分开记录。禁止在公共 runner 注入账号或 token。
