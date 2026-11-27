@@ -1,0 +1,56 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "status",
+    "summary",
+    "risks",
+    "blockers",
+    "verification_claim"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "enum": [
+        2
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "partial",
+        "blocked",
+        "failed"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "description": "At most 320 characters; concise result."
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "At most four risks, 120 characters each."
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "At most three blockers, 120 characters each; none when completed."
+    },
+    "verification_claim": {
+      "type": "string",
+      "enum": [
+        "passed",
+        "failed",
+        "not_run",
+        "unknown"
+      ]
+    }
+  }
+}

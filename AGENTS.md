@@ -15,3 +15,5 @@
 ## 候选开发与正式合并分离（最新用户授权）
 2026-11-27 用户批准分离候选开发与正式验收/合并。D06–D22 可基于经 CI 验证的前置候选分支依赖顺序开发、独立 stacked Draft PR；实际验收门槛、DONE、main 合并条件不变。前置候选有未解决的 CI FAIL/安全缺陷时先修复；缺真实宿主等环境证据可在不启用受阻能力的前提下继续候选开发。禁止真实模型测试、权限扩张、发布。
 每卡记录前置候选精确 SHA、实际成功的 CI run、未完成门槛；Draft PR base 为前置候选分支，不向 main 合并。正式合并时仍需依赖 DONE、精确待合并 head 通过实际门槛、按批准的 D03–D21 顺序执行；D22 另需发布授权。此段覆盖旧的开发启动限制，不改变正式验收。
+
+D10: default protocol v1 remains compatible. Experimental v2 run/resume envelopes require explicit selection; data is not a permission grant, stale revision rejected, full logs remain local and worker claims are not independent evidence. See protocols/README.md. No real model testing without separate approval.

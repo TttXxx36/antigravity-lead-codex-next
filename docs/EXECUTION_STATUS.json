@@ -337,15 +337,21 @@
       "depends": [
         "D09"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "版本化 task/result/delta、字段预算、程序证据、拒绝乱序",
+      "status": "IN_PROGRESS",
+      "evidence": "D10 v2 protocol candidate; CI pending",
+      "next": "CI then actual model structured-output/host acceptance remains separately gated",
       "branch": "dev/d10",
-      "approval": null,
+      "approval": "2026-11-27 user authorized A candidate development",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D10 protocol and cumulative regression",
+          "status": "NOT_RUN",
+          "ref": "pending CI"
+        }
+      ]
     },
     {
       "id": "D11",
