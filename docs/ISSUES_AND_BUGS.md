@@ -138,3 +138,24 @@ D13 MCP follow-up: opt-in requestId/retryOf with v2 envelope, durable unique key
 
 ## 2026-11-27 D13 final candidate evidence
 [Run 45971644956](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45971644956) completed/success, exact head `b61c1cddb9c1b67b3ebd1bfe7b7b1548b0729081`, PR #15 Draft, base dev/d12. Actual checkout logs verified on all four jobs: macOS ARM64 140413301471, Windows Server x64 140413301959, Windows 11 ARM64 140413301965, Ubuntu 140413302084. Each ran `python -m unittest discover -s tests -p test_request_gate.py -v` 6/6 OK and `node --no-warnings --test tests/test-request-db.mjs` 4/4 PASS (40/40 combined), cumulative steps including governance and native MCP/installation all successful. Windows 11 Enterprise build 26200 ProductType=1 ARM64. Run 45971488857 exposed SQLITE_BUSY on macOS, Ubuntu and Windows Server; fixed by busy handler before WAL and bounded retry, not by weakening tests. Earlier cancelled/superseded runs are not acceptance evidence. D13 candidate ready, formal BLOCKED: actual host, trusted approval, risk review, power loss and cross-store reconciliation remain unverified; conservative Git progress and legacy scope limitations remain. No real model or release; no merge. D14 may proceed under candidate authorization. Evidence-only commit requires recheck.
+
+
+
+## 2026-11-27 formal acceptance security review
+Static review of exact D06 head 39cc294bba80c5d563df21b4b329a2646293e017 found a plain cleanup path calling remove_worktree and setting cleaned without trusted authorization (only force/delete-branch and reserved state rejected). BUG-007 proposed P1; potential worktree removal during active/unaccepted task, not a reproduced data loss. Correction rejects all D06 cleanup before state access or Git mutation, and regression checks plain/force/delete-branch denial. D17+ cumulative cleanup already preview-only; intermediate D07–D16 need safe integration before formal acceptance. MCP descriptions now accurately describe denied unmanaged queue/resume and local quota only; tool identifiers/schema preserved. No actual deletion, model calls, permission expansion or host grants. New exact-head tests NOT_RUN until CI; candidate.ready=false, formal BLOCKED. D05 real environment still missing. Trusted scoped grants and actual OS sandbox remain unimplemented/unverified respectively.
+
+
+## Formal acceptance round 3: BUG-007 candidate evidence
+[Run 46004369900](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004369900) four environments success, exact checkout b9c3fe4df5636aa32bac3ee673e9a0ca5839ddeb directly checked in all logs. Jobs ARM64 140523698666, Windows x64 140523698892, macOS 140523699016, Ubuntu 140523699106. Five execution-policy tests per job PASS (20/20), including plain/force/delete-branch cleanup denial before state/Git access; five dispatch/hook and 18 governance tests per job PASS. BUG-007 candidate fix verified, not formally closed. No real host or model or data deletion. D07–D16 must integrate; D17+ preview-only implementation remains. Formal D06 BLOCKED. Evidence-only head requires recheck.
+
+
+# D10 candidate ancestry integration
+2026-11-27: integrate D09 candidate 61ed00c712fc0d5bf9a7f24eb5e4aed7f98fbb78 / Run 46006153189 completed/success. Four checkout logs and cleanup denial assertions confirmed. Existing D10 cleanup function and test blob equal D09; D10 protocol code retained. Carry parent history/evidence and MCP metadata correction forward, no main merge. Current exact-head CI required; real models, host and dependencies remain BLOCKED.
+
+
+# D12 candidate ancestry integration
+2026-11-27: integrate D11 9605ad5263b2ff65e1cc53010dfedbbbe621e3c3 / Run 46010170648 completed/success; four actual checkout logs confirmed, context blackboard, cleanup denial and cumulative regressions pass. Preserve D12 usage telemetry/budget/cache implementation; D12 dispatch cleanup denial function and execution-policy test already equal D11 verified fix, while D11 MCP description metadata is carried forward. D12 candidate requires exact-head CI. No formal merge; provider/model/host gates unchanged.
+
+
+# D13 candidate ancestry integration
+2026-11-27: integrate D12 906968dca6d930027985b4f9af1039af0227b8c2 / Run 46010810757 was still running during integration; ancestry graph is clean and D12 cleanup denial function/test exactly match D11 verified implementation. Preserve D13 durable request ID and loop termination logic; apply only D12 verified MCP tool description correction to D13 index. D13 exact-head cumulative CI required. No formal merge; real host/risk/Token gates unchanged.
