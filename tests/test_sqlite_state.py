@@ -45,7 +45,7 @@ class StoreTests(unittest.TestCase):
             stdout=subprocess.PIPE,stderr=subprocess.PIPE)
     def test_roundtrip_backup_idempotent_and_native_unchanged(self):
         native=self.native/"state_5.sqlite"
-        with sqlite3.connect(native) as db:
+        with contextlib.closing(sqlite3.connect(native)) as db, db:
             db.execute("CREATE TABLE sentinel(value TEXT)");db.execute("INSERT INTO sentinel VALUES('keep')")
         before=native.read_bytes()
         m=self.migrate();marker=self.marker()
@@ -106,7 +106,7 @@ with d.locked_state() as data:
         self.migrate()
         with d.locked_state() as data:data["rr_counter"]=3
         marker=self.marker();raw=d.STATE_FILE.read_bytes()
-        with sqlite3.connect(self.root/marker["database"]) as db:
+        with contextlib.closing(sqlite3.connect(self.root/marker["database"])) as db, db:
             db.execute("UPDATE dispatch_tasks SET payload_sha256='invalid' WHERE task_id='task-a'")
         with self.assertRaises(d.StateIntegrityError):self.snapshot()
         with self.assertRaises(d.StateIntegrityError):self.command("state-rollback","--confirm-quiescent")
@@ -134,4 +134,40 @@ with d.locked_state() as data:
         with self.assertRaises(d.StateIntegrityError):
             with d.locked_state() as data:data["tasks"].pop("task-a")
         self.assertIn("task-a",self.snapshot()["tasks"])
+
+    def test_keyed_stream_worker_and_resume_in_sqlite(self):
+        self.migrate()
+        work=self.home/"work";work.mkdir()
+        original=d.streamed_subprocess
+        calls=[]
+        def boundary(cmd,**kw):
+            calls.append(kw["turn_id"])
+            return original([sys.executable,"-I",str(ROOT/"tests/mock_codex.py"),*cmd[1:]],
+                            **kw,env=dict(os.environ,ALC_MOCK_USAGE="fixture",ALC_MOCK_CASE="B01"))
+        def envelope(rev):
+            return json.dumps(dict(version=2,task_id="task-b",rev=rev,base_rev=rev-1,goal="fix",
+                scope=["answer.txt"],accept=["test"],delta="" if rev==1 else "next"))
+        run=["run","--task-id","task-b","--request-id","req-b1","--protocol-v2","--stream-events",
+             "--cwd",str(work),"--isolation","inplace","--model","mock-model","--effort","low","--max-tokens","100","--prompt",envelope(1)]
+        resume=["resume","--task-id","task-b","--request-id","req-b2","--protocol-v2",
+                "--model","mock-model","--effort","low","--prompt",envelope(2)]
+        with patch.object(d,"get_codex_bin",return_value="D15_MOCK_ONLY"), \
+             patch.object(d,"resolve_model_and_effort",return_value=dict(model="mock-model",effort="low",effective_difficulty="low")), \
+             patch.object(d,"streamed_subprocess",side_effect=boundary):
+            for args,handler in ((run,d.cmd_run),(run,d.cmd_run),(resume,d.cmd_resume),(resume,d.cmd_resume)):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(d.guarded_dispatch(d.build_parser().parse_args(args),handler),0)
+        self.assertEqual(len(calls),2)
+        state=self.snapshot()
+        task=state["tasks"]["task-b"]
+        self.assertEqual(task["status"],"completed")
+        self.assertEqual(task["protocol_rev"],2)
+        self.assertEqual(task["usage_store"]["known_sums"]["total_tokens"],30)
+        self.assertEqual(task["stream_integrity"],"complete")
+        requests=d.request_records(state)
+        self.assertEqual(requests["req-b1"]["status"],"returned")
+        self.assertEqual(requests["req-b2"]["status"],"returned")
+        self.assertEqual(self.command("state-rollback","--confirm-quiescent")["status"],"rolled_back")
+        self.assertEqual(d.decode_state(d.STATE_FILE.read_bytes()),state)
+
 if __name__=="__main__":unittest.main()

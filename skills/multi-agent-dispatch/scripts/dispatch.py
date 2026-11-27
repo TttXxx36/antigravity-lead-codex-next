@@ -473,6 +473,8 @@ def cmd_state_storage(args):
     action=args.subcommand
     if action in ("state-migrate","state-rollback") and not args.confirm_quiescent:
         raise ValueError("D15: stop all old CLI/MCP instances and explicitly confirm quiescence")
+    # Reject native or linked roots before creating any migration directories.
+    owned_storage_path("state.json")
     ensure_state_dirs()
     reject_link(STATE_DIR)
     reject_link(LOCK_FILE)

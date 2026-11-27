@@ -44,13 +44,16 @@ function readOwnedStateDb(marker) {
   if(fs.lstatSync(file).isSymbolicLink()||fs.realpathSync(file)!==file) throw new Error('Unsafe state database');
   for(const suffix of ['-wal','-shm','-journal']){
     const side=file+suffix;
-    if(fs.existsSync(side)&&(fs.lstatSync(side).isSymbolicLink()||fs.realpathSync(side)!==side))throw new Error('Unsafe state sidecar');
+    try {
+      const stat=fs.lstatSync(side);
+      if(stat.isSymbolicLink()||!stat.isFile()||fs.realpathSync(side)!==side)throw new Error('Unsafe state sidecar');
+    }catch(err){if(err.code!=='ENOENT')throw err;}
   }
   const hash=s=>crypto.createHash('sha256').update(s,'utf8').digest('hex');
   const db=new DatabaseSync(file,{readOnly:true});
   try {
     db.exec('PRAGMA busy_timeout=3000; PRAGMA query_only=ON; BEGIN;');
-    if(db.prepare('PRAGMA user_version').get().user_version!==1)throw new Error('Unsupported state version');
+    if(db.prepare('PRAGMA user_version').get().user_version!==1||db.prepare('PRAGMA journal_mode').get().journal_mode!=='wal')throw new Error('Unsupported state version or journal mode');
     const meta=db.prepare('SELECT meta_json,meta_sha256,revision,task_count,manifest_sha256 FROM dispatch_meta WHERE id=1').get();
     if(!meta||typeof meta.meta_json!=='string'||hash(meta.meta_json)!==meta.meta_sha256||
        !Number.isSafeInteger(meta.revision)||meta.revision<1||!Number.isSafeInteger(meta.task_count)||meta.task_count<0)throw new Error('Invalid metadata');
@@ -77,8 +80,16 @@ function readDispatchState(errors = []) {
   const statePath = path.join(DISPATCH_STATE_DIR, 'state.json');
   if (!fs.existsSync(statePath)) return { tasks: {} };
   try {
-    const raw = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-    if(raw&&typeof raw==='object'&&Object.hasOwn(raw,'storage'))return readOwnedStateDb(raw);
+    if(fs.lstatSync(statePath).isSymbolicLink())throw new Error('Linked state file');
+    const stateText=fs.readFileSync(statePath,'utf8');
+    const raw=JSON.parse(stateText);
+    if(raw&&typeof raw==='object'&&Object.hasOwn(raw,'storage')){
+      // Python writes this ASCII-only marker in canonical key order. Reject
+      // noncanonical or duplicate keys instead of silently choosing the last.
+      const canonical=JSON.stringify(Object.fromEntries(Object.keys(raw).sort().map(k=>[k,raw[k]])));
+      if(stateText!==canonical)throw new Error('Noncanonical state marker');
+      return readOwnedStateDb(raw);
+    }
     if (!raw || typeof raw !== 'object' || !raw.tasks || Array.isArray(raw.tasks) || typeof raw.tasks !== 'object') throw new Error('Invalid state');
     return raw;
   } catch {

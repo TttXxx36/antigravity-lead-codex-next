@@ -526,18 +526,18 @@
         "D14"
       ],
       "status": "IN_PROGRESS",
-      "evidence": "D15 explicit plugin-owned SQLite WAL migration, transaction validation, backups, inverse migration and read-only MCP candidate; CI pending",
+      "evidence": "D15 WAL migration candidate; first Windows run exposed fixture DB handle cleanup failures (WinError 32), explicitly closed handles and added keyed streaming run/resume regression; final CI pending",
       "next": "Four-environment cumulative CI; actual host migration/recovery, old binary shutdown and formal dependencies pending",
       "branch": "dev/d15",
       "approval": "2026-11-27 user authorized A candidate development; no production migration or native DB writes",
-      "pr": null,
+      "pr": 17,
       "accepted": false,
       "merged": false,
       "checks": [
         {
           "name": "D15 migration and cumulative regression",
           "status": "NOT_RUN",
-          "ref": "pending CI"
+          "ref": "Latest corrected head CI pending; first failure Run 45974526071"
         }
       ]
     },
