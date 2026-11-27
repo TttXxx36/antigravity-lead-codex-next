@@ -105,6 +105,23 @@ jobs:
       - name: Audit installed build dependency notices (offline)
         if: runner.os == 'Linux'
         run: python scripts/audit_dependency_notices.py --root plugins/codex-console --phase build --out dependency-audit/build.json
+      - name: Collect npm advisory, registry-signature and SBOM evidence (Linux, no fixes)
+        if: runner.os == 'Linux'
+        working-directory: plugins/codex-console
+        shell: bash
+        run: |
+          mkdir -p ../../dependency-audit
+          set +e
+          npm audit --json --registry=https://registry.npmjs.org > ../../dependency-audit/npm-audit-all.json 2> ../../dependency-audit/npm-audit-all.stderr
+          all_status=$?
+          npm audit --omit=dev --json --registry=https://registry.npmjs.org > ../../dependency-audit/npm-audit-runtime.json 2> ../../dependency-audit/npm-audit-runtime.stderr
+          runtime_status=$?
+          npm audit signatures --registry=https://registry.npmjs.org > ../../dependency-audit/npm-audit-signatures.txt 2> ../../dependency-audit/npm-audit-signatures.stderr
+          signatures_status=$?
+          npm sbom --sbom-format=cyclonedx --registry=https://registry.npmjs.org > ../../dependency-audit/npm-sbom.cdx.json 2> ../../dependency-audit/npm-sbom.stderr
+          sbom_status=$?
+          printf 'npm_audit_all_exit=%s\nnpm_audit_runtime_exit=%s\nnpm_audit_signatures_exit=%s\nnpm_sbom_exit=%s\n' "$all_status" "$runtime_status" "$signatures_status" "$sbom_status" > ../../dependency-audit/npm-security-summary.txt
+          cat ../../dependency-audit/npm-security-summary.txt
       - name: Retain dependency audit metadata
         if: always() && github.event_name == 'pull_request' && github.head_ref == 'dev/d22'
         uses: actions/upload-artifact@v4
