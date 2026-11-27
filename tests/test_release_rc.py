@@ -109,6 +109,7 @@ class RCTests(unittest.TestCase):
         for component in COMPONENTS:
             self.assertTrue((config/component).is_dir());self.assertFalse((config/component/"old-marker.txt").exists())
         self.assertEqual((config/"skills/multi-agent-dispatch/scripts/dispatch.py").read_bytes(),self.files["skills/multi-agent-dispatch/scripts/dispatch.py"][1])
+        self.assertEqual((config/"plugins/codex-console/UI-THIRD-PARTY-NOTICES.md").read_bytes(),self.files["plugins/codex-console/UI-THIRD-PARTY-NOTICES.md"][1])
         rejected=scratch/"rejected";rejected.mkdir()
         for component in COMPONENTS:
             current=config/component;hold=rejected/component;hold.parent.mkdir(parents=True,exist_ok=True);current.rename(hold)

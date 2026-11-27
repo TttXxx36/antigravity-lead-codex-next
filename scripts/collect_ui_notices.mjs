@@ -73,10 +73,4 @@ const report={uiSha256:hash(Buffer.from(html.source)),lockSha256:hash(lockBytes)
 fs.writeFileSync(path.join(out,'UI-THIRD-PARTY-NOTICES.md'),notice,{flag:'wx'});
 fs.writeFileSync(path.join(out,'ui-notice-report.json'),JSON.stringify(report,null,2)+'\n',{flag:'wx'});
 console.log('D22_UI_NOTICE_REPORT '+JSON.stringify(report));
-if(process.argv.includes('--bootstrap')){
-  // One-time transfer of audited public license bytes, not private data.
-  const b64=notice.toString('base64');
-  for(let i=0;i<b64.length;i+=4096)console.log('D22_UI_NOTICE_CHUNK '+(i/4096)+' '+b64.slice(i,i+4096));
-}else{
-  assert.ok(notice.equals(fs.readFileSync(path.join(root,'UI-THIRD-PARTY-NOTICES.md'))),'tracked UI notices are stale');
-}
+assert.ok(notice.equals(fs.readFileSync(path.join(root,'UI-THIRD-PARTY-NOTICES.md'))),'tracked UI notices are stale');

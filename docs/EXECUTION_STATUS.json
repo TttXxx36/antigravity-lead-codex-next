@@ -992,7 +992,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "BUG-009 CANDIDATE_PASS 8e8608e75fb544e36b93e3934e0db522cbcca7a8 Run 46032252416 four environments; independent RC/audit and derived replay PASS. No formal closure.",
-      "next": "Finish new offline checks; concentrate actual Windows/host and authorization gates in docs/LOCAL_ACCEPTANCE.md.",
+      "next": "Complete strict final notice/RC/CI recheck, then mark offline candidate ready if passed. Actual Windows/host/authorization/engineering limitations in docs/LOCAL_ACCEPTANCE.md.",
       "branch": "dev/d22",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no formal release, merge, permission or real model grant",
       "pr": 24,
@@ -1106,7 +1106,37 @@
           "tested_commit": "8e8608e75fb544e36b93e3934e0db522cbcca7a8"
         },
         {
-          "name": "Official schema, cached native tarballs and bundled UI notices verification",
+          "name": "Official CycloneDX schema derived validation and independent replay (Linux)",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46035005863",
+          "tested_commit": "1374232ecbc77f110ee96d3f0ca63212dcb0346b"
+        },
+        {
+          "name": "Three locked native tarballs and nine installed members exact comparison (Linux, source-only scope)",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46035005863",
+          "tested_commit": "1374232ecbc77f110ee96d3f0ca63212dcb0346b"
+        },
+        {
+          "name": "Actual UI rendered module notice collection and independent block hashes (Linux)",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46035005863",
+          "tested_commit": "1374232ecbc77f110ee96d3f0ca63212dcb0346b"
+        },
+        {
+          "name": "Independent RC 152/152 canonical and governance verification",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46035005863",
+          "tested_commit": "1374232ecbc77f110ee96d3f0ca63212dcb0346b"
+        },
+        {
+          "name": "All four npm exits and both zero-vulnerability JSON hard gate (Linux)",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46035005863",
+          "tested_commit": "1374232ecbc77f110ee96d3f0ca63212dcb0346b"
+        },
+        {
+          "name": "Tracked UI third-party notices reproducibility, install copy, required RC and exact-head cumulative CI",
           "status": "NOT_RUN",
           "ref": "docs/evidence/D22-supply-chain-review.md"
         }
@@ -1153,13 +1183,19 @@
           "status": "FAIL",
           "tested_commit": "7cafa170772be1de90832792d9f225ff557ad411",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46034705911"
+        },
+        {
+          "name": "Original generator SBOM official schema uniqueItems failure (preserved original)",
+          "status": "FAIL",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46035005863",
+          "tested_commit": "1374232ecbc77f110ee96d3f0ca63212dcb0346b"
         }
       ],
       "candidate": {
         "ready": false,
         "tested_commit": "8e8608e75fb544e36b93e3934e0db522cbcca7a8",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46032252416",
-        "limitations": "BUG-009 CANDIDATE_PASS; historical raw duplicate FAIL retained. New schema/native tarball/UI notice engineering and exact-head CI pending. Real host, native redistribution, formal dependencies and release gates blocked."
+        "limitations": "Last full-matrix PASS; new source-only supply-chain Linux checks PASS on 1374232, exact notice inclusion/strict equality and complete final CI pending; actual host, formal dependency and release gates blocked."
       }
     }
   ],

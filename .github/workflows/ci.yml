@@ -148,9 +148,9 @@ jobs:
         if: ${{ !cancelled() && runner.os == 'Linux' && steps.build_inventory.conclusion == 'success' }}
         shell: bash
         run: python scripts/native_tarball_review.py --root plugins/codex-console --cache "$(npm config get cache)" --out dependency-audit/native-tarball-report.json
-      - name: Collect bundled UI original notices (Linux, no publish)
+      - name: Verify tracked bundled UI original notices (Linux, no publish)
         if: ${{ !cancelled() && runner.os == 'Linux' && steps.build_inventory.conclusion == 'success' }}
-        run: node scripts/collect_ui_notices.mjs --bootstrap
+        run: node scripts/collect_ui_notices.mjs
       - name: Require successful security audits (Linux)
         if: ${{ !cancelled() && runner.os == 'Linux' && steps.npm_security.conclusion == 'success' }}
         shell: bash

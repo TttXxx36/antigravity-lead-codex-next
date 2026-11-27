@@ -40,7 +40,7 @@ SECRET_PATTERNS=tuple(re.compile(x) for x in (
     rb"(?<![A-Za-z0-9])AIza[0-9A-Za-z_-]{35}(?![0-9A-Za-z_-])",
 ))
 REQUIRED={"LICENSE","LICENSE.upstream","README.md","README_EN.md","CHANGELOG.md","docs/MIGRATION.md","docs/RELEASE_CANDIDATE.md",
-          "plugins/codex-console/dist/app.html","plugins/codex-console/package-lock.json","scripts/install.sh",
+          "docs/LOCAL_ACCEPTANCE.md","plugins/codex-console/UI-THIRD-PARTY-NOTICES.md","plugins/codex-console/dist/app.html","plugins/codex-console/package-lock.json","scripts/install.sh",
           "scripts/install.ps1","scripts/rc_package.py","skills/multi-agent-dispatch/scripts/dispatch.py"}
 MANIFEST="RC-MANIFEST.json"
 

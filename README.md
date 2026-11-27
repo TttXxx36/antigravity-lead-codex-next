@@ -21,3 +21,5 @@
 
 ## 集中本地验收（未发布候选）
 完整候选请以 dev/d22 的经 CI 验证精确提交为准，不是 main 正式版本。见 [集中实机验收矩阵](docs/LOCAL_ACCEPTANCE.md)。
+
+预构建 UI 的第三方原始声明见 [UI-THIRD-PARTY-NOTICES.md](plugins/codex-console/UI-THIRD-PARTY-NOTICES.md)，安装和再分发 UI 时保留；不包含原生构建二进制分发授权。
