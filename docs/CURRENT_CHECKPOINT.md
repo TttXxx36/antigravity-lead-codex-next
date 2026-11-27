@@ -11,10 +11,11 @@
 | D08 | BLOCKED，候选四环境 PASS | [PR #10](https://github.com/TttXxx36/antigravity-lead-codex-next/pull/10)，[修复后 CI](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45938086882)；首轮 Windows Git fixture 配置失败已修复；实机宿主未验收 |
 | D09 | BLOCKED，候选及补测四环境 PASS | [PR #11](https://github.com/TttXxx36/antigravity-lead-codex-next/pull/11)，[补测 CI](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45940757723)；实际宿主与 Token 未验收 |
 | D10 | BLOCKED，候选四环境 PASS | [PR #12](https://github.com/TttXxx36/antigravity-lead-codex-next/pull/12)，[CI](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45941283814)；真实 structured output/宿主 NOT_RUN |
-| D11 | IN_PROGRESS，黑板与会话候选 | [PR #13](https://github.com/TttXxx36/antigravity-lead-codex-next/pull/13)，[补测 CI](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45945706823)，等待最终结果；真实会话/Token 待验收 |
-| D12–D22 | 已授权，尚待候选依赖 | 按决策卡顺序继续，不虚构完成 |
+| D11 | BLOCKED，候选四环境 PASS | [PR #13](https://github.com/TttXxx36/antigravity-lead-codex-next/pull/13)，[CI](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45945706823)；实际宿主会话与 Token NOT_RUN |
+| D12 | IN_PROGRESS，用量与预算候选 | [PR #14](https://github.com/TttXxx36/antigravity-lead-codex-next/pull/14)，[补测 CI](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45947156315)，等待最终结果；真实模型用量与对照基准未测 |
+| D13–D22 | 已授权，尚待候选依赖 | 按决策卡顺序继续，不虚构完成 |
 
-最新执行台账、剩余工作、缺陷和证据在 [dev/d11](https://github.com/TttXxx36/antigravity-lead-codex-next/tree/dev/d11/docs)。所有 PR #7–#13 未合并，生产 main 未接入候选代码；D00–D04 5/23 DONE。BUG-001/002 D07 CANDIDATE_PASS，未合并；BUG-003/004 main FIXED。D05/D06/D07 等实机/可信宿主证据仍需真实环境。真实模型测试、权限扩张、D22 发布均未授权。
+最新执行台账、剩余工作、缺陷和证据在 [dev/d12](https://github.com/TttXxx36/antigravity-lead-codex-next/tree/dev/d12/docs)。所有 PR #7–#14 未合并，生产 main 未接入候选代码；D00–D04 5/23 DONE。BUG-001/002 D07 CANDIDATE_PASS，未合并；BUG-003/004 main FIXED。D05/D06/D07 等实机/可信宿主证据仍需真实环境。真实模型测试、权限扩张、D22 发布均未授权。
 
 ## 历史检查点（以下为此前记录，不覆盖上方最新状态）
 
