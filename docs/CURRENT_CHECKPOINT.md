@@ -1,3 +1,20 @@
+# 最新候选开发检查点（2026-11-27）
+
+用户已授权将开发门禁与正式合并门禁分离：D06–D22 允许依赖已通过 CI 的候选代码逐卡建立 stacked Draft PR；实际验收与正式合并条件不变。此授权覆盖旧的“依赖未 DONE 不得启动开发”限制，不改变发布、权限、真实模型或主分支合并门禁。
+
+| 卡 | 当前候选/正式状态 | 证据 |
+|---|---|---|
+| D00–D04 | DONE，main 正式基线 | PR #1–#3、#5–#6 |
+| D05 | BLOCKED，候选可用 | [PR #7](https://github.com/TttXxx36/antigravity-lead-codex-next/pull/7)，[最新四环境 PASS](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45936571412)；真实宿主未测 |
+| D06 | BLOCKED，候选四环境 PASS | [PR #8](https://github.com/TttXxx36/antigravity-lead-codex-next/pull/8)，[112 次策略/Hook/治理测试](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937059171)；可信授权签发及实际沙箱未测 |
+| D07 | BLOCKED，候选四环境 PASS | [PR #9](https://github.com/TttXxx36/antigravity-lead-codex-next/pull/9)，[44 次 outcome 测试](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937506260)；真实进程树/宿主未验收 |
+| D08 | IN_PROGRESS，候选修复首轮 CI 失败 | [PR #10](https://github.com/TttXxx36/antigravity-lead-codex-next/pull/10)，首轮 Run 45937983884 两个 Windows 因 Git 配置设备路径失败，改临时空配置文件，复检待结果 |
+| D09–D22 | 已授权，尚待候选依赖 | 按决策卡顺序继续，不虚构完成 |
+
+最新执行台账、剩余工作、缺陷和证据在 [dev/d08](https://github.com/TttXxx36/antigravity-lead-codex-next/tree/dev/d08/docs)。所有 PR #7–#10 未合并，生产 main 未接入候选代码；D00–D04 5/23 DONE。BUG-001/002 D07 CANDIDATE_PASS，未合并；BUG-003/004 main FIXED。D05/D06/D07 等实机/可信宿主证据仍需真实环境。真实模型测试、权限扩张、D22 发布均未授权。
+
+## 历史检查点（以下为此前记录，不覆盖上方最新状态）
+
 # 当前开发检查点（2026-11-27）
 
 此文件是跨分支实时检查点的持久快照，优先于较早的 README/台账历史文字。已获用户 D03–D21 条件合并许可：实际满足各卡验收门槛后才合并；缺证据/失败/安全阻塞不得越过；不自动发布、真实模型测试或扩权限。
