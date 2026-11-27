@@ -307,7 +307,7 @@ server.registerTool(
   'send_codex_message',
   {
     title: '向 Codex 会话发送消息',
-    description: '向指定 Codex 会话投递指令，支持排队唤醒（codex queue --resume）、同步续跑（codex exec resume）、dispatch.py 续跑或只读提问。',
+    description: '向受管 Codex 会话通过 dispatch.py 续跑或只读提问；未受管 queue/resume 拒绝。',
     inputSchema: {
       threadId: z.string().min(4).describe('目标 Codex 会话 UUID'),
       message: z.string().min(1).describe('要发送的消息或执行指令'),
