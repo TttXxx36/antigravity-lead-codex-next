@@ -1968,7 +1968,8 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 
 def cmd_cleanup(args: argparse.Namespace) -> int:
-    # A request is not a trusted grant. Keep the worktree and state intact.
+    # A request, including a plain cleanup without force/delete-branch, is
+    # not a trusted grant. Keep the worktree and task state intact.
     raise ValueError("D06: cleanup requires trusted human authorization")
 
 
