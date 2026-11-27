@@ -651,15 +651,21 @@
         "D15",
         "D17"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "显式状态机、lease/revision、审计、恢复防重复",
+      "status": "IN_PROGRESS",
+      "evidence": "D18 persistent explicit state machine integrated with D13/D15/D17; revision CAS, hash-linked bounded audit, durable lease, verification fail-closed; CI pending",
+      "next": "Verify actual mock dispatch, restart/no replay, terminal/audit/CAS, native MCP read-only and cumulative CI",
       "branch": "dev/d18",
-      "approval": null,
+      "approval": "2026-11-27 user authorized A candidate development D06-D22; no real model, permission or merge grant",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D18 deterministic orchestration and cumulative CI",
+          "status": "NOT_RUN",
+          "ref": "Latest candidate CI pending"
+        }
+      ]
     },
     {
       "id": "D19",

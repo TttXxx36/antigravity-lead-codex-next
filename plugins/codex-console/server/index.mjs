@@ -124,6 +124,8 @@ compactTool('task_delta','Read changed compact result using revision from previo
   args=>compactDelta(store,args));
 compactTool('get_operation_status','Read operation state without prompt, output or raw errors.',{opId:z.string().min(3).max(128)},
   ({opId})=>compactOperation(consoleDb.getOp(opId)),600);
+compactTool('orchestration_status','Read exact D18 orchestration revision and recovery metadata; never launches, accepts or merges.',{taskId:z.string().min(1).max(80)},
+  ({taskId})=>runner.getOrchestrationStatus(taskId),1000);
 compactTool('task_events','Read bounded D14 process metadata; reuse turnId and nextCursor to reconnect. No raw output or task verification.',{taskId:z.string().min(1).max(80),turnId:z.string().min(1).max(80).optional(),cursor:z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),limit:z.number().int().min(1).max(10).optional()},
   ({taskId,turnId,cursor=0,limit=10})=>store.getTaskEvents(taskId,turnId,cursor,limit),2500);
 compactTool('task_logs','Explicit cursor page of history event metadata; full log text remains in UI.',{threadId:z.string().min(4).max(256),cursor:z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),limit:z.number().int().min(1).max(20).optional()},
