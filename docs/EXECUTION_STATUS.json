@@ -486,13 +486,19 @@
           "name": "D11 ancestry integration",
           "status": "NOT_RUN",
           "ref": "docs/evidence/D12-ancestry-integration.md"
+        },
+        {
+          "name": "D12 D11 ancestry integration",
+          "status": "PASS",
+          "tested_commit": "906968dca6d930027985b4f9af1039af0227b8c2",
+          "ref": "docs/evidence/D12-ancestry-integration.md"
         }
       ],
       "candidate": {
         "ready": false,
-        "tested_commit": "f5b1bf017d1f1c259e1c50f0fd89a85100cf082f",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45947305027",
-        "limitations": "Synthetic usage only; actual provider semantics, Gemini usage, real host/model capabilities, benchmark and formal dependency merges pending; no hard system-wide budget. Verified D06 cleanup denial synchronized; current head needs CI."
+        "tested_commit": "906968dca6d930027985b4f9af1039af0227b8c2",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46010810757",
+        "limitations": "D11 ancestry integrated; exact four-platform CI still running at integration time; provider/model/host and formal gates remain."
       }
     },
     {
@@ -503,15 +509,51 @@
         "D10",
         "D12"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "持久 request_id、进度指纹、重复错误停止、授权重试",
+      "status": "BLOCKED",
+      "evidence": "Exact-head four-environment cumulative CI PASS; D13 Python 24/24 and Node 16/16; prior SQLite BUSY regression corrected",
+      "next": "D12 verified ancestry integrated; D13 exact-head cumulative CI pending; real host/risk acceptance remains BLOCKED",
       "branch": "dev/d13",
-      "approval": null,
-      "pr": null,
+      "approval": "2026-11-27 user approved A and verified candidate development; no real model or expanded authority",
+      "pr": 15,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D13 keyed dispatch and cumulative regression",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45971644956",
+          "tested_commit": "b61c1cddb9c1b67b3ebd1bfe7b7b1548b0729081"
+        },
+        {
+          "name": "Actual host, risk review and crash/power-loss recovery",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D13-requests.md"
+        },
+        {
+          "name": "BUG-007 cleanup denial synchronization",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D13-cleanup-integration.md"
+        },
+        {
+          "name": "D12 ancestry integration",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D13-ancestry-integration.md"
+        }
+      ],
+      "candidate": {
+        "ready": false,
+        "tested_commit": "b61c1cddb9c1b67b3ebd1bfe7b7b1548b0729081",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45971644956",
+        "limitations": "Opt-in keyed CLI/MCP only; legacy callers excluded; conservative Git metadata; real host and power loss, cross-store reconciliation and trusted retry approval not independently accepted; no merge. Verified D06 cleanup denial synchronized; current head needs CI."
+      },
+      "observations": [
+        {
+          "name": "Concurrent SQLite initialization SQLITE_BUSY",
+          "status": "FAIL",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45971488857",
+          "tested_commit": "0d004c13cfe648048142131a6f7ccfc2c703bb1c"
+        }
+      ]
     },
     {
       "id": "D14",

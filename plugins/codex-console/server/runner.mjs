@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { classifyManagedResult, watchOwnedChild } from './outcome.mjs';
+import { classifyManagedResult, classifyKeyedResult, watchOwnedChild } from './outcome.mjs';
 import { parsePorcelainZ } from './git-status.mjs';
 import { runtimePaths, resolveExecutable, buildRuntimeEnv, normalizePath } from './platform.mjs';
 
@@ -28,6 +28,29 @@ function safeCwd(cwd) {
     throw new Error('Invalid working directory: ' + resolved);
   }
   return resolved;
+}
+
+
+function keyedEnvelope(prompt, taskId, initial) {
+  if (typeof taskId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/.test(taskId)) {
+    throw new Error('D13: explicit managed task ID required');
+  }
+  if (Buffer.byteLength(prompt,'utf8') > 8192) throw new Error('D13: envelope too large');
+  let env;
+  try { env=JSON.parse(prompt); } catch { throw new Error('D13: v2 JSON envelope required'); }
+  if (!env || env.version!==2 || env.task_id!==taskId || !Number.isInteger(env.rev) ||
+      !Number.isInteger(env.base_rev) || env.base_rev<0 || env.rev!==env.base_rev+1 ||
+      env.rev>2147483647 || (initial?env.base_rev!==0:env.base_rev===0)) {
+    throw new Error('D13: incompatible task identity/revision');
+  }
+  // Python is the authoritative strict schema/session/budget validator.
+  return env.rev;
+}
+function requestOp(db, requestId, identity, options) {
+  if (requestId == null) return {created:true,op:db.createOp(options)};
+  const reservation=db.reserveRequest({requestId,identity,...options});
+  if (reservation.conflict) throw new Error('D13: request ID conflict; original operation '+reservation.op.id+' ('+reservation.op.status+')');
+  return reservation;
 }
 
 export class CodexRunner {
@@ -145,6 +168,8 @@ export class CodexRunner {
     cwd = null,
     allowDuplicate = false,
     taskId = null,
+    requestId = null,
+    retryOf = null,
   }) {
     const cleanMsg = (message || '').trim();
     if (!cleanMsg) {
@@ -157,6 +182,9 @@ export class CodexRunner {
     if (mode === 'dispatch_resume' && (!taskId || !fs.existsSync(DISPATCH_SCRIPT))) {
       throw new Error('D06: managed task and dispatcher required; no fallback');
     }
+    if (requestId != null && mode !== 'dispatch_resume') throw new Error('D13: request IDs are supported only for managed dispatch');
+    if (retryOf != null && requestId == null) throw new Error('D13: retry requires new request ID');
+    if (requestId != null && allowDuplicate) throw new Error('D13: allowDuplicate cannot bypass durable request identity');
     if (mode === 'readonly') {
       return this.startReadonlyAsk({
         threadId,
@@ -170,7 +198,7 @@ export class CodexRunner {
       if (!this.pythonBin) throw new Error('Python executable not found; set PYTHON_BIN');
     } else if (!this.codexBin) throw new Error('Codex executable not found; set CODEX_BIN');
     const dedupKey = this.consoleDb.makeDedupKey(threadId, mode, cleanMsg);
-    if (!allowDuplicate) {
+    if (requestId == null && !allowDuplicate) {
       const dup = this.consoleDb.findRecentDuplicate(dedupKey, 60_000);
       if (dup) {
         throw new Error(
@@ -180,18 +208,25 @@ export class CodexRunner {
     }
 
     if (mode === 'dispatch_resume' && taskId && fs.existsSync(DISPATCH_SCRIPT)) {
-      const op = this.consoleDb.createOp({
+      const rev=requestId==null?null:keyedEnvelope(cleanMsg,taskId,false);
+      const actualCwd=safeCwd(cwd);
+      const reservation=requestOp(this.consoleDb, requestId,
+        ['resume',threadId,taskId,actualCwd,cleanMsg,rev,retryOf], {
         threadId,
         opType: 'dispatch_resume',
         prompt: cleanMsg,
         mode: 'dispatch_resume',
         dedupKey,
-        meta: { taskId, cwd: safeCwd(cwd) },
+        meta: { taskId, cwd: actualCwd, revision:rev },
       });
-
+      const op=reservation.op;
+      if (!reservation.created) return {...op,duplicate:true};
+      const dispatchArgs=[DISPATCH_SCRIPT, 'resume', '--task-id', taskId, '--no-network', '--prompt', cleanMsg];
+      if (requestId!=null) dispatchArgs.push('--protocol-v2','--request-id',requestId);
+      if (retryOf!=null) dispatchArgs.push('--retry-of',retryOf);
       const child = spawn(
         this.pythonBin,
-        [DISPATCH_SCRIPT, 'resume', '--task-id', taskId, '--no-network', '--prompt', cleanMsg],
+        dispatchArgs,
         {
           cwd: safeCwd(cwd),
           env: buildExecEnv(),
@@ -213,7 +248,7 @@ export class CodexRunner {
       }, (code,timedOut) => {
         let parsed = null;
         try { parsed = JSON.parse(stdout.trim()); } catch {}
-        const outcome = classifyManagedResult(code,parsed,timedOut);
+        const outcome = requestId==null?classifyManagedResult(code,parsed,timedOut):classifyKeyedResult(code,parsed,taskId,rev,timedOut);
         this.consoleDb.finishOp(op.id, {
           status: outcome.status,
           outputText: stdout.trim(),
@@ -240,6 +275,7 @@ export class CodexRunner {
     network = false,
     changeKey = '',
     goalTitle = '',
+    requestId = null,
   }) {
     if (!this.pythonBin) throw new Error('Python executable not found; set PYTHON_BIN');
     if (!this.codexBin) throw new Error('Codex executable not found; set CODEX_BIN');
@@ -258,13 +294,20 @@ export class CodexRunner {
     }
 
     const useNetwork = false;
-    const op = this.consoleDb.createOp({
-      threadId: null,
-      opType: 'spawn_worker',
-      prompt: cleanPrompt,
-      mode: `${quality}/${difficulty}/${isolation}${useNetwork ? '/net' : ''}`,
-      meta: { cwd: cleanCwd, taskId: taskId || null, changeKey: changeKey || null, network: useNetwork },
+    // v2 short result intentionally omits session identity; avoid creating a
+    // binding until the actual artifact/host identity has been verified.
+    if (requestId!=null && (changeKey || goalTitle)) throw new Error('D13: keyed v2 binding not supported');
+    const rev=requestId==null?null:keyedEnvelope(cleanPrompt,taskId,true);
+    const reservation=requestOp(this.consoleDb,requestId,
+      ['run',cleanCwd,taskId,cleanPrompt,rev,difficulty,quality,isolation,useNetwork], {
+      threadId:null,
+      opType:'spawn_worker',
+      prompt:cleanPrompt,
+      mode:[quality,difficulty,isolation].join('/'),
+      meta:{cwd:cleanCwd,taskId:taskId||null,changeKey:changeKey||null,network:useNetwork,revision:rev},
     });
+    const op=reservation.op;
+    if (!reservation.created) return {...op,duplicate:true};
 
     const args = [
       DISPATCH_SCRIPT,
@@ -283,6 +326,7 @@ export class CodexRunner {
     if (taskId && taskId.trim()) {
       args.push('--task-id', taskId.trim());
     }
+    if (requestId!=null) args.push('--protocol-v2','--request-id',requestId);
 
     const child = spawn(this.pythonBin, args, {
       cwd: cleanCwd,
@@ -309,7 +353,7 @@ export class CodexRunner {
       } catch {
         parsed = null;
       }
-      const outcome = classifyManagedResult(code,parsed,timedOut);
+      const outcome = requestId==null?classifyManagedResult(code,parsed,timedOut):classifyKeyedResult(code,parsed,taskId,rev,timedOut);
       const sessionId = parsed?.session_id || null;
       const finalTaskId = parsed?.task_id || taskId || null;
 

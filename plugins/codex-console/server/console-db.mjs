@@ -8,9 +8,24 @@ export class ConsoleDB {
     fs.mkdirSync(dataDir, { recursive: true });
     this.dbPath = path.join(dataDir, 'console.sqlite');
     this.db = new DatabaseSync(this.dbPath);
+    // Install the busy handler before touching journal mode. Opening a second
+    // connection while an existing server writes may otherwise fail immediately.
+    this.db.exec('PRAGMA busy_timeout = 3000');
+    const deadline=Date.now()+5000;
+    try {
+      for (;;) {
+        try {
+          if (this.db.prepare('PRAGMA journal_mode').get().journal_mode!=='wal') {
+            this.db.exec('PRAGMA journal_mode = WAL');
+          }
+          break;
+        } catch(err) {
+          if (![5,6].includes(err.errcode & 255) || Date.now()>=deadline) throw err;
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,25);
+        }
+      }
+    } catch(err) { this.db.close(); throw err; }
     this.db.exec(`
-      PRAGMA journal_mode = WAL;
-      PRAGMA busy_timeout = 3000;
       PRAGMA synchronous = NORMAL;
 
       CREATE TABLE IF NOT EXISTS thread_prefs (
@@ -39,6 +54,12 @@ export class ConsoleDB {
       );
       CREATE INDEX IF NOT EXISTS idx_console_ops_thread ON console_ops(thread_id, started_at DESC);
       CREATE INDEX IF NOT EXISTS idx_console_ops_started ON console_ops(started_at DESC);
+      CREATE TABLE IF NOT EXISTS dispatch_requests_v1 (
+        request_id TEXT PRIMARY KEY,
+        fingerprint TEXT NOT NULL,
+        operation_id TEXT NOT NULL UNIQUE,
+        owner_pid INTEGER
+      );
 
       CREATE TABLE IF NOT EXISTS collab_bindings (
         id TEXT PRIMARY KEY,
@@ -76,15 +97,31 @@ export class ConsoleDB {
       // column already exists
     }
 
-    // Mark orphaned running ops from previous server lifetime as interrupted
+    // Upgrade the candidate request registry without deleting existing receipts.
+    const hasOwner = () => this.db.prepare('PRAGMA table_info(dispatch_requests_v1)').all().some(c=>c.name==='owner_pid');
+    if (!hasOwner()) {
+      try { this.db.exec('ALTER TABLE dispatch_requests_v1 ADD COLUMN owner_pid INTEGER'); }
+      catch (err) { if (!hasOwner()) throw err; }
+    }
+    // Legacy operations retain their existing restart behavior; keyed operations
+    // must not be interrupted merely because another MCP instance opened the DB.
     const now = Date.now();
     this.db.prepare(`
       UPDATE console_ops
       SET status = 'interrupted',
           error_text = COALESCE(error_text, 'MCP 服务重启，后台任务已中断'),
           finished_at = COALESCE(finished_at, ?)
-      WHERE status = 'running'
+      WHERE status = 'running' AND NOT EXISTS (SELECT 1 FROM dispatch_requests_v1 r WHERE r.operation_id=console_ops.id)
     `).run(now);
+    const active=this.db.prepare("SELECT r.operation_id,r.owner_pid FROM dispatch_requests_v1 r JOIN console_ops o ON o.id=r.operation_id WHERE o.status='running'").all();
+    for (const row of active) {
+      // Unknown owner / PID reuse is conservative: preserve pending receipt, never relaunch.
+      if (!Number.isSafeInteger(row.owner_pid) || row.owner_pid<=0) continue;
+      try { process.kill(row.owner_pid,0); }
+      catch (err) {
+        if (err.code==='ESRCH') this.db.prepare("UPDATE console_ops SET status='interrupted',error_text=COALESCE(error_text,'Request owner exited; reconciliation required'),finished_at=COALESCE(finished_at,?) WHERE id=? AND status='running'").run(now,row.operation_id);
+      }
+    }
   }
 
   getAllPrefs() {
@@ -176,6 +213,40 @@ export class ConsoleDB {
       VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?)
     `).run(id, threadId, opType, prompt, mode, meta ? JSON.stringify(meta) : null, dedupKey, now);
     return this.getOp(id);
+  }
+
+
+  // Persistent, cross-process uniqueness. Reserve the operation and key in the
+  // same short transaction; never expire/delete/relaunch an interrupted key.
+  reserveRequest({ requestId, identity, ...args }) {
+    if (typeof requestId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/.test(requestId) ||
+        requestId.includes('..') || requestId.endsWith('.') || /\.lock$/i.test(requestId)) {
+      throw new Error('D13: invalid request ID');
+    }
+    const key = requestId.toLowerCase();
+    const fingerprint = crypto.createHash('sha256').update(JSON.stringify(identity)).digest('hex');
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const prior = this.db.prepare('SELECT fingerprint, operation_id FROM dispatch_requests_v1 WHERE request_id = ?').get(key);
+      if (prior) {
+        const op = this.getOp(prior.operation_id);
+        if (!op) throw new Error('D13: request audit references missing operation');
+        this.db.exec('COMMIT');
+        // Do not disclose original prompt/output on cross-scope conflict.
+        return { created: false, conflict: prior.fingerprint !== fingerprint,
+          op: prior.fingerprint === fingerprint ? op : {id:op.id,status:op.status} };
+      }
+      if (this.db.prepare('SELECT COUNT(*) AS n FROM dispatch_requests_v1').get().n >= 4096) {
+        throw new Error('D13: request audit full; no automatic deletion');
+      }
+      const op = this.createOp({...args, meta:{...args.meta, requestId:key}});
+      this.db.prepare('INSERT INTO dispatch_requests_v1(request_id,fingerprint,operation_id,owner_pid) VALUES (?,?,?,?)').run(key,fingerprint,op.id,process.pid);
+      this.db.exec('COMMIT');
+      return { created:true, conflict:false, op };
+    } catch (err) {
+      try { this.db.exec('ROLLBACK'); } catch {}
+      throw err;
+    }
   }
 
   finishOp(id, { status, outputText = null, errorText = null, metaPatch = null }) {

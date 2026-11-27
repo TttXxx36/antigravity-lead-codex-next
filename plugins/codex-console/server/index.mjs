@@ -297,11 +297,13 @@ server.registerTool(
       threadId: z.string().min(4).describe('目标 Codex 会话 UUID'),
       message: z.string().min(1).describe('要发送的消息或执行指令'),
       mode: z.enum(['queue', 'resume', 'dispatch_resume', 'readonly']).optional().describe('默认 dispatch_resume；queue/resume 无受管授权时拒绝'),
-      allowDuplicate: z.boolean().optional().describe('是否允许 60 秒内重复投递同一条消息'),
+      allowDuplicate: z.boolean().optional().describe('旧协议短时重复开关；不能绕过 requestId'),
+      requestId: z.string().min(1).max(80).optional().describe('显式持久请求 ID，message 必须为 v2 JSON envelope'),
+      retryOf: z.string().min(1).max(80).optional().describe('明确引用失败请求，不代表授权'),
     },
     _meta: BOTH_META,
   },
-  async ({ threadId, message, mode = 'dispatch_resume', allowDuplicate = false }) => {
+  async ({ threadId, message, mode = 'dispatch_resume', allowDuplicate = false, requestId, retryOf }) => {
     let match;
     try { match = store.getThread(threadId); } catch (err) { return fail(err.message); }
     if (!match) return fail(`未找到目标 Codex 会话: ${threadId}`);
@@ -314,9 +316,10 @@ server.registerTool(
         cwd: match.cwd,
         allowDuplicate,
         taskId: match.dispatchTask?.taskId || null,
+        requestId, retryOf,
       });
       return ok(
-        `消息操作已提交（模式: ${mode}，状态: ${op.status}，操作ID: ${op.id}）${op.errorText ? `\n说明: ${op.errorText}` : ''}`,
+        `${op.duplicate ? '重复请求：返回原操作，未再次派发' : '消息操作已提交'}（模式: ${mode}，状态: ${op.status}，操作ID: ${op.id}）${op.errorText ? `\n说明: ${op.errorText}` : ''}`,
         { op }
       );
     } catch (err) {
@@ -334,7 +337,8 @@ server.registerTool(
     inputSchema: {
       cwd: z.string().min(1).describe('目标仓库或工作目录绝对路径'),
       prompt: z.string().min(1).describe('给 Codex 子代理的清晰任务指令'),
-      taskId: z.string().optional().describe('可选自定义 task_id'),
+      taskId: z.string().optional().describe('可选自定义 task_id；requestId 时必填'),
+      requestId: z.string().min(1).max(80).optional().describe('显式持久请求 ID，prompt 必须为 v2 JSON envelope'),
       difficulty: z.enum(['auto', 'low', 'medium', 'hard', 'extreme']).optional(),
       quality: z.enum(['smart', 'max', 'balanced']).optional(),
       isolation: z.enum(['worktree', 'inplace', 'auto']).optional(),
@@ -348,7 +352,7 @@ server.registerTool(
     try {
       const op = runner.spawnWorker(args);
       return ok(
-        `已启动受管 Codex 子代理任务（操作ID: ${op.id}，目录: ${args.cwd}，策略: ${args.quality || 'smart'}/${args.difficulty || 'auto'}/${args.isolation || 'worktree'}${args.network ? '/network' : ''}）。`,
+        `${op.duplicate ? '重复请求：返回原操作，未再次启动' : '已启动受管 Codex 子代理任务'}（操作ID: ${op.id}，目录: ${args.cwd}，策略: ${args.quality || 'smart'}/${args.difficulty || 'auto'}/${args.isolation || 'worktree'}${args.network ? '/network' : ''}）。`,
         { op }
       );
     } catch (err) {
@@ -451,8 +455,8 @@ server.registerTool(
 server.registerTool(
   'console_refresh_quota',
   {
-    title: 'Refresh Local Codex Quota',
-    description: '读取本地额度证据，不启动 app-server 或实时联网查询（仅前端 App 可调用）',
+    title: 'Refresh Codex Quota Live',
+    description: '通过官方 codex app-server 实时查询 5 小时/周额度与重置时间（仅前端 App 可调用）',
     inputSchema: {},
     _meta: APP_ONLY_META,
   },
