@@ -1452,7 +1452,9 @@ def execute_single_task(
         "git_truth": git_truth,
         "run_dir": str(run_dir),
     }
-    atomic_write_bytes(run_dir / "result.json", (json.dumps(result, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
+    result_bytes = (json.dumps(result, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    atomic_write_bytes(run_dir / "result.json", result_bytes)
+    task_record["result_ref"] = {"turn": None, "sha256": hashlib.sha256(result_bytes).hexdigest()}
     with locked_state() as state:
         if state["tasks"].get(tid, {}).get("status") != "reserved":
             raise StateIntegrityError("Task reservation missing or changed")
@@ -1774,7 +1776,8 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         "git_truth": git_truth,
         "run_dir": str(run_dir),
     }
-    atomic_write_bytes(run_dir / "result.json", (json.dumps(result, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
+    result_bytes = (json.dumps(result, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    atomic_write_bytes(run_dir / "result.json", result_bytes)
     with locked_state() as state:
         current = state["tasks"].get(resume_tid)
         if not current or current.get("active_turn_id") != turn_id or current.get("status") != "running":
@@ -1782,7 +1785,7 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         current.update({"model": model_used, "effort": effort_used, "sandbox": sandbox,
             "network": False, "session_id": new_session_id, "exit_code": rc,
             "status": "timed_out" if timed_out else outcome["task_status"], **outcome,
-            "updated_at": utc_now()})
+            "updated_at": utc_now(), "result_ref": {"turn": turn_id, "sha256": hashlib.sha256(result_bytes).hexdigest()}})
         current.pop("active_turn_id", None)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return task_exit_code(result)

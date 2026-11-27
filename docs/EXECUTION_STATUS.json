@@ -318,15 +318,38 @@
       "depends": [
         "D08"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "状态/结果/增量/日志拆分，宿主兼容，保留 UI",
+      "status": "BLOCKED",
+      "evidence": "Initial and follow-up four environments PASS; current artifact and op boundaries exercised",
+      "next": "D08 updated candidate ancestry integrated; exact-head regression and formal gates pending.",
       "branch": "dev/d09",
-      "approval": null,
-      "pr": null,
+      "approval": "2026-11-27 user approved A and verified candidate development",
+      "pr": 11,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D09 compact MCP and artifact cumulative CI",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45940757723",
+          "tested_commit": "99c0e5544bf03c1702fee7b7deb1a196b9fba502"
+        },
+        {
+          "name": "Actual host visibility/UI and real token acceptance",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D09-compact.md"
+        },
+        {
+          "name": "BUG-007 cleanup denial synchronization",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D09-cleanup-integration.md"
+        }
+      ],
+      "candidate": {
+        "ready": false,
+        "tested_commit": "99c0e5544bf03c1702fee7b7deb1a196b9fba502",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45940757723",
+        "limitations": "Actual host and token tests NOT_RUN; old records without result_ref unavailable; metadata-only log cursor and nonpersistent hash; not merged. Verified D06 cleanup denial synchronized; current head needs CI."
+      }
     },
     {
       "id": "D10",

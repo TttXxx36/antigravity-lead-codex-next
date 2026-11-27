@@ -77,6 +77,15 @@ Run 45937983884：Windows x64/ARM64 的真实 Git fixture 初始化失败，Git 
 ## 四环境修复后实测（候选通过）
 [Run 45938086882](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45938086882) completed/success，tested commit `5ab0c7db084b87701bb3d5d5f60fc512f833dc7f`；Windows Server x64 (140305829193)、macOS (140305829410)、Ubuntu (140305829450)、Windows 11 ARM64 (140305829483) 四个 job 均 success。Git parser + 原生文件系统 rename 各2项，共8/8 PASS；MCP 集成测试四环境均通过 >250 历史任务（300条 fixture）、歧义、只读哈希及 schema 错误断言；累计回归及两个 Windows 安装生命周期 PASS。首轮失败保留，Git 全局配置改隔离临时空文件后通过。真实 Antigravity/Codex 宿主端到端与 Windows x64 桌面仍 NOT_RUN；候选可用于 D09，不代表正式验收或发布。PR #10 base dev/d07，Draft，未合并。
 
+D09 RISK-07：候选紧凑 JSON 单 text、状态/结果/增量/操作状态/日志元数据游标，保留原 UI；CI 待测，真实宿主 visibility 和 Token 未验收。
+
+
+## D09 补测
+初次 [Run 45938576927](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45938576927) 四环境 PASS。补充正向操作状态与当前结果绑定：Python 在原子写入后发布 turn + SHA256，Node 只读取精确状态绑定的 artifact；旧记录无引用时返回不可用，不以扫描旧目录冒充当前结果。校验 ID/session/exit/task status、大小、链接路径；不承诺对恶意本地同权限并发改写的 OS 级隔离。补测含运行中、内容篡改、错误身份、过大、缺失 turn、链接/junction。真实模型/宿主仍未测。复检待执行。
+
+## D09 补测最终候选结果
+[Run 45940757723](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45940757723) completed/success，tested commit `99c0e5544bf03c1702fee7b7deb1a196b9fba502`。Ubuntu (140314263163)、Windows Server x64 (140314263322)、macOS (140314263379)、Windows 11 ARM64 (140314263404) 四个 job 全部成功。正向操作状态、当前 artifact SHA256/身份、running/stale/missing/oversized/identity/link 拒绝及实际 Mock run/resume 结果引用验证均通过；累计回归和两种 Windows 安装生命周期通过。真实模型调用 0；真实 Antigravity 可见性/UI、实际 Token、真实宿主及前置正式合并仍 BLOCKED。旧数据无 result_ref 不推断；日志只返回事件元数据；内容哈希不是持久 revision。D09 候选可作为 D10 基础，PR #11 Draft，未合并。
+
 
 ## 2026-11-27 formal acceptance security review
 Static review of exact D06 head 39cc294bba80c5d563df21b4b329a2646293e017 found a plain cleanup path calling remove_worktree and setting cleaned without trusted authorization (only force/delete-branch and reserved state rejected). BUG-007 proposed P1; potential worktree removal during active/unaccepted task, not a reproduced data loss. Correction rejects all D06 cleanup before state access or Git mutation, and regression checks plain/force/delete-branch denial. D17+ cumulative cleanup already preview-only; intermediate D07–D16 need safe integration before formal acceptance. MCP descriptions now accurately describe denied unmanaged queue/resume and local quota only; tool identifiers/schema preserved. No actual deletion, model calls, permission expansion or host grants. New exact-head tests NOT_RUN until CI; candidate.ready=false, formal BLOCKED. D05 real environment still missing. Trusted scoped grants and actual OS sandbox remain unimplemented/unverified respectively.

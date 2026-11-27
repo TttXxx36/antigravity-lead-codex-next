@@ -304,6 +304,12 @@ async function runTests() {
     assert.equal(openTool?._meta?.ui?.resourceUri, 'ui://codex-console/app.html');
     assert.equal(openTool?._meta?.['com.google.antigravity/ui']?.entrypoints?.length, 2);
 
+    for (const name of ['task_status','task_result','task_delta','get_operation_status','task_logs','task_list']) {
+      assert.deepEqual(toolsRes.result.tools.find(t=>t.name===name)?._meta?.ui?.visibility,['model']);
+    }
+    for (const name of ['get_codex_task_detail','list_codex_tasks','console_get_op']) {
+      assert.deepEqual(toolsRes.result.tools.find(t=>t.name===name)?._meta?.ui?.visibility,['app']);
+    }
     // 3. Verify bundled single-file HTML resource
     const resRead = await rpc('resources/read', { uri: 'ui://codex-console/app.html' });
     assert.equal(resRead.result.contents[0].mimeType, 'text/html;profile=mcp-app');
@@ -328,6 +334,104 @@ async function runTests() {
     const demoAgent = snap.managedAgents.find((m) => m.id === 'demo-task-1');
     assert.equal(demoAgent.summary, 'Resume turn verified all 18 tests cleanly.');
     assert.equal(demoAgent.changedFiles.length, 2);
+
+    const compactCall=async(name,args,budget=1500)=>{
+      const reply=(await rpc('tools/call',{name,arguments:args})).result;
+      assert.ok(reply && !reply.isError,JSON.stringify(reply));
+      assert.equal(reply.structuredContent,undefined);
+      assert.equal(reply.content.length,1);
+      assert.ok(Buffer.byteLength(reply.content[0].text,'utf8')<=budget);
+      return JSON.parse(reply.content[0].text);
+    };
+    const small=await compactCall('task_status',{threadId:agyTask.id},600);
+    assert.equal(small.status,'running');
+    assert.equal(small.verification,'unknown');
+    assert.equal(small.summary,undefined);
+    const result=await compactCall('task_result',{threadId:agyTask.id});
+    assert.equal(result.summary,'Implemented JWT auth with 18 passing tests.');
+    const managed=await compactCall('task_status',{taskId:'demo-task-1'},600);
+    assert.equal(managed.status,'running');
+    const current=await compactCall('task_delta',{threadId:agyTask.id});
+    assert.equal(current.changed,true);
+    const unchanged=await compactCall('task_delta',{threadId:agyTask.id,revision:current.revision});
+    assert.equal(unchanged.changed,false);
+    assert.equal(unchanged.result,undefined);
+    const page=await compactCall('task_logs',{threadId:agyTask.id,limit:1});
+    assert.equal(page.entries.length,1);
+    assert.equal(page.hasMore,true);
+    assert.equal(page.entries[0].text,undefined);
+    const page2=await compactCall('task_logs',{threadId:agyTask.id,cursor:page.nextCursor,limit:1});
+    assert.equal(page2.entries.length,1);
+    assert.ok(page2.nextCursor>page.nextCursor);
+    assert.equal(page2.hasMore,false);
+    const absent=(await rpc('tools/call',{name:'get_operation_status',arguments:{opId:'not-found'}})).result;
+    assert.equal(absent.isError,true);
+    assert.equal(absent.structuredContent,undefined);
+    // Positive operation lookup; no prompt/output is serialized.
+    const fixtureOps=new DatabaseSync(path.join(pluginData,'console.sqlite'));
+    fixtureOps.prepare("INSERT INTO console_ops(id,thread_id,op_type,prompt,status,output_text,started_at,duration_ms) VALUES(?,?,?,?,?,?,?,?)").run('op-fixture',agyTask.id,'mock','PRIVATE_PROMPT','succeeded','PRIVATE_OUTPUT',1,7);
+    fixtureOps.close();
+    const op=await compactCall('get_operation_status',{opId:'op-fixture'},600);
+    assert.deepEqual(op,{opId:'op-fixture',threadId:agyTask.id,status:'succeeded',durationMs:7});
+    // State-published terminal artifact with exact identity and digest.
+    const stateFile=path.join(dispatchDir,'state.json');
+    const originalState=fs.readFileSync(stateFile,'utf8');
+    const fixtureState=JSON.parse(originalState);
+    const fixtureId='boundary-test';
+    const fixtureRun=path.join(dispatchDir,'runs',fixtureId);
+    const artifact=path.join(fixtureRun,'result.json');
+    fs.mkdirSync(fixtureRun,{recursive:true});
+    const value={task_id:fixtureId,session_id:'session-fixture',exit_code:0,task_status:'completed',report:{status:'completed',summary:'current fixture',verification_passed:true}};
+    const record={task_id:fixtureId,run_dir:fixtureRun,session_id:value.session_id,exit_code:0,task_status:'completed',status:'completed'};
+    fixtureState.tasks[fixtureId]=record;
+    const publish=bytes=>{
+      fs.writeFileSync(artifact,bytes);
+      record.result_ref={turn:null,sha256:crypto.createHash('sha256').update(bytes).digest('hex')};
+      fs.writeFileSync(stateFile,JSON.stringify(fixtureState));
+    };
+    const readFixture=()=>compactCall('task_result',{taskId:fixtureId});
+    publish(JSON.stringify(value));
+    let found=await readFixture();
+    assert.equal(found.reportAvailable,true);assert.equal(found.summary,'current fixture');assert.equal(found.verification,'unknown');
+    record.status='running';fs.writeFileSync(stateFile,JSON.stringify(fixtureState));
+    assert.equal((await readFixture()).reportAvailable,false);
+    record.status='completed';fs.writeFileSync(stateFile,JSON.stringify(fixtureState));
+    fs.writeFileSync(artifact,JSON.stringify({...value,report:{...value.report,summary:'stale changed'}}));
+    assert.equal((await readFixture()).reportAvailable,false);
+    publish(JSON.stringify({...value,task_id:'different'}));
+    assert.equal((await readFixture()).reportAvailable,false);
+    publish(JSON.stringify({...value,report:{...value.report,summary:'x'.repeat(263000)}}));
+    assert.equal((await readFixture()).reportAvailable,false);
+    publish(JSON.stringify(value));
+    record.result_ref.turn='turn-missing';fs.writeFileSync(stateFile,JSON.stringify(fixtureState));
+    assert.equal((await readFixture()).reportAvailable,false);
+    publish(JSON.stringify(value));
+    fs.unlinkSync(artifact);
+    const outside=path.join(tmpRoot,'outside-result.json');
+    fs.writeFileSync(outside,JSON.stringify(value));
+    let linked=false;
+    try { fs.symlinkSync(outside,artifact,'file');linked=true; } catch(err) { console.log('[SKIP] file symlink unavailable: '+err.code); }
+    if(linked){assert.equal((await readFixture()).reportAvailable,false);fs.unlinkSync(artifact);}
+    // Directory junction on Windows exercises the escape even if file links are unavailable.
+    const redirect=path.join(tmpRoot,'outside-run');fs.mkdirSync(redirect);
+    fs.writeFileSync(path.join(redirect,'result.json'),JSON.stringify(value));
+    fs.rmSync(fixtureRun,{recursive:true,force:true});
+    fs.symlinkSync(redirect,fixtureRun,process.platform==='win32'?'junction':'dir');
+    assert.equal((await readFixture()).reportAvailable,false);
+    fs.unlinkSync(fixtureRun);
+    fs.writeFileSync(stateFile,originalState);
+    console.log('[PASS] D09 positive op, current digest-bound artifact, running/stale/missing/oversized/identity/link rejection');
+    const traversal=(await rpc('tools/call',{name:'task_result',arguments:{taskId:'../secret'}})).result;
+    assert.equal(traversal.isError,true);
+    const both=(await rpc('tools/call',{name:'task_status',arguments:{threadId:agyTask.id,taskId:'demo-task-1'}})).result;
+    assert.equal(both.isError,true);
+    const listing=await compactCall('task_list',{limit:2},4000);
+    assert.equal(listing.tasks.length,2);
+    assert.equal(listing.tasks[0].title,undefined);
+    const legacy=(await rpc('tools/call',{name:'get_codex_task_detail',arguments:{threadId:agyTask.id}})).result;
+    assert.ok(legacy.structuredContent.messages.length>0);
+    assert.ok(Buffer.byteLength(JSON.stringify(legacy))>Buffer.byteLength(JSON.stringify(small)));
+    console.log('[PASS] D09 compact MCP text-only response, bounded payload, delta, cursor, legacy UI metadata and invalid selectors');
 
     // 4b. Verify dual-window quota picks minimum remaining (5h 51% < weekly 88%)
     assert.equal(snap.quota?.available, true);

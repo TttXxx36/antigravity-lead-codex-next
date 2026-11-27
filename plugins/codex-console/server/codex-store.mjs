@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -290,12 +291,12 @@ export class CodexStore {
   getThread(input) {
     const id = this.resolveThreadId(input);
     if (!id) return null;
-    const snap = this.getSnapshot({ threadId:id, limit:1 });
+    const snap = this.getSnapshot({ threadId:id, limit:1, includeManagedAgents:false });
     if (!snap.connected) throw new Error('State database unavailable');
     return snap.tasks.find(t => t.id === id) || null;
   }
 
-  getSnapshot({ limit = 160, threadId = null, includeChildren = false } = {}) {
+  getSnapshot({ limit = 160, threadId = null, includeChildren = false, includeManagedAgents = true } = {}) {
     const errors = [];
     const prefsMap = this.consoleDb.getAllPrefs();
     const dispatchState = readDispatchState(errors);
@@ -503,7 +504,7 @@ export class CodexStore {
     });
 
     // 7. Build managed subagents view (dispatch workers + active console spawns + codex subagents)
-    const managedAgents = dispatchTasksList
+    const managedAgents = (includeManagedAgents ? dispatchTasksList : [])
       .map((t) => {
         const result = readDispatchRunResult(t.run_dir);
         const linkedThread = tasks.find((x) => x.id === t.session_id) || null;
@@ -624,6 +625,65 @@ export class CodexStore {
     );
 
     return { latestTurnMap, durationMap, latestReplyMap };
+  }
+
+  // Compact model-facing reads never enumerate unrelated run artifacts.
+  getManagedTask(taskId, includeResult = false) {
+    if (typeof taskId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$/.test(taskId)) throw new Error('Invalid task ID');
+    const errors = [];
+    const state = readDispatchState(errors);
+    if (errors.length) throw new Error('Dispatcher state unavailable');
+    if (!Object.hasOwn(state.tasks, taskId)) return null;
+    const task = state.tasks[taskId];
+    if (!task || task.task_id !== taskId) throw new Error('Invalid task record');
+    let result = null;
+    if (includeResult && task.run_dir) {
+      const expected = path.resolve(DISPATCH_STATE_DIR, 'runs', taskId);
+      // Never follow a record to arbitrary paths or symlink/junction targets.
+      try {
+        const actual = fs.realpathSync(expected);
+        const root = fs.realpathSync(DISPATCH_STATE_DIR);
+        const canonical = path.join(root, 'runs', taskId);
+        if (path.resolve(task.run_dir) !== expected || actual !== canonical ||
+            fs.lstatSync(expected).isSymbolicLink()) throw new Error('Unexpected run directory');
+        const ref = task.result_ref;
+        // No inference from directory ordering or old artifacts. Only the
+        // state-published result of the current completed turn is eligible.
+        if (!['completed','failed','partial','blocked','timed_out'].includes(task.status)
+            || task.active_turn_id || !ref || !/^[a-f0-9]{64}$/.test(ref.sha256)
+            || !(ref.turn === null || (typeof ref.turn === 'string' && /^turn-[A-Za-z0-9_-]+$/.test(ref.turn)))) throw new Error('No current result reference');
+        const latest = path.join(expected, ...(ref.turn === null ? [] : [ref.turn]), 'result.json');
+        const stat = fs.lstatSync(latest);
+        if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 262144 ||
+            fs.realpathSync(latest) !== path.join(actual,path.relative(expected,latest))) throw new Error('Invalid result artifact');
+        const bytes = fs.readFileSync(latest);
+        if (bytes.length > 262144 || crypto.createHash('sha256').update(bytes).digest('hex') !== ref.sha256) throw new Error('Result digest mismatch');
+        const candidate = JSON.parse(bytes.toString('utf8'));
+        if (candidate?.task_id !== taskId || (candidate.turn_id ?? null) !== ref.turn ||
+            candidate.session_id !== task.session_id || candidate.exit_code !== task.exit_code ||
+            candidate.task_status !== task.task_status || !candidate.report ||
+            candidate.report.status !== candidate.task_status) throw new Error('Result identity mismatch');
+        result = candidate;
+      } catch {
+        // Missing, unsafe, incompatible and oversized artifacts are not verified.
+        result = null;
+      }
+    }
+    return {task,result};
+  }
+
+  getLogPage(input, cursor = 0, limit = 10) {
+    const id = this.resolveThreadId(input);
+    if (!id) throw new Error('Thread not found');
+    if (!Number.isSafeInteger(cursor) || cursor < 0 || !Number.isInteger(limit) || limit < 1 || limit > 20) throw new Error('Invalid log pagination');
+    const errors = [];
+    // Explicit metadata-only page; no arbitrary files, prompts or raw command output.
+    const rows = withReadOnlyDb(this.historyDbPath, db => db.prepare(
+      'SELECT rowid AS cursor, item_type, created_at_ms FROM thread_items WHERE thread_id = ? AND rowid > ? ORDER BY rowid LIMIT ?'
+    ).all(id,cursor,limit+1), [], errors);
+    if (errors.length) throw new Error('History database unavailable');
+    const entries = rows.slice(0,limit).map(r=>({cursor:r.cursor,type:typeof r.item_type==='string' ? r.item_type.slice(0,40) : 'unknown',at:r.created_at_ms ?? null}));
+    return {entries,nextCursor:entries.at(-1)?.cursor ?? cursor,hasMore:rows.length>limit};
   }
 
   getThreadDetail(input) {
