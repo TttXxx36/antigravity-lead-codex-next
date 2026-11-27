@@ -1,7 +1,7 @@
 {
   "version": 1,
   "as_of": "2026-11-27",
-  "main_commit": "77f9f9b95674ada26c8833b5057cebfb4ff70643",
+  "main_commit": "9f504b7a2dfe3a8bf4c6df87d670f42c234e5a82",
   "permissions": {
     "automatic_merge": false,
     "release": false,
@@ -38,15 +38,23 @@
       "depends": [
         "D00"
       ],
-      "status": "REVIEW",
-      "evidence": "三平台原版结果已采集；PR #2 待验收，Windows 失败为原版基线",
-      "next": "归档原始证据、确认基线验收；不把修复候选冒充原版",
+      "status": "DONE",
+      "evidence": "用户接受原始基线，Windows FAIL/NOT_RUN 保留",
+      "next": "",
       "branch": "dev/d01",
-      "approval": "User approved A, mock/local plus Actions",
+      "approval": "2026-11-27 用户明确验收 D01、D02 并授权合并 PR #2、#3；批准 D03–D22 推荐 A 按依赖实施及 GitHub Actions 测试。后续 PR 的合并、真实模型测试及正式发布仍遵守独立授权门禁。",
       "pr": 2,
-      "accepted": false,
-      "merged": false,
+      "accepted": true,
+      "merged": true,
       "checks": [
+        {
+          "name": "accepted original three-platform measurement (negative results retained)",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45915363640"
+        }
+      ],
+      "merge_commit": "7a454fdbc7a8a17bb7ff1a1a3510e680a62948af",
+      "observations": [
         {
           "name": "original three-platform baseline",
           "status": "FAIL",
@@ -66,15 +74,23 @@
       "depends": [
         "D00"
       ],
-      "status": "REVIEW",
-      "evidence": "PR #3；治理规范、检查器、三平台 45/45 单测通过",
-      "next": "人工验收及合并；远程保护设置另获授权",
+      "status": "DONE",
+      "evidence": "用户接受治理；三平台45/45及复检通过",
+      "next": "",
       "branch": "dev/d02",
-      "approval": "User requested D02 and continuation of roadmap",
+      "approval": "2026-11-27 用户明确验收 D01、D02 并授权合并 PR #2、#3；批准 D03–D22 推荐 A 按依赖实施及 GitHub Actions 测试。后续 PR 的合并、真实模型测试及正式发布仍遵守独立授权门禁。",
       "pr": 3,
-      "accepted": false,
-      "merged": false,
+      "accepted": true,
+      "merged": true,
       "checks": [
+        {
+          "name": "governance retest 15 tests x 3",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45922409412"
+        }
+      ],
+      "merge_commit": "9f504b7a2dfe3a8bf4c6df87d670f42c234e5a82",
+      "observations": [
         {
           "name": "governance ledger + 15 unit tests × 3 platforms",
           "status": "PASS",
@@ -443,5 +459,6 @@
       "merged": false,
       "checks": []
     }
-  ]
+  ],
+  "roadmap_approval": "2026-11-27 用户明确验收 D01、D02 并授权合并 PR #2、#3；批准 D03–D22 推荐 A 按依赖实施及 GitHub Actions 测试。后续 PR 的合并、真实模型测试及正式发布仍遵守独立授权门禁。"
 }

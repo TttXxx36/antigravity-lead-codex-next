@@ -14,8 +14,10 @@
 
 ## 当前状态
 
-P0 / D00 DONE（用户已验收并授权合并）。当前仓库为公开独立仓库，D00 基线已在 main。已由 GitHub API 确认 fork=false。上游是 [Koala973/antigravity-lead-codex](https://github.com/Koala973/antigravity-lead-codex)。已保留双方 MIT 版权声明；原始上游文档见 [README_UPSTREAM.md](README_UPSTREAM.md)，原始许可证见 [LICENSE.upstream](LICENSE.upstream)，完整性证据见 [D00 清单](docs/evidence/D00-import.md)。
+P0 / D00–D02 DONE（用户已验收并授权合并）。当前仓库为公开独立仓库，D00 基线已在 main。已由 GitHub API 确认 fork=false。上游是 [Koala973/antigravity-lead-codex](https://github.com/Koala973/antigravity-lead-codex)。已保留双方 MIT 版权声明；原始上游文档见 [README_UPSTREAM.md](README_UPSTREAM.md)，原始许可证见 [LICENSE.upstream](LICENSE.upstream)，完整性证据见 [D00 清单](docs/evidence/D00-import.md)。
 
 ## 启动下一步
 
-D00 方案 A 已验收并通过 [PR #1](https://github.com/TttXxx36/antigravity-lead-codex-next/pull/1) 合并。D01 方案 A 已获批准，dev/d01 已建立 Mock 基准工具及本地自检、20 个真实调度器函数的 SHA 核验片段集成证据，状态 REVIEW（完整模块、MCP 及三平台基准仍待运行）。详见 [BASELINE.md](docs/BASELINE.md)。D02 未启动，必须另行批准。不会 fork，不会向上游推送，不会在规划初始化时执行代码开发。
+2026-11-27 用户明确验收 D01、D02 并授权合并 PR #2、#3；批准 D03–D22 推荐 A 按依赖实施及 GitHub Actions 测试。后续 PR 的合并、真实模型测试及正式发布仍遵守独立授权门禁。
+
+[剩余工作](docs/REMAINING_WORK.md) · [Bug 登记](docs/ISSUES_AND_BUGS.md) · [执行台账](docs/EXECUTION_STATUS.json)。原始 Windows 基线失败已保留；PR #4 仅为独立修复候选，按对应卡集成。

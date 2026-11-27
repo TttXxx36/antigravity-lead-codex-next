@@ -94,3 +94,9 @@ D03–D08 Windows 与正确性；D09–D13 低 Token 通信；D14–D17 性能�
 
 ### D02 实测结果
 [Run 45922285638](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45922285638) 完成 success；测试提交 `02d2e14f676e5f8e9b1a365c8d65553120d915cd`，三个平台 ledger 检查和各15项单测全部通过（45/45）。H09–H12 已实施及验证，H13 保护规则方案已写明但远程规则未修改，H14 Draft PR #3 已更新；人工验收及合并仍待授权。见 [D02 CI 证据](evidence/D02-governance.md)。
+
+## 最新授权（覆盖历史交接状态）
+
+2026-11-27 用户明确验收 D01、D02 并授权合并 PR #2、#3；批准 D03–D22 推荐 A 按依赖实施及 GitHub Actions 测试。后续 PR 的合并、真实模型测试及正式发布仍遵守独立授权门禁。
+
+PR #2 merge 7a454fdbc7a8a17bb7ff1a1a3510e680a62948af；PR #3 merge 9f504b7a2dfe3a8bf4c6df87d670f42c234e5a82。D03 前置已完成。
