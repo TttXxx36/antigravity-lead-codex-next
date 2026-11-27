@@ -467,5 +467,15 @@
       "checks": []
     }
   ],
-  "roadmap_approval": "2026-11-27 用户明确验收 D01、D02 并授权合并 PR #2、#3；批准 D03–D22 推荐 A 按依赖实施及 GitHub Actions 测试。后续 PR 的合并、真实模型测试及正式发布仍遵守独立授权门禁。"
+  "roadmap_approval": "2026-11-27 用户明确验收 D01、D02 并授权合并 PR #2、#3；批准 D03–D22 推荐 A 按依赖实施及 GitHub Actions 测试。后续 PR 的合并、真实模型测试及正式发布仍遵守独立授权门禁。",
+  "conditional_merge_approval": {
+    "cards": "D03-D21",
+    "date": "2026-11-27",
+    "condition": "actual acceptance gates, tested exact head, dependencies DONE, no unresolved safety risk",
+    "exclusions": [
+      "real model tests",
+      "permission expansion",
+      "D22 release"
+    ]
+  }
 }

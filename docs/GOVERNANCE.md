@@ -37,3 +37,6 @@ PROPOSED → ACCEPTED → IN_PROGRESS → REVIEW → DONE。BLOCKED/DEFERRED 须
 
 ## 已执行治理 CI
 [Run 45922285638](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45922285638)，测试 head `02d2e14f676e5f8e9b1a365c8d65553120d915cd`，三平台均成功；详见 [D02-governance.md](evidence/D02-governance.md)。
+
+## 条件合并授权更新
+2026-11-27 用户授权 D03–D21 在满足实际验收门槛后依次合并并更新 DONE，无需再次逐卡确认；未满足则修复或记录 BLOCKED。此授权不涵盖 D22 正式发布、真实模型测试、权限扩张或无条件自动合并。 本段优先于原来逐卡人工合并的流程描述。合并执行者核对确切 head 和实际测试结果，必要证据缺失时保留 BLOCKED；不改变权限配置字段，不启用 GitHub 自动合并。

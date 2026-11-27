@@ -40,7 +40,7 @@ class PlatformTests(unittest.TestCase):
 
     def test_native_extension_windows(self):
         if os.name != "nt":
-            return
+            self.skipTest("Windows-only native wrapper")
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / "codex.cmd"
             p.write_text("@exit /b 0", encoding="utf-8")
@@ -51,7 +51,7 @@ class PlatformTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "中文 空格"
             root.mkdir()
-            long_root = root.joinpath("a"*55, "b"*55, "c"*55)
+            long_root = root.joinpath(*[chr(97+i)*65 for i in range(5)])
             long_root.mkdir(parents=True)
             env = dict(os.environ, CODEX_HOME=str(root / "codex home"),
                        GEMINI_CONFIG_DIR=str(root / "gemini config"),
@@ -60,6 +60,7 @@ class PlatformTests(unittest.TestCase):
             code = """import importlib.util, json, sys
 s=importlib.util.spec_from_file_location('d',sys.argv[1]);d=importlib.util.module_from_spec(s);s.loader.exec_module(d)
 d.ensure_state_dirs()
+p=d.STATE_DIR / "中文 evidence.txt";p.write_text("fixture",encoding="utf-8");assert p.read_text(encoding="utf-8")=="fixture";assert len(str(p))>260;p.unlink()
 print(json.dumps([str(d.CODEX_HOME),str(d.GEMINI_CONFIG_DIR),str(d.STATE_DIR),str(d.MODELS_CACHE_PATHS[0])],ensure_ascii=False))
 """
             out = subprocess.run([sys.executable, "-c", code, str(SOURCE)], env=env, capture_output=True,
@@ -67,6 +68,7 @@ print(json.dumps([str(d.CODEX_HOME),str(d.GEMINI_CONFIG_DIR),str(d.STATE_DIR),st
             self.assertEqual(json.loads(out.stdout), [env["CODEX_HOME"], env["GEMINI_CONFIG_DIR"],
                 env["AGY_DISPATCH_STATE_DIR"], str(Path(env["CODEX_HOME"]) / "models_cache.json")])
             self.assertTrue(Path(env["AGY_DISPATCH_STATE_DIR"]).is_dir())
+            self.assertGreater(len(str(Path(env["AGY_DISPATCH_STATE_DIR"]))), 260)
 
     def test_health_missing_exe_diagnostic(self):
         with tempfile.TemporaryDirectory() as tmp:

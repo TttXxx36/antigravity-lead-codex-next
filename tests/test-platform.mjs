@@ -17,8 +17,13 @@ test('custom roots and env path separator', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'd03-platform-'));
   try {
     const root = path.join(home, '中文 空格');
-    const long = path.join(root, 'a'.repeat(55), 'b'.repeat(55), 'c'.repeat(55));
+    const long = path.join(root, ...Array.from({length:5}, (_,i)=>String.fromCharCode(97+i).repeat(65)));
     fs.mkdirSync(long, {recursive:true});
+    const file = path.join(normalizePath(long), '中文 evidence.txt');
+    assert.ok(file.length > 260);
+    fs.writeFileSync(file, 'fixture', 'utf8');
+    assert.equal(fs.readFileSync(file, 'utf8'), 'fixture');
+    fs.unlinkSync(file);
     const env = {PATH: [root, long].join(path.delimiter), CODEX_HOME: root, GEMINI_CONFIG_DIR: path.join(root,'config'), AGY_DISPATCH_STATE_DIR: long};
     const p = runtimePaths(env,home);
     assert.equal(p.codexHome,root);
