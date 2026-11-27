@@ -13,7 +13,7 @@
 | [D04](decisions/D04.md) 跨平台锁与状态完整性 | V1.1 | D03 | DONE | PR #6 已合并；39/39 状态回归通过 |
 | [D05](decisions/D05.md) 安装器和环境诊断 | V1.1 | D03,D04 | BLOCKED | PR #7；四环境及真实 Windows 11 ARM64 OS 生命周期 PASS；真实 Antigravity 宿主和实际 Codex 版本证据缺失 |
 | [D06](decisions/D06.md) 审批门禁与执行边界 | V1.1 | D04,D05 | BLOCKED | PR #8 候选四环境 CI PASS；可信宿主授权/真实 sandbox 未验收；可继续 D07 候选 |
-| [D07](decisions/D07.md) 任务结果与进程生命周期正确性 | V1.1 | D04,D06 | PROPOSED | 已复现 BUG-001/002；独立退出/任务/验证状态，失败/取消/超时、进程树清理 |
+| [D07](decisions/D07.md) 任务结果与进程生命周期正确性 | V1.1 | D04,D06 | BLOCKED | PR #9 四环境 44/44 outcome PASS；真实宿主进程树未验收；可继续 D08 候选 |
 | [D08](decisions/D08.md) 历史任务定位与 Windows 发布门禁 | V1.1 | D05,D06,D07 | PROPOSED | 未实施；按 ID 查询、歧义拒绝、Git -z、DB 错误、三平台与 Windows 实机 |
 | [D09](decisions/D09.md) 模型可见的轻量 MCP 接口 | V1.2 | D08 | PROPOSED | 未实施；状态/结果/增量/日志拆分，宿主兼容，保留 UI |
 | [D10](decisions/D10.md) 结构化通信与短报告协议 | V1.2 | D09 | PROPOSED | 未实施；版本化 task/result/delta、字段预算、程序证据、拒绝乱序 |
@@ -81,3 +81,6 @@ D06 基于 D05 精确通过 head 启动，D05 正式验收仍阻塞；后续候�
 
 
 D07 候选：BUG-001/002 报告与退出状态校验、原子结果/终态、超时/启动失败、重复 close 及孤儿状态回归；待 CI。
+
+## 实际四环境 CI（候选通过）
+[Run 45937506260](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937506260) completed/success，测试 commit `8e472999c84f1a41dd188a5766d6bd4de7bd02a5`；Windows 11 ARM64、Windows Server x64、Ubuntu、macOS 各7项 Python outcome +4项 Node outcome（共44/44 PASS），真实本地父子进程超时 marker 未出现，缺报告与非零退出反向断言、启动失败、终态重复事件和重启孤儿状态通过。D06 策略、Hook、治理及 D03–D05 累计回归通过。旧 BUG-001/002 为 CANDIDATE_PASS，尚未合入 main；真实 Antigravity/实际 Codex worker 的进程树、逃逸/提前退出根进程及真实掉电未验收，不能据托管结果标 DONE。D07 候选允许后续依赖开发；PR #9 base dev/d06 保持 Draft。

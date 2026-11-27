@@ -230,21 +230,33 @@
         "D04",
         "D06"
       ],
-      "status": "IN_PROGRESS",
-      "evidence": "D07 report and process lifecycle candidate",
-      "next": "CI and real desktop process-tree/host acceptance",
+      "status": "BLOCKED",
+      "evidence": "Four environments outcome and cumulative regressions PASS; actual host process-tree acceptance pending",
+      "next": "D08 candidate development; actual host and formal merge gates remain",
       "branch": "dev/d07",
       "approval": "2026-11-27 user approved A and verified candidate development",
-      "pr": null,
+      "pr": 9,
       "accepted": false,
       "merged": false,
       "checks": [
         {
-          "name": "D07 outcome and lifecycle regressions",
-          "status": "NOT_RUN",
-          "ref": "pending CI"
+          "name": "four-environment outcome and cumulative regression",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937506260",
+          "tested_commit": "8e472999c84f1a41dd188a5766d6bd4de7bd02a5"
+        },
+        {
+          "name": "actual host process-tree and crash acceptance",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D07-outcomes.md"
         }
-      ]
+      ],
+      "candidate": {
+        "ready": true,
+        "tested_commit": "8e472999c84f1a41dd188a5766d6bd4de7bd02a5",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937506260",
+        "limitations": "Real Codex/Antigravity worker tree, escaped descendants and real power-loss not verified; no formal merge."
+      }
     },
     {
       "id": "D08",
