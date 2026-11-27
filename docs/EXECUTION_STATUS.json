@@ -372,21 +372,33 @@
       "depends": [
         "D10"
       ],
-      "status": "IN_PROGRESS",
-      "evidence": "D11 opt-in task-local context candidate; CI pending",
-      "next": "CI, actual host session continuity and token evidence remain",
+      "status": "BLOCKED",
+      "evidence": "Four environment context and mock session regression PASS",
+      "next": "D12 candidate; actual host continuity and token acceptance pending",
       "branch": "dev/d11",
       "approval": "2026-11-27 user authorized A candidate development",
-      "pr": null,
+      "pr": 13,
       "accepted": false,
       "merged": false,
       "checks": [
         {
-          "name": "D11 context and cumulative regression",
-          "status": "NOT_RUN",
-          "ref": "pending CI"
+          "name": "D11 context and cumulative CI",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45945706823",
+          "tested_commit": "09ff29699f4b459281cce41e60a55c9931d7394e"
+        },
+        {
+          "name": "Actual session continuity and token acceptance",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D11-context.md"
         }
-      ]
+      ],
+      "candidate": {
+        "ready": true,
+        "tested_commit": "09ff29699f4b459281cce41e60a55c9931d7394e",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45945706823",
+        "limitations": "Real host/session continuity, token measurements and formal dependencies pending; opt-in only."
+      }
     },
     {
       "id": "D12",

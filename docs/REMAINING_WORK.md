@@ -17,7 +17,7 @@
 | [D08](decisions/D08.md) 历史任务定位与 Windows 发布门禁 | V1.1 | D05,D06,D07 | BLOCKED | PR #10 四环境 CI PASS；实机宿主未验收；D09 候选可继续 |
 | [D09](decisions/D09.md) 模型可见的轻量 MCP 接口 | V1.2 | D08 | BLOCKED | PR #11 两轮四环境 PASS；正向 op 与结果边界补测通过；真实宿主与 Token 待验收；可继续 D10 |
 | [D10](decisions/D10.md) 结构化通信与短报告协议 | V1.2 | D09 | BLOCKED | PR #12 四环境候选 PASS；真实 structured output/宿主待验收；D11 可继续 |
-| [D11](decisions/D11.md) 共享黑板与会话复用 | V1.2 | D10 | IN_PROGRESS | task-local 黑板、delta、显式重建候选；CI 待测 |
+| [D11](decisions/D11.md) 共享黑板与会话复用 | V1.2 | D10 | BLOCKED | PR #13 四环境 PASS；真实会话与 Token 未验收；D12 可继续 |
 | [D12](decisions/D12.md) Token 遥测、预算与动态模型路由 | V1.2 | D01,D10,D11 | PROPOSED | 未实施；真实/估算/unknown 区分、预算、路由、避免重复累加 |
 | [D13](decisions/D13.md) 幂等派发与循环终止 | V1.2 | D10,D12 | PROPOSED | 未实施；持久 request_id、进度指纹、重复错误停止、授权重试 |
 | [D14](decisions/D14.md) 实时流式执行与事件总线 | V1.3 | D07,D13 | PROPOSED | 未实施；流式 JSONL、心跳/seq、内存有界、断线恢复 |
@@ -100,3 +100,7 @@ D08 候选：直接查询历史任务、拒绝歧义、Git -z、显式 schema �
 
 ## D10 最终候选实测
 [Run 45941283814](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45941283814) completed/success，精确代码 head `5e937fcb4de98d0df60cef144b81e8f619f9e550`；Ubuntu、macOS、Windows Server x64、Windows 11 ARM64 四环境全绿。各环境6项协议测试及1项实际 Mock run/resume revision 回归（28次新增测试），累计 D03–D09 回归通过。首轮 45941194963 因后续修正被取消，不计为通过。真实模型 structured output、真实宿主及实际 Token 未验证；v2 仍显式选择，batch/MCP 默认 v1。D10 候选可复用，正式验收 BLOCKED，PR #12 Draft 未合并。
+
+
+## 最终候选四环境实测
+[Run 45945706823](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45945706823) completed/success，精确测试提交 `09ff29699f4b459281cce41e60a55c9931d7394e`，Ubuntu、macOS、Windows Server x64、Windows 11 ARM64 四环境通过；每环境7项上下文单元测试及实际三轮 Mock run/resume/rebuild 测试，累计回归及 Windows 安装通过。真实宿主网络断线、会话事件兼容性与 Token 未验收。首轮被补充提交替代，不计最终证据。候选可用于 D12，正式验收 BLOCKED，PR #13 未合并。

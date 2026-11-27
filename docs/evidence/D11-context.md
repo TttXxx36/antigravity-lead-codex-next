@@ -7,3 +7,6 @@
 测试覆盖实际 Mock 三轮同 session/新 session、阈值、过期 revision、跨任务、摘要篡改、秘密模式、字节预算及累计回归；待实际 CI。
 
 D11 审查补测：黑板约束随 sandbox 收紧保持一致，禁止后续升级；旧协议任务不得占用其他黑板的当前/退役 session；新 Python 进程读取已持久化黑板并校验摘要后继续 Mock 恢复。真实网络断线、外部客户端绕开 dispatcher 或 OS 级同权限篡改未验收。首轮 Run 45945559903 被后续修复替代，最终 head 单独测试。
+
+## 最终候选四环境实测
+[Run 45945706823](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45945706823) completed/success，精确测试提交 `09ff29699f4b459281cce41e60a55c9931d7394e`，Ubuntu、macOS、Windows Server x64、Windows 11 ARM64 四环境通过；每环境7项上下文单元测试及实际三轮 Mock run/resume/rebuild 测试，累计回归及 Windows 安装通过。真实宿主网络断线、会话事件兼容性与 Token 未验收。首轮被补充提交替代，不计最终证据。候选可用于 D12，正式验收 BLOCKED，PR #13 未合并。
