@@ -1065,6 +1065,118 @@ def build_protocol_result(envelope: dict[str, Any], result: dict[str, Any], dura
             "git":{"head_sha":sha(git.get("head_sha")),"base_sha":sha(git.get("base_sha"))},
             "result_ref":ref}
 
+# D11: opt-in task-local context. These are conservative local counters,
+# not a tokenizer, provider context limit, or authorization decision.
+CONTEXT_MAX_TURNS = 8
+CONTEXT_MAX_BYTES = 16384
+CONTEXT_MAX_GENERATIONS = 32
+CONTEXT_SECRET_PATTERN = re.compile(
+    r"(?i)(?:-----BEGIN [A-Z ]*PRIVATE KEY-----|"
+    r"\b(?:sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]{12,}|github_pat_[A-Za-z0-9_]{12,}|AKIA[A-Z0-9]{16})\b|"
+    r"\b(?:api[_-]?key|access[_-]?token|password|authorization)\s*[:=]\s*\S+)"
+)
+
+
+def context_check_text(value: Any) -> None:
+    # Never import environment, credentials, raw logs or model replies into
+    # the board. Heuristic only: callers must not supply secrets.
+    if isinstance(value,str):
+        if CONTEXT_SECRET_PATTERN.search(value):
+            raise ValueError("D11: potential credential in context; use a nonsecret reference")
+    elif isinstance(value,list):
+        for item in value:
+            context_check_text(item)
+    elif isinstance(value,dict):
+        for item in value.values():
+            context_check_text(item)
+
+
+def context_digest(value: dict[str, Any]) -> str:
+    return hashlib.sha256(json.dumps(value,sort_keys=True,ensure_ascii=False,separators=(",",":")).encode("utf-8")).hexdigest()
+
+
+def initial_context(envelope: dict[str, Any], sandbox: str, base_sha: str | None) -> dict[str, Any]:
+    context_check_text(envelope)
+    return {"version":1,"task_id":envelope["task_id"],"rev":1,
+            "stable":{k:envelope[k] for k in ("goal","scope","accept")},
+            "constraints":{"sandbox":sandbox,"network":False,"base_sha":base_sha},
+            "generation":1,"turns":1,"prompt_bytes":0,"checkpoint":None,
+            "retired_sessions":[],"last_result_ref":None}
+
+
+def context_prepare(raw: str, record: dict[str, Any], rebuild: bool) -> tuple[dict[str, Any],dict[str, Any],str]:
+    old = record.get("context_board")
+    if not isinstance(old,dict) or old.get("version") != 1 or old.get("task_id") != record["task_id"] or old.get("rev") != record.get("protocol_rev") or context_digest(old) != record.get("context_digest"):
+        raise ValueError("D11: missing or inconsistent task context")
+    value = protocol_json(raw)
+    keys={"version","task_id","rev","base_rev","delta"}
+    if not isinstance(value,dict) or set(value) != (keys | {"checkpoint"} if rebuild else keys):
+        raise ValueError("D11: invalid delta envelope")
+    context_check_text(value)
+    stable=old["stable"]
+    envelope=parse_task_envelope(json.dumps({k:value[k] for k in keys}|stable,ensure_ascii=False),record["task_id"],record["protocol_rev"])
+    # Normal resume only sends the delta plus revision and existing identity.
+    prompt="[Task delta v2; preserve prior constraints]\n"+json.dumps({k:value[k] for k in sorted(keys)},ensure_ascii=False,separators=(",",":"))
+    next_board=json.loads(json.dumps(old,ensure_ascii=False))
+    next_board["rev"]=envelope["rev"]
+    if rebuild:
+        cp=value["checkpoint"]
+        if not isinstance(cp,dict) or set(cp)!={"summary","decisions","pending"} or not protocol_text(cp["summary"],1200) or not protocol_strings(cp["decisions"],8,160) or not protocol_strings(cp["pending"],8,160):
+            raise ValueError("D11: rebuild needs explicit reviewed checkpoint")
+        if old["generation"] >= CONTEXT_MAX_GENERATIONS:
+            raise ValueError("D11: context generation limit; manual review required")
+        if record.get("session_id"):
+            next_board["retired_sessions"].append(record["session_id"])
+        next_board.update(generation=old["generation"]+1,turns=1,prompt_bytes=0,checkpoint=cp)
+        prompt="[Rebuild task context; preserve all constraints]\n"+json.dumps(
+            {"task":envelope,"constraints":old["constraints"],"checkpoint":cp},
+            ensure_ascii=False,separators=(",",":"))
+    else:
+        next_board["turns"]+=1
+        if old["turns"] >= CONTEXT_MAX_TURNS:
+            raise ValueError("D11: context threshold reached; supply reviewed checkpoint with --rebuild-context")
+    return envelope,next_board,prompt
+
+
+def context_account(board: dict[str, Any], prompt: str) -> None:
+    board["prompt_bytes"]+=len(prompt.encode("utf-8"))
+    if board["prompt_bytes"]>CONTEXT_MAX_BYTES:
+        raise ValueError("D11: local prompt byte threshold exceeded; reduce delta or explicitly rebuild context")
+
+
+def context_state_fields(board: dict[str, Any] | None) -> dict[str, Any]:
+    return {} if board is None else {"context_board":board,"context_digest":context_digest(board)}
+
+
+def context_session(events: str, previous: str | None, rebuild: bool) -> str:
+    # Do not recursively extract IDs from arbitrary worker output.
+    ids=set()
+    for line in events.splitlines():
+        try:
+            event=json.loads(line)
+        except (ValueError,RecursionError):
+            continue
+        if isinstance(event,dict) and event.get("type")=="thread.started":
+            value=event.get("thread_id")
+            if not isinstance(value,str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}",value):
+                raise StateIntegrityError("D11: invalid session identity")
+            ids.add(value)
+    if len(ids)!=1:
+        raise StateIntegrityError("D11: missing or conflicting session identity; inspect local evidence")
+    session=next(iter(ids))
+    if previous is not None and ((session==previous)==rebuild):
+        raise StateIntegrityError("D11: unexpected session identity; no fallback or automatic retry")
+    return session
+
+
+def context_assert_session_owner(state: dict[str,Any], tid: str, session: str | None, board: dict[str,Any]) -> None:
+    if not session or session in board["retired_sessions"]:
+        raise StateIntegrityError("D11: retired or missing session")
+    for other,rec in state["tasks"].items():
+        if other!=tid and (rec.get("session_id")==session or session in (rec.get("context_board") or {}).get("retired_sessions",[])):
+            raise StateIntegrityError("D11: session belongs to another task")
+
+
 def build_worker_prompt(
     user_prompt: str,
     *,
@@ -1430,7 +1542,12 @@ def execute_single_task(
     task_id: str | None,
     dry_run: bool,
     protocol_v2: bool = False,
+    blackboard: bool = False,
 ) -> dict[str, Any]:
+    if blackboard and not protocol_v2:
+        raise ValueError('D11: blackboard requires protocol v2')
+    if blackboard and files_hint:
+        raise ValueError('D11: use envelope scope instead of separate files hints')
     enforce_execution_policy(sandbox, network, effort)
     envelope = parse_task_envelope(prompt,task_id,0) if protocol_v2 else None
     if envelope is not None:
@@ -1442,6 +1559,7 @@ def execute_single_task(
 
     git_info = inspect_git(cwd)
     eff_isolation, isolation_reason = resolve_isolation(isolation, sandbox, git_info)
+    board = initial_context(envelope,sandbox,git_info["head_sha"]) if blackboard else None
     tid = validate_task_id(task_id if task_id is not None else make_task_id("run"))
 
     if backend == "codex":
@@ -1466,6 +1584,8 @@ def execute_single_task(
     run_dir = bounded_child(RUNS_DIR, tid)
     report_path = run_dir / "last_message.json"
     worker_prompt = build_worker_prompt(prompt, sandbox=sandbox, network=network, is_resume=False, files_hint=files_hint)
+    if board is not None:
+        context_account(board,worker_prompt)
 
     if dry_run:
         preview_workdir = (
@@ -1500,7 +1620,7 @@ def execute_single_task(
     run_dir = reserve_run_dir(tid, {"backend": backend, "model": model_used, "effort": effort_used,
         "difficulty": routing["effective_difficulty"], "repo_root": git_info["repo_root"],
         "original_cwd": str(cwd), "workdir": str(cwd), "session_id": None, "network": network,
-        "sandbox": sandbox, "isolation": eff_isolation, "created_at": utc_now(), "updated_at": utc_now(), **protocol_meta(envelope)})
+        "sandbox": sandbox, "isolation": eff_isolation, "created_at": utc_now(), "updated_at": utc_now(), **protocol_meta(envelope), **context_state_fields(board)})
     (run_dir / "prompt.txt").write_text(worker_prompt, encoding="utf-8")
 
     workdir = cwd
@@ -1537,7 +1657,7 @@ def execute_single_task(
         rc,
         event_errors=parsed_events["errors"], protocol_v2=protocol_v2,
     )
-    session_id = parsed_events["session_id"]
+    session_id = context_session(stdout_text,None,False) if board is not None else parsed_events["session_id"]
     usage = parsed_events["usage"]
 
     git_truth = collect_git_truth(workdir, git_info["head_sha"])
@@ -1597,7 +1717,12 @@ def execute_single_task(
     result_bytes = (json.dumps(result, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     atomic_write_bytes(run_dir / "result.json", result_bytes)
     task_record["result_ref"] = {"turn": None, "sha256": hashlib.sha256(result_bytes).hexdigest()}
+    if board is not None:
+        board["last_result_ref"] = task_record["result_ref"]
+        task_record.update(context_state_fields(board))
     with locked_state() as state:
+        if board is not None:
+            context_assert_session_owner(state,tid,session_id,board)
         if state["tasks"].get(tid, {}).get("status") != "reserved":
             raise StateIntegrityError("Task reservation missing or changed")
         state["tasks"][tid] = task_record
@@ -1667,7 +1792,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         files_hint=args.files,
         task_id=args.task_id,
         dry_run=args.dry_run,
-        protocol_v2=args.protocol_v2,
+        protocol_v2=args.protocol_v2, blackboard=args.blackboard,
     )
     print(json.dumps(result.get("protocol_result",result), ensure_ascii=False, separators=(",",":") if args.protocol_v2 else None, indent=None if args.protocol_v2 else 2))
     return task_exit_code(result)
@@ -1687,7 +1812,7 @@ def cmd_batch(args: argparse.Namespace) -> int:
         if not isinstance(item, dict):
             raise ValueError("Manifest task must be an object")
         enforce_execution_policy(item.get("sandbox", "workspace-write"), item.get("network", False), item.get("effort"))
-        if "protocol_v2" in item or "envelope" in item:
+        if "protocol_v2" in item or "envelope" in item or "blackboard" in item:
             raise ValueError("D10: structured protocol is supported on run/resume only; batch stays v1")
     default_cwd = Path(args.cwd).resolve() if args.cwd else Path.cwd().resolve()
 
@@ -1770,13 +1895,24 @@ def _cmd_resume(args: argparse.Namespace) -> int:
     if not task_record:
         raise ValueError("D06: managed task record required")
     validate_resume_binding(task_record, args)
-    envelope = prepare_resume_envelope(prompt_text,task_record,args.protocol_v2)
-    if envelope is not None:
-        prompt_text = protocol_prompt(envelope)
+    board = None
+    if task_record.get("context_board") is not None:
+        if not args.protocol_v2:
+            raise ValueError("D11: blackboard task requires v2 delta envelope")
+        envelope,board,prompt_text=context_prepare(prompt_text,task_record,args.rebuild_context)
+    else:
+        if args.rebuild_context:
+            raise ValueError("D11: rebuild requires a blackboard task")
+        envelope = prepare_resume_envelope(prompt_text,task_record,args.protocol_v2)
+        if envelope is not None:
+            prompt_text = protocol_prompt(envelope)
     backend = args.backend or task_record["backend"]
     session_id = args.session_id or (task_record["session_id"] if task_record else None)
     if not session_id:
         raise ValueError("No session_id available to resume (pass --session-id or valid --task-id).")
+    if board is not None:
+        with locked_state() as state:
+            context_assert_session_owner(state,task_record["task_id"],session_id,task_record["context_board"])
 
     workdir = Path(args.cwd or (task_record["workdir"] if task_record else ".")).resolve()
     if not workdir.exists():
@@ -1831,19 +1967,15 @@ def _cmd_resume(args: argparse.Namespace) -> int:
     turn_id = make_task_id("turn")
     run_dir = bounded_child(RUNS_DIR, resume_tid, turn_id)
     report_path = run_dir / "last_message.json"
-    worker_prompt = build_worker_prompt(prompt_text, sandbox=sandbox, network=network, is_resume=True)
+    worker_prompt = build_worker_prompt(prompt_text, sandbox=sandbox, network=network, is_resume=not args.rebuild_context)
+    if board is not None:
+        context_account(board,worker_prompt)
+    def resume_command():
+        common=dict(codex_bin=get_codex_bin() or "codex",model=model_used,effort=effort_used,sandbox=sandbox,network=network,report_path=report_path,is_git_repo=git_info["is_git_repo"],protocol_v2=args.protocol_v2)
+        return build_codex_exec_cmd(workdir=workdir,**common) if args.rebuild_context else build_codex_resume_cmd(session_id=session_id,**common)
 
     if args.dry_run:
-        preview_cmd = build_codex_resume_cmd(
-            codex_bin=get_codex_bin() or "codex",
-            session_id=session_id,
-            model=model_used,
-            effort=effort_used,
-            sandbox=sandbox,
-            network=network,
-            report_path=report_path,
-            is_git_repo=git_info["is_git_repo"], protocol_v2=args.protocol_v2,
-        )
+        preview_cmd = resume_command()
         print(
             json.dumps(
                 {
@@ -1876,20 +2008,16 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         if envelope is not None:
             if current.get("protocol_rev") != envelope["base_rev"] or current.get("protocol_version") != 2:
                 raise StateIntegrityError("D10: revision changed before reservation")
+            if board is not None and current.get("context_digest") != task_record.get("context_digest"):
+                raise StateIntegrityError("D11: context changed before reservation")
+            if board is not None:
+                context_assert_session_owner(state,resume_tid,session_id,task_record["context_board"])
             current.update(protocol_meta(envelope))
+            current.update(context_state_fields(board))
         current["status"] = "running"
         current["active_turn_id"] = turn_id
         current["updated_at"] = utc_now()
-    cmd = build_codex_resume_cmd(
-        codex_bin=get_codex_bin(),  # type: ignore[arg-type]
-        session_id=session_id,
-        model=model_used,
-        effort=effort_used,
-        sandbox=sandbox,
-        network=network,
-        report_path=report_path,
-        is_git_repo=git_info["is_git_repo"], protocol_v2=args.protocol_v2,
-    )
+    cmd = resume_command()
     started = time.monotonic_ns()
     rc, stdout_text, stderr_text, timed_out = run_subprocess_with_timeout(
         cmd, cwd=workdir, stdin_text=worker_prompt, timeout=args.timeout
@@ -1905,7 +2033,7 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         rc,
         event_errors=parsed_events["errors"], protocol_v2=args.protocol_v2,
     )
-    new_session_id = parsed_events["session_id"] or session_id
+    new_session_id = context_session(stdout_text,session_id,args.rebuild_context) if board is not None else (parsed_events["session_id"] or session_id)
     usage = parsed_events["usage"]
 
     git_truth = collect_git_truth(workdir, base_sha)
@@ -1942,6 +2070,10 @@ def _cmd_resume(args: argparse.Namespace) -> int:
             "network": False, "session_id": new_session_id, "exit_code": rc,
             "status": "timed_out" if timed_out else outcome["task_status"], **outcome,
             "updated_at": utc_now(), "result_ref": {"turn": turn_id, "sha256": hashlib.sha256(result_bytes).hexdigest()}})
+        if board is not None:
+            context_assert_session_owner(state,resume_tid,new_session_id,board)
+            board["last_result_ref"] = current["result_ref"]
+            current.update(context_state_fields(board))
         current.pop("active_turn_id", None)
     print(json.dumps(result.get("protocol_result",result), ensure_ascii=False, separators=(",",":") if envelope else None, indent=None if envelope else 2))
     return task_exit_code(result)
@@ -2094,6 +2226,9 @@ def cmd_status(args: argparse.Namespace) -> int:
             if args.task_id not in tasks:
                 raise ValueError(f"Unknown task_id: {args.task_id}")
             rec = dict(tasks[args.task_id])
+            board = rec.pop("context_board",None)
+            if board is not None:
+                rec["context"] = {k:board[k] for k in ("rev","generation","turns","prompt_bytes")}
             rec["worktree_exists"] = bool(rec.get("worktree_path") and Path(rec["worktree_path"]).exists())
             print(json.dumps(rec, ensure_ascii=False, indent=2))
             return 0
@@ -2196,6 +2331,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--timeout", type=int, default=600)
     p_run.add_argument("--files", nargs="*", default=None, help="Optional target file hints.")
     p_run.add_argument("--task-id", default=None)
+    p_run.add_argument("--blackboard", action="store_true", help="Opt-in task-local context with v2 protocol.")
     p_run.add_argument("--protocol-v2", action="store_true", help="Experimental bounded v2 JSON envelope via --prompt; default remains v1.")
     p_run.add_argument("--dry-run", action="store_true")
 
@@ -2210,6 +2346,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_res = sub.add_parser("resume", allow_abbrev=False, help="Continue an existing worker session in its workdir.")
     p_res.add_argument("--task-id", default=None)
+    p_res.add_argument("--rebuild-context", action="store_true", help="Explicit new session with reviewed checkpoint; blackboard only.")
     p_res.add_argument("--protocol-v2", action="store_true", help="Continue an existing v2 task using the next revision envelope.")
     p_res.add_argument("--session-id", default=None)
     p_res.add_argument("--cwd", default=None)

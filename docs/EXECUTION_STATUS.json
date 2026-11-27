@@ -372,15 +372,21 @@
       "depends": [
         "D10"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "rev、增量 resume、受控压缩重建、跨任务隔离",
+      "status": "IN_PROGRESS",
+      "evidence": "D11 opt-in task-local context candidate; CI pending",
+      "next": "CI, actual host session continuity and token evidence remain",
       "branch": "dev/d11",
-      "approval": null,
+      "approval": "2026-11-27 user authorized A candidate development",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D11 context and cumulative regression",
+          "status": "NOT_RUN",
+          "ref": "pending CI"
+        }
+      ]
     },
     {
       "id": "D12",

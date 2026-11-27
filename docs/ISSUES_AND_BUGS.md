@@ -93,3 +93,7 @@ D10 review follow-up: enforce raw-byte report limit before decoding or stripping
 
 ## D10 最终候选实测
 [Run 45941283814](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45941283814) completed/success，精确代码 head `5e937fcb4de98d0df60cef144b81e8f619f9e550`；Ubuntu、macOS、Windows Server x64、Windows 11 ARM64 四环境全绿。各环境6项协议测试及1项实际 Mock run/resume revision 回归（28次新增测试），累计 D03–D09 回归通过。首轮 45941194963 因后续修正被取消，不计为通过。真实模型 structured output、真实宿主及实际 Token 未验证；v2 仍显式选择，batch/MCP 默认 v1。D10 候选可复用，正式验收 BLOCKED，PR #12 Draft 未合并。
+
+
+## 候选实施
+显式 --protocol-v2 --blackboard 建立任务内稳定目标/范围/验收、sandbox/固定基线 SHA、版本和摘要引用，原子状态锁保存；普通 resume 仅发送短 delta，不再发送稳定字段；阈值 8 轮或累计本地 prompt 16384 UTF-8 字节（不是模型上下文/Token），超限需提供人工审阅 checkpoint 并显式 --rebuild-context，新会话保留稳定目标/约束、决策与未完成项。固定 session 身份、拒绝其他/退役会话、revision 及摘要校验；崩溃未完成状态不自动重试。黑板不采集环境变量、原始日志或模型回复，常见密钥模式拒绝，不能保证识别任意秘密，禁止输入秘密。旧 v1/旧 v2 路径不变。真实宿主、断线后真实 session、实际 Token 和人工 checkpoint 完整性未验收。
