@@ -165,3 +165,7 @@ Paired same-fixture actual 30 calls each, alternating order; p95 ms measured loc
 | Ubuntu / 140447071593 | 4.049 → 1.591 | 120 → 4 | 270 → 9 | 60 → 2 | 38670 → 2192 | 4413150 → 149930 |
 
 Candidate ready under existing authorization; formal BLOCKED: actual Antigravity browser/old-host compatibility, live DOM interaction, physical I/O, real host state changes and dependency acceptance remain unverified. Report-only mutation may lag snapshot TTL (5s); per-report identity/mtime checked when refreshed; local quota 15s TTL. No model/authority checks use display cache. D17 may continue. Evidence-only head requires recheck.
+
+
+## Cumulative regression reopened 2026-11-27
+D16 evidence-only Run 45982277920 failed on macOS ARM64 job 140448925251 in D14 test_duplicate_and_nonfinite_json_rejected, PermissionError EPERM from killpg racing a rapidly exiting child (other three environments PASS). Original D16 performance/run evidence remains historically valid, but candidate gate reopened pending fix. Do not signal a numeric process group once Popen reaped its leader; on EPERM wait briefly for owned child exit or kill only still-live Popen child, never assert descendants verified. Deterministic real-child regression injects EPERM on POSIX, Windows checks no taskkill after reaping. Existing timeout/malformed result remains failure. Corrected exact-head CI pending. D17 implementation already drafted from prior PASS; pause D18 and synchronize fix after verification. No merge or real model.

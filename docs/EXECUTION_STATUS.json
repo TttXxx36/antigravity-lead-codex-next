@@ -562,8 +562,8 @@
         "D15"
       ],
       "status": "BLOCKED",
-      "evidence": "Exact-head 4-environment CI PASS; 32/32 cache tests, byte-identical UI build; paired same-fixture measured query/p95/logical bytes improvements",
-      "next": "D17 candidate permitted; actual host/old host UI/physical I/O/dependency gates remain blocked",
+      "evidence": "D16 original code Run 45981702422 PASS; evidence-only macOS recheck exposed D14 owned-process exit race EPERM; corrected termination handling pending exact-head CI",
+      "next": "Pause successor candidate gate until corrected cumulative CI PASS; retain prior D16 benchmark and failure evidence",
       "branch": "dev/d16",
       "approval": "2026-11-27 user authorized A candidate development; display-only, no real model or production data writes",
       "pr": 18,
@@ -580,10 +580,16 @@
           "name": "Actual host UI, old host and physical I/O",
           "status": "BLOCKED",
           "ref": "docs/evidence/D16-cache.md"
+        },
+        {
+          "name": "Evidence-head cumulative regression: macOS process exit race",
+          "status": "FAIL",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45982277920",
+          "tested_commit": "c54b32f300259cc4d5178994c42de9a38e2b2d95"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "d70653cacd24c9cc448db4519a3f87deffd7bbfc",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45981702422",
         "limitations": "Synthetic paired fixture, logical file bytes/native DB query counts not physical I/O; UI source/build verified but actual host interaction and old host compatibility not accepted; TTL-bounded display lag; no model calls or merge."
