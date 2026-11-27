@@ -1,0 +1,919 @@
+{
+  "mode": "offline_fixture_only",
+  "run": 45999409240,
+  "source": "c1bff452b8718c759820ae919aa05c1c6246811b",
+  "results": [
+    {
+      "job": 140506913225,
+      "runner": "install (windows-11-arm)",
+      "report": {
+        "schemaVersion": 1,
+        "mode": "same_checkout_feature_comparison",
+        "checkout": "c1bff452b8718c759820ae919aa05c1c6246811b",
+        "referenceCommit": "505f5bf955f47b66c935b3371e3991085221e083",
+        "fixtureDigest": "1343cc3bb9f735d31622a771ee10c07d900f37ebc324e04eae1e96265d5c3f39",
+        "workload": "synthetic_console_snapshot_5_polls",
+        "repeats": 6,
+        "pollsPerPair": 5,
+        "cache": "new_revision_force_first_then_reuse; OS_cache_uncontrolled",
+        "model": null,
+        "effort": null,
+        "baselineMode": "legacy_full_snapshot",
+        "candidateMode": "revision_delta",
+        "environment": {
+          "os": "win32",
+          "arch": "arm64",
+          "node": "v22.23.5"
+        },
+        "groups": {
+          "baseline": {
+            "attempted": 6,
+            "passed": 6,
+            "failed": 0,
+            "unknown": 0,
+            "notRun": 0,
+            "successRate": 1,
+            "retries": 0,
+            "completedPolls": 30,
+            "timing": {
+              "medianMs": 34.935,
+              "p95Ms": 39.621
+            },
+            "requestBytes": 3275,
+            "responseBytes": 1393895
+          },
+          "candidate": {
+            "attempted": 6,
+            "passed": 6,
+            "failed": 0,
+            "unknown": 0,
+            "notRun": 0,
+            "successRate": 1,
+            "retries": 0,
+            "completedPolls": 30,
+            "timing": {
+              "medianMs": 18.55,
+              "p95Ms": 23.288
+            },
+            "requestBytes": 5405,
+            "responseBytes": 284117
+          }
+        },
+        "pairedSamples": [
+          {
+            "pair": 0,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 39.621,
+            "requestBytes": 545,
+            "responseBytes": 232315,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 0,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 23.288,
+            "requestBytes": 900,
+            "responseBytes": 47352,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 1,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 20.96,
+            "requestBytes": 900,
+            "responseBytes": 47352,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 1,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 35.209,
+            "requestBytes": 545,
+            "responseBytes": 232315,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 2,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 36.266,
+            "requestBytes": 545,
+            "responseBytes": 232315,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 2,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 18.703,
+            "requestBytes": 900,
+            "responseBytes": 47352,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 3,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 18.396,
+            "requestBytes": 900,
+            "responseBytes": 47352,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 3,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 34.661,
+            "requestBytes": 545,
+            "responseBytes": 232315,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 4,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 33.677,
+            "requestBytes": 545,
+            "responseBytes": 232315,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 4,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 17.035,
+            "requestBytes": 900,
+            "responseBytes": 47352,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 5,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 17.439,
+            "requestBytes": 905,
+            "responseBytes": 47357,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 5,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 32.688,
+            "requestBytes": 550,
+            "responseBytes": 232320,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          }
+        ],
+        "communication": {
+          "unit": "serialized_JSON_RPC_request_plus_response_bytes_excluding_newline",
+          "baselineBytes": 1397170,
+          "candidateBytes": 289522,
+          "savingPercent": 79.278,
+          "hypothesisPercent": [
+            30,
+            60
+          ],
+          "deviation": "ABOVE"
+        },
+        "quality": {
+          "fixtureEquivalence": "PASS",
+          "p0FixtureRegressions": 0,
+          "realTaskQuality": "NOT_RUN",
+          "realTaskSuccess": "NOT_RUN",
+          "acceptance": "BLOCKED"
+        },
+        "usage": {
+          "realModelCalls": 0,
+          "codex": {
+            "source": "NOT_RUN",
+            "inputTokens": null,
+            "outputTokens": null,
+            "totalTokens": null
+          },
+          "gemini": {
+            "source": "UNKNOWN",
+            "measuredTokens": null,
+            "estimatedTokens": null
+          },
+          "combinedTokens": null,
+          "tokenSavingPercent": null
+        },
+        "candidateCheck": "PASS",
+        "formalAcceptance": "BLOCKED"
+      }
+    },
+    {
+      "job": 140506913630,
+      "runner": "install (windows-latest)",
+      "report": {
+        "schemaVersion": 1,
+        "mode": "same_checkout_feature_comparison",
+        "checkout": "c1bff452b8718c759820ae919aa05c1c6246811b",
+        "referenceCommit": "505f5bf955f47b66c935b3371e3991085221e083",
+        "fixtureDigest": "1343cc3bb9f735d31622a771ee10c07d900f37ebc324e04eae1e96265d5c3f39",
+        "workload": "synthetic_console_snapshot_5_polls",
+        "repeats": 6,
+        "pollsPerPair": 5,
+        "cache": "new_revision_force_first_then_reuse; OS_cache_uncontrolled",
+        "model": null,
+        "effort": null,
+        "baselineMode": "legacy_full_snapshot",
+        "candidateMode": "revision_delta",
+        "environment": {
+          "os": "win32",
+          "arch": "x64",
+          "node": "v22.23.5"
+        },
+        "groups": {
+          "baseline": {
+            "attempted": 6,
+            "passed": 6,
+            "failed": 0,
+            "unknown": 0,
+            "notRun": 0,
+            "successRate": 1,
+            "retries": 0,
+            "completedPolls": 30,
+            "timing": {
+              "medianMs": 21.277,
+              "p95Ms": 24.326
+            },
+            "requestBytes": 3275,
+            "responseBytes": 1393775
+          },
+          "candidate": {
+            "attempted": 6,
+            "passed": 6,
+            "failed": 0,
+            "unknown": 0,
+            "notRun": 0,
+            "successRate": 1,
+            "retries": 0,
+            "completedPolls": 30,
+            "timing": {
+              "medianMs": 11.703,
+              "p95Ms": 13.048
+            },
+            "requestBytes": 5405,
+            "responseBytes": 284093
+          }
+        },
+        "pairedSamples": [
+          {
+            "pair": 0,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 24.326,
+            "requestBytes": 545,
+            "responseBytes": 232295,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 0,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 12.367,
+            "requestBytes": 900,
+            "responseBytes": 47348,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 1,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 13.048,
+            "requestBytes": 900,
+            "responseBytes": 47348,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 1,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 22.782,
+            "requestBytes": 545,
+            "responseBytes": 232295,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 2,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 21.762,
+            "requestBytes": 545,
+            "responseBytes": 232295,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 2,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 11.973,
+            "requestBytes": 900,
+            "responseBytes": 47348,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 3,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 11.433,
+            "requestBytes": 900,
+            "responseBytes": 47348,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 3,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 19.471,
+            "requestBytes": 545,
+            "responseBytes": 232295,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 4,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 20.207,
+            "requestBytes": 545,
+            "responseBytes": 232295,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 4,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 11.203,
+            "requestBytes": 900,
+            "responseBytes": 47348,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 5,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 11.292,
+            "requestBytes": 905,
+            "responseBytes": 47353,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 5,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 20.792,
+            "requestBytes": 550,
+            "responseBytes": 232300,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          }
+        ],
+        "communication": {
+          "unit": "serialized_JSON_RPC_request_plus_response_bytes_excluding_newline",
+          "baselineBytes": 1397050,
+          "candidateBytes": 289498,
+          "savingPercent": 79.278,
+          "hypothesisPercent": [
+            30,
+            60
+          ],
+          "deviation": "ABOVE"
+        },
+        "quality": {
+          "fixtureEquivalence": "PASS",
+          "p0FixtureRegressions": 0,
+          "realTaskQuality": "NOT_RUN",
+          "realTaskSuccess": "NOT_RUN",
+          "acceptance": "BLOCKED"
+        },
+        "usage": {
+          "realModelCalls": 0,
+          "codex": {
+            "source": "NOT_RUN",
+            "inputTokens": null,
+            "outputTokens": null,
+            "totalTokens": null
+          },
+          "gemini": {
+            "source": "UNKNOWN",
+            "measuredTokens": null,
+            "estimatedTokens": null
+          },
+          "combinedTokens": null,
+          "tokenSavingPercent": null
+        },
+        "candidateCheck": "PASS",
+        "formalAcceptance": "BLOCKED"
+      }
+    },
+    {
+      "job": 140506913695,
+      "runner": "install (macos-latest)",
+      "report": {
+        "schemaVersion": 1,
+        "mode": "same_checkout_feature_comparison",
+        "checkout": "c1bff452b8718c759820ae919aa05c1c6246811b",
+        "referenceCommit": "505f5bf955f47b66c935b3371e3991085221e083",
+        "fixtureDigest": "1343cc3bb9f735d31622a771ee10c07d900f37ebc324e04eae1e96265d5c3f39",
+        "workload": "synthetic_console_snapshot_5_polls",
+        "repeats": 6,
+        "pollsPerPair": 5,
+        "cache": "new_revision_force_first_then_reuse; OS_cache_uncontrolled",
+        "model": null,
+        "effort": null,
+        "baselineMode": "legacy_full_snapshot",
+        "candidateMode": "revision_delta",
+        "environment": {
+          "os": "darwin",
+          "arch": "arm64",
+          "node": "v22.23.5"
+        },
+        "groups": {
+          "baseline": {
+            "attempted": 6,
+            "passed": 6,
+            "failed": 0,
+            "unknown": 0,
+            "notRun": 0,
+            "successRate": 1,
+            "retries": 0,
+            "completedPolls": 30,
+            "timing": {
+              "medianMs": 9.78,
+              "p95Ms": 11.008
+            },
+            "requestBytes": 3275,
+            "responseBytes": 1401935
+          },
+          "candidate": {
+            "attempted": 6,
+            "passed": 6,
+            "failed": 0,
+            "unknown": 0,
+            "notRun": 0,
+            "successRate": 1,
+            "retries": 0,
+            "completedPolls": 30,
+            "timing": {
+              "medianMs": 4.86,
+              "p95Ms": 5.796
+            },
+            "requestBytes": 5405,
+            "responseBytes": 285725
+          }
+        },
+        "pairedSamples": [
+          {
+            "pair": 0,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 11.008,
+            "requestBytes": 545,
+            "responseBytes": 233655,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 0,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 5.095,
+            "requestBytes": 900,
+            "responseBytes": 47620,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 1,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 5.796,
+            "requestBytes": 900,
+            "responseBytes": 47620,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 1,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 10.405,
+            "requestBytes": 545,
+            "responseBytes": 233655,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 2,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 10.027,
+            "requestBytes": 545,
+            "responseBytes": 233655,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 2,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 4.949,
+            "requestBytes": 900,
+            "responseBytes": 47620,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 3,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 4.539,
+            "requestBytes": 900,
+            "responseBytes": 47620,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 3,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 8.846,
+            "requestBytes": 545,
+            "responseBytes": 233655,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 4,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 8.552,
+            "requestBytes": 545,
+            "responseBytes": 233655,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 4,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 4.57,
+            "requestBytes": 900,
+            "responseBytes": 47620,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 5,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 4.771,
+            "requestBytes": 905,
+            "responseBytes": 47625,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 5,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 9.534,
+            "requestBytes": 550,
+            "responseBytes": 233660,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          }
+        ],
+        "communication": {
+          "unit": "serialized_JSON_RPC_request_plus_response_bytes_excluding_newline",
+          "baselineBytes": 1405210,
+          "candidateBytes": 291130,
+          "savingPercent": 79.282,
+          "hypothesisPercent": [
+            30,
+            60
+          ],
+          "deviation": "ABOVE"
+        },
+        "quality": {
+          "fixtureEquivalence": "PASS",
+          "p0FixtureRegressions": 0,
+          "realTaskQuality": "NOT_RUN",
+          "realTaskSuccess": "NOT_RUN",
+          "acceptance": "BLOCKED"
+        },
+        "usage": {
+          "realModelCalls": 0,
+          "codex": {
+            "source": "NOT_RUN",
+            "inputTokens": null,
+            "outputTokens": null,
+            "totalTokens": null
+          },
+          "gemini": {
+            "source": "UNKNOWN",
+            "measuredTokens": null,
+            "estimatedTokens": null
+          },
+          "combinedTokens": null,
+          "tokenSavingPercent": null
+        },
+        "candidateCheck": "PASS",
+        "formalAcceptance": "BLOCKED"
+      }
+    },
+    {
+      "job": 140506913703,
+      "runner": "install (ubuntu-latest)",
+      "report": {
+        "schemaVersion": 1,
+        "mode": "same_checkout_feature_comparison",
+        "checkout": "c1bff452b8718c759820ae919aa05c1c6246811b",
+        "referenceCommit": "505f5bf955f47b66c935b3371e3991085221e083",
+        "fixtureDigest": "1343cc3bb9f735d31622a771ee10c07d900f37ebc324e04eae1e96265d5c3f39",
+        "workload": "synthetic_console_snapshot_5_polls",
+        "repeats": 6,
+        "pollsPerPair": 5,
+        "cache": "new_revision_force_first_then_reuse; OS_cache_uncontrolled",
+        "model": null,
+        "effort": null,
+        "baselineMode": "legacy_full_snapshot",
+        "candidateMode": "revision_delta",
+        "environment": {
+          "os": "linux",
+          "arch": "x64",
+          "node": "v22.23.5"
+        },
+        "groups": {
+          "baseline": {
+            "attempted": 6,
+            "passed": 6,
+            "failed": 0,
+            "unknown": 0,
+            "notRun": 0,
+            "successRate": 1,
+            "retries": 0,
+            "completedPolls": 30,
+            "timing": {
+              "medianMs": 11.6,
+              "p95Ms": 13.886
+            },
+            "requestBytes": 3275,
+            "responseBytes": 1336325
+          },
+          "candidate": {
+            "attempted": 6,
+            "passed": 6,
+            "failed": 0,
+            "unknown": 0,
+            "notRun": 0,
+            "successRate": 1,
+            "retries": 0,
+            "completedPolls": 30,
+            "timing": {
+              "medianMs": 6.377,
+              "p95Ms": 7.111
+            },
+            "requestBytes": 5405,
+            "responseBytes": 272603
+          }
+        },
+        "pairedSamples": [
+          {
+            "pair": 0,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 13.886,
+            "requestBytes": 545,
+            "responseBytes": 222720,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 0,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 6.124,
+            "requestBytes": 900,
+            "responseBytes": 45433,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 1,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 6.631,
+            "requestBytes": 900,
+            "responseBytes": 45433,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 1,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 13.186,
+            "requestBytes": 545,
+            "responseBytes": 222720,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 2,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 11.529,
+            "requestBytes": 545,
+            "responseBytes": 222720,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 2,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 7.111,
+            "requestBytes": 900,
+            "responseBytes": 45433,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 3,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 5.68,
+            "requestBytes": 900,
+            "responseBytes": 45433,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 3,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 10.503,
+            "requestBytes": 545,
+            "responseBytes": 222720,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 4,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 10.944,
+            "requestBytes": 545,
+            "responseBytes": 222720,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 4,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 5.756,
+            "requestBytes": 900,
+            "responseBytes": 45433,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 5,
+            "arm": "candidate",
+            "status": "PASS",
+            "ms": 6.679,
+            "requestBytes": 905,
+            "responseBytes": 45438,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          },
+          {
+            "pair": 5,
+            "arm": "baseline",
+            "status": "PASS",
+            "ms": 11.671,
+            "requestBytes": 550,
+            "responseBytes": 222725,
+            "completed": 5,
+            "retries": 0,
+            "semanticMatch": true
+          }
+        ],
+        "communication": {
+          "unit": "serialized_JSON_RPC_request_plus_response_bytes_excluding_newline",
+          "baselineBytes": 1339600,
+          "candidateBytes": 278008,
+          "savingPercent": 79.247,
+          "hypothesisPercent": [
+            30,
+            60
+          ],
+          "deviation": "ABOVE"
+        },
+        "quality": {
+          "fixtureEquivalence": "PASS",
+          "p0FixtureRegressions": 0,
+          "realTaskQuality": "NOT_RUN",
+          "realTaskSuccess": "NOT_RUN",
+          "acceptance": "BLOCKED"
+        },
+        "usage": {
+          "realModelCalls": 0,
+          "codex": {
+            "source": "NOT_RUN",
+            "inputTokens": null,
+            "outputTokens": null,
+            "totalTokens": null
+          },
+          "gemini": {
+            "source": "UNKNOWN",
+            "measuredTokens": null,
+            "estimatedTokens": null
+          },
+          "combinedTokens": null,
+          "tokenSavingPercent": null
+        },
+        "candidateCheck": "PASS",
+        "formalAcceptance": "BLOCKED"
+      }
+    }
+  ]
+}

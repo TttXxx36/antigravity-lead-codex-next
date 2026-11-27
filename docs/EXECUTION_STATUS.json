@@ -833,8 +833,8 @@
       ],
       "candidate": {
         "ready": false,
-        "tested_commit": "78043c43833f10fafc48eddf0b6a3398e3e6e520",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45990023472",
+        "tested_commit": "cbbed8ac862546470d0cacc78a282a9ae760141d",
+        "ref": "pending exact-head CI after D21 ancestry integration",
         "limitations": "Actual mock subprocess transport/reconnect, strict metadata parser, fixture timings only; no native App Server startup, production task routing, actual task/permission/usage parity or native performance verified. CLI stays default; real model and release need separate authorization."
       }
     },
@@ -848,15 +848,38 @@
         "D19",
         "D20"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "配对基准、质量/成功率、真实用量及置信限制",
+      "status": "BLOCKED",
+      "evidence": "Exact-head four-platform cumulative PASS; 24/24 summary tests, 48/48 paired batches and 240/240 polls; communication and latency measured, real tokens unknown",
+      "next": "D20 updated ancestry integrated; D21 exact-head cumulative CI pending; real model/Token measurements remain NOT_RUN",
       "branch": "dev/d21",
-      "approval": null,
-      "pr": null,
+      "approval": "2026-11-27 user authorized A candidate development D06-D22; no real model, permission or release grant",
+      "pr": 23,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D21 paired native MCP benchmark and cumulative CI",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45999409240",
+          "tested_commit": "c1bff452b8718c759820ae919aa05c1c6246811b"
+        },
+        {
+          "name": "Actual paired model quality, Token and host acceptance",
+          "status": "BLOCKED",
+          "ref": "docs/RESULTS.md"
+        },
+        {
+          "name": "D20 updated ancestry integration",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D20-ancestry-integration.md"
+        }
+      ],
+      "candidate": {
+        "ready": false,
+        "tested_commit": "c1bff452b8718c759820ae919aa05c1c6246811b",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45999409240",
+        "limitations": "Same-checkout native MCP synthetic polling comparison only; no historical model workload, actual Codex/Gemini usage, real task quality or production P0 verification. No model calls or release."
+      }
     },
     {
       "id": "D22",
