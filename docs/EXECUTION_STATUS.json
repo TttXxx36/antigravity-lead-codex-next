@@ -286,13 +286,18 @@
           "name": "Real host end-to-end",
           "status": "BLOCKED",
           "ref": "docs/evidence/D08-history.md"
+        },
+        {
+          "name": "BUG-007 cleanup denial synchronization",
+          "status": "NOT_RUN",
+          "ref": "docs/decisions/D08.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "5ab0c7db084b87701bb3d5d5f60fc512f833dc7f",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45938086882",
-        "limitations": "Actual Antigravity/Codex end-to-end and Windows x64 desktop unverified; no formal merge."
+        "limitations": "Actual Antigravity/Codex end-to-end and Windows x64 desktop unverified; no formal merge. Verified D06 cleanup denial synchronized; current head needs CI."
       }
     },
     {
