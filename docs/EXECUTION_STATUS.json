@@ -805,7 +805,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Exact-head four-platform cumulative PASS; 28/28 D22 tests; 8 identical rebuilds; 4 equal SHA256 RC artifacts; isolated rollback restores 3 components and preserves SQLite/JSON",
-      "next": "Candidate development complete D00-D22; actual host/real model/security/license/production recovery evidence, sequential formal acceptance and explicit release approval remain blocked",
+      "next": "Privacy scanner remediation pending exact-head cumulative CI; all formal blockers unchanged",
       "branch": "dev/d22",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no formal release, merge, permission or real model grant",
       "pr": 24,
@@ -822,6 +822,11 @@
           "name": "Actual host, all formal dependencies and explicit release approval",
           "status": "BLOCKED",
           "ref": "docs/RELEASE_CANDIDATE.md"
+        },
+        {
+          "name": "Privacy scanner remediation exact-head CI",
+          "status": "NOT_RUN",
+          "ref": "docs/decisions/D22.md"
         }
       ],
       "observations": [
@@ -839,10 +844,10 @@
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "7eb7b43cfe7be57aae2854f94aecf962e7745886",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46000875781",
-        "limitations": "Four identical source-only RC artifacts, actual mock installer/portable rollback/SQLite fixtures; no actual Windows Antigravity+Codex host, production rollback, complete privacy/dependency licensing audit, real model parity or release grant. No tag, release, formal merge or upstream push."
+        "limitations": "Four identical source-only RC artifacts, actual mock installer/portable rollback/SQLite fixtures; no actual Windows Antigravity+Codex host, production rollback, complete privacy/dependency licensing audit, real model parity or release grant. No tag, release, formal merge or upstream push. Historical tested SHA only; current privacy remediation requires fresh CI."
       }
     }
   ],

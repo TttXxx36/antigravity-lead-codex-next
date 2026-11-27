@@ -120,4 +120,36 @@ class RCTests(unittest.TestCase):
         conn.close()
         print("D22_ROLLBACK "+json.dumps({"mode":mode,"restoredComponents":3,"persistentFilesUnchanged":2,"sqliteReadable":True,"actualHost":False}))
 
+@unittest.skipIf(os.name == "nt", "Unix Bash privacy scanner")
+class PrivacyScannerTests(unittest.TestCase):
+    def setUp(self):
+        tmp=tempfile.TemporaryDirectory(prefix="alc-privacy-")
+        self.addCleanup(tmp.cleanup)
+        self.root=Path(tmp.name)
+        scripts=self.root/"scripts";scripts.mkdir()
+        self.script=scripts/"privacy-check.sh"
+        shutil.copyfile(ROOT/"scripts/privacy-check.sh",self.script)
+
+    def scan(self,env=None):
+        return subprocess.run(["bash",str(self.script)],env=env,capture_output=True,timeout=30)
+
+    def test_clean(self):
+        self.assertEqual(self.scan().returncode,0)
+
+    def test_match_is_redacted(self):
+        marker="synthetic-sensitive-content Z"+"Code.app"
+        (self.root/"fixture.txt").write_text(marker,encoding="utf-8")
+        r=self.scan()
+        self.assertEqual(r.returncode,1)
+        self.assertNotIn(marker.encode(),r.stdout+r.stderr)
+        self.assertNotIn(b"fixture.txt",r.stdout+r.stderr)
+
+    def test_scan_error_fails_closed(self):
+        bin_dir=self.root/"bin";bin_dir.mkdir()
+        grep=bin_dir/"grep";grep.write_text("#!/bin/sh\necho synthetic-private-path >&2\nexit 2\n")
+        grep.chmod(0o700)
+        r=self.scan(dict(os.environ,PATH=str(bin_dir)+os.pathsep+os.environ["PATH"]))
+        self.assertEqual(r.returncode,2)
+        self.assertNotIn(b"synthetic-private-path",r.stdout+r.stderr)
+
 if __name__=="__main__":unittest.main()

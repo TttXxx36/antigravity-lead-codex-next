@@ -266,3 +266,10 @@ Run 46000875781 completed/success, exact source 7eb7b43cfe7be57aae2854f94aecf962
 | install (windows-11-arm) / 140511977363 | portable_package_tree_rehearsal | 15198676005 |
 
 No real provider or native Antigravity/Codex host, no production migration, no complete credential/third-party dependency review, no release/signing/tag/merge/upstream push. Common-pattern scan zero matches is not proof of absence of secrets; source package only, not offline dependency bundle. D05–D21 formal blockers remain. D22 candidate ready; formal BLOCKED, explicit release approval still required. This exact code-head artifact is the verified RC, distinct from the subsequent evidence-only commit; evidence head must be rechecked and would have a different source SHA/archive.
+
+## 2026-11-27 正式验收启动：RC 保全及隐私扫描修复
+- 实际 main 114e0c205f326b4af0935656ef482bba8270b284；D05 #7 仍 Draft、head 7b29c0b40fcfa61305c587dbc5992270e5018d27，main 比较 diverged ahead 6 / behind 11；四 job Run 45936571412 success。D05 实际 Windows x64 / Antigravity / Codex NOT_RUN，不合并。#7–#24 均 Draft/open/unmerged。
+- 两套 Ubuntu artifact 15197329055 / 15198117897 已下载；ZIP、内层 archive、manifest SHA256 分别与元数据/既有记录一致；每套 138 文件 size/mode/digest 和 rc_package.verify_bytes canonical 校验 PASS。保留原包与 Run 46000875781 / 46001598488，不混用。未发布。
+- BUG-006（建议 P1，D22）：原 Bash 隐私扫描用固定 /tmp 文件并输出匹配原文；合成 fixture 实测退出 1 且泄露原文。另静态确认 grep 错误会被当作无命中。修复取消临时文件和原文输出，区分 0/1/2，扫描异常 fail closed。Linux Python 3.13.5 本地 PrivacyScannerTests 3/3 PASS；修复后源码扫描 PASS。无真实私密数据。新 head 累计 CI 尚未完成；不标 CLOSED/DONE，历史 RC 不等于新候选。
+- 锁文件初审：162 dependency entries（95 non-dev），MIT 150/BSD-3-Clause 3/ISC 8/BSD-2-Clause 1；162 integrity 字段存在，resolved 均 registry.npmmirror.com，两个 hasInstallScript（esbuild/fsevents）；仅锁文件元数据，不代表实际依赖许可证文本、CVE、供应链已审完。保持 ignore-scripts；不改 registry 或扩大网络许可。
+- 原始 RC 治理检查与 18/18 治理测试本地 PASS。真实宿主、模型、完整 license/privacy、实际回滚与发布授权仍 BLOCKED；D14 EPERM 修复需回移。
