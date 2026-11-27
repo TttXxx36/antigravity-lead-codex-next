@@ -160,7 +160,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "4 environments PASS including genuine Windows 11 ARM64 OS, SQLite bytes preserved; actual Antigravity desktop host still NOT_RUN",
-      "next": "Host acceptance remains blocked; candidate development permitted",
+      "next": "Concentrate actual host testing after complete cumulative candidate engineering; see docs/LOCAL_ACCEPTANCE.md.",
       "branch": "dev/d05",
       "approval": "2026-11-27 user approved A and conditional merge",
       "pr": 7,
@@ -177,13 +177,19 @@
           "name": "actual Antigravity desktop host MCP initialize and real Codex version",
           "status": "BLOCKED",
           "ref": "docs/evidence/D05-WINDOWS11-acceptance.md"
+        },
+        {
+          "name": "D05 current main ancestry and exact-head native installation 4/4",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46031037560",
+          "tested_commit": "f5e508c27fec644a5eefed0db3a54bd6656bed48"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "7b29c0b40fcfa61305c587dbc5992270e5018d27",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45936571412",
-        "limitations": "Real Antigravity host and actual Codex version pending; no production merge."
+        "tested_commit": "f5e508c27fec644a5eefed0db3a54bd6656bed48",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46031037560",
+        "limitations": "Windows 11 x64 actual desktop, Antigravity and native Codex evidence NOT_RUN; formal BLOCKED."
       }
     },
     {
@@ -985,8 +991,8 @@
         "D21"
       ],
       "status": "BLOCKED",
-      "evidence": "Exact source d40e45320ed028581d2246fe560c909256b2644e Run 46025354306 four PASS, independent Ubuntu RC/audit verified; Zod 4.6.7 audit zero vulnerabilities; BUG-009 SBOM uniqueness FAIL",
-      "next": "Resolve BUG-009, verify SBOM uniqueness and path-backed edges, preserve raw evidence; complete binary notice review; D05 actual host and formal gates remain BLOCKED.",
+      "evidence": "BUG-009 CANDIDATE_PASS 8e8608e75fb544e36b93e3934e0db522cbcca7a8 Run 46032252416 four environments; independent RC/audit and derived replay PASS. No formal closure.",
+      "next": "Finish new offline checks; concentrate actual Windows/host and authorization gates in docs/LOCAL_ACCEPTANCE.md.",
       "branch": "dev/d22",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no formal release, merge, permission or real model grant",
       "pr": 24,
@@ -1076,10 +1082,33 @@
           "tested_commit": "d40e45320ed028581d2246fe560c909256b2644e"
         },
         {
-          "name": "BUG-009 CycloneDX SBOM unique bom-ref validation",
-          "status": "FAIL",
-          "ref": "docs/evidence/D22-supply-chain-review.md",
-          "tested_commit": "d40e45320ed028581d2246fe560c909256b2644e"
+          "name": "BUG-009 duplicate leaf repair 52/52 and Linux actual SBOM",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46032252416",
+          "tested_commit": "8e8608e75fb544e36b93e3934e0db522cbcca7a8"
+        },
+        {
+          "name": "Independent RC 142/142 files and canonical verification",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46032252416",
+          "tested_commit": "8e8608e75fb544e36b93e3934e0db522cbcca7a8"
+        },
+        {
+          "name": "Independent raw/derived SBOM replay 112 components / 113 unique nodes",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46032252416",
+          "tested_commit": "8e8608e75fb544e36b93e3934e0db522cbcca7a8"
+        },
+        {
+          "name": "D22 cumulative CI 4/4 and Zod security checks",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46032252416",
+          "tested_commit": "8e8608e75fb544e36b93e3934e0db522cbcca7a8"
+        },
+        {
+          "name": "Official schema, cached native tarballs and bundled UI notices verification",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D22-supply-chain-review.md"
         }
       ],
       "observations": [
@@ -1112,13 +1141,19 @@
           "status": "FAIL",
           "tested_commit": "eca3bee267fc72989e31786f2101fa3e957fbdbe",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46015133159"
+        },
+        {
+          "name": "BUG-009 CycloneDX SBOM unique bom-ref validation",
+          "status": "FAIL",
+          "ref": "docs/evidence/D22-supply-chain-review.md",
+          "tested_commit": "d40e45320ed028581d2246fe560c909256b2644e"
         }
       ],
       "candidate": {
         "ready": false,
-        "tested_commit": "d40e45320ed028581d2246fe560c909256b2644e",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46025354306",
-        "limitations": "Exact Zod remediation and cumulative CI PASS; independent RC PASS. BUG-009 duplicate SBOM bom-ref structural FAIL; three binary notice reviews OPEN; actual host and release gates BLOCKED."
+        "tested_commit": "8e8608e75fb544e36b93e3934e0db522cbcca7a8",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46032252416",
+        "limitations": "BUG-009 CANDIDATE_PASS; historical raw duplicate FAIL retained. New schema/native tarball/UI notice engineering and exact-head CI pending. Real host, native redistribution, formal dependencies and release gates blocked."
       }
     }
   ],

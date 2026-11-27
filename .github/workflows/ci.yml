@@ -91,6 +91,8 @@ jobs:
         run: python scripts/check_governance.py docs/EXECUTION_STATUS.json
       - name: SBOM repair offline regression
         run: python -m unittest discover -s tests -p test_repair_sbom.py -v
+      - name: Native tarball inspection offline regression
+        run: python -m unittest discover -s tests -p test_native_tarball_review.py -v
       - name: Dependency notice audit offline regression
         run: python -m unittest discover -s tests -p test_dependency_notices.py -v
       - name: Prepare locked runtime dependencies
@@ -137,6 +139,33 @@ jobs:
       - name: Verify and repair duplicate leaf SBOM refs (Linux, offline)
         if: runner.os == 'Linux'
         run: python scripts/repair_sbom.py --raw dependency-audit/npm-sbom.cdx.json --lock plugins/codex-console/package-lock.json --out dependency-audit/npm-sbom.derived.cdx.json --report dependency-audit/sbom-repair-report.json
+      - name: Verify official CycloneDX schema locally (Linux, no fetch)
+        if: runner.os == 'Linux'
+        run: node scripts/validate_sbom_schema.mjs
+      - name: Inspect locked native binary tarballs from existing npm cache (Linux, offline)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: python scripts/native_tarball_review.py --root plugins/codex-console --cache "$(npm config get cache)" --out dependency-audit/native-tarball-report.json
+      - name: Collect bundled UI original notices (Linux, no publish)
+        if: runner.os == 'Linux'
+        run: node scripts/collect_ui_notices.mjs --bootstrap
+      - name: Require successful security audits (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("dependency-audit")
+          expected = {k+"=0" for k in ("npm_audit_all_exit","npm_audit_runtime_exit","npm_audit_signatures_exit","npm_sbom_exit")}
+          assert set((root/"npm-security-summary.txt").read_text().splitlines()) == expected
+          for name in ("npm-audit-all.json","npm-audit-runtime.json"):
+              report=json.loads((root/name).read_text())
+              assert report["auditReportVersion"] == 2 and not report["vulnerabilities"]
+              counts=report["metadata"]["vulnerabilities"]
+              assert set(counts)=={"info","low","moderate","high","critical","total"} and all(type(v) is int and v==0 for v in counts.values())
+          print("PASS: exact npm audit JSON and all four exits")
+          PY
       - name: Retain dependency audit metadata
         if: always() && github.event_name == 'pull_request' && github.head_ref == 'dev/d22'
         uses: actions/upload-artifact@v4

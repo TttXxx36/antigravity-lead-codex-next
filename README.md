@@ -17,3 +17,7 @@
 当前 RC 仅为源代码包准备，不得作为正式发布安装；不自动联网、下载依赖、扩大权限或调用模型。明确批准后方可进行实际宿主测试。不要使用上游安装命令作为 Next 安装命令。
 
 上游为 [Koala973/antigravity-lead-codex](https://github.com/Koala973/antigravity-lead-codex)，独立仓库非 fork，保留 [上游来源](docs/UPSTREAM.md)、[原始文档](README_UPSTREAM.md)、[MIT 许可证](LICENSE) 和 [原始许可证](LICENSE.upstream)。原始上游文档仅作历史参考，不表示 Next 功能已验收。
+
+
+## 集中本地验收（未发布候选）
+完整候选请以 dev/d22 的经 CI 验证精确提交为准，不是 main 正式版本。见 [集中实机验收矩阵](docs/LOCAL_ACCEPTANCE.md)。
