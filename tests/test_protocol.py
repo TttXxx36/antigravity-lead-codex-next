@@ -53,8 +53,9 @@ class ProtocolTests(unittest.TestCase):
                 self.assertEqual(r["verification_status"],"not_run")
                 self.assertFalse(r["verification_passed"])
                 self.assertNotIn("unsafe fallback",r["summary"])
-            p.write_text("x"*9000,encoding="utf8")
-            self.assertEqual(d.parse_report_file(p,None,"",0,protocol_v2=True)["status"],"partial")
+            for payload in ("x"*9000,json.dumps(self.report)+" "*9000,"["*3000+"]"*3000):
+                p.write_text(payload,encoding="utf8")
+                self.assertEqual(d.parse_report_file(p,None,"",0,protocol_v2=True)["status"],"partial")
     def test_program_evidence_not_fabricated(self):
         r={"report":{"summary":"s","risks_or_followups":["r"]},"process_status":"exited","task_status":"completed","verification_status":"unknown","exit_code":0,"usage":{"input_tokens":8,"output_tokens":-1,"total_tokens":True,"secret":"x"},"git_truth":{"head_sha":"a"*40,"base_sha":"invalid"}}
         out=d.build_protocol_result(self.task,r,20)
@@ -62,4 +63,6 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(out["git"],{"head_sha":"a"*40,"base_sha":None})
         self.assertEqual(out["result_ref"],"runs/task-1/result.json")
         self.assertEqual(out["verification_status"],"unknown")
+        schema=json.loads((ROOT/"protocols/result-v2.schema.json").read_text())
+        self.assertEqual(set(out),set(schema["required"]))
 if __name__=="__main__":unittest.main()

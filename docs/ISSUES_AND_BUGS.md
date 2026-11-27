@@ -87,3 +87,6 @@ D09 RISK-07：候选紧凑 JSON 单 text、状态/结果/增量/操作状态/日
 [Run 45940757723](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45940757723) completed/success，tested commit `99c0e5544bf03c1702fee7b7deb1a196b9fba502`。Ubuntu (140314263163)、Windows Server x64 (140314263322)、macOS (140314263379)、Windows 11 ARM64 (140314263404) 四个 job 全部成功。正向操作状态、当前 artifact SHA256/身份、running/stale/missing/oversized/identity/link 拒绝及实际 Mock run/resume 结果引用验证均通过；累计回归和两种 Windows 安装生命周期通过。真实模型调用 0；真实 Antigravity 可见性/UI、实际 Token、真实宿主及前置正式合并仍 BLOCKED。旧数据无 result_ref 不推断；日志只返回事件元数据；内容哈希不是持久 revision。D09 候选可作为 D10 基础，PR #11 Draft，未合并。
 
 D10 RISK-07/08：新增显式 v2 协议、revision 与短报告候选，保留 v1；实际模型 structured output 能力、Token 与宿主仍 NOT_RUN；待 CI。
+
+
+D10 review follow-up: enforce raw-byte report limit before decoding or stripping whitespace; malformed deeply nested JSON fails closed; document result schema, expose persisted v2 revision in compact managed status, and flag truncated risk lists. Initial CI run 45941194963 superseded by final candidate revision (Ubuntu initial success observed); final head must be independently tested.

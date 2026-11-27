@@ -961,7 +961,10 @@ def protocol_json(raw: str) -> Any:
         return result
     def reject_constant(_):
         raise ValueError("D10: non-finite JSON value")
-    return json.loads(raw, object_pairs_hook=unique, parse_constant=reject_constant)
+    try:
+        return json.loads(raw, object_pairs_hook=unique, parse_constant=reject_constant)
+    except RecursionError as exc:
+        raise ValueError("D10: JSON nesting exceeds parser limit") from exc
 
 
 def protocol_text(value: Any, limit: int, *, allow_empty: bool = False) -> bool:
@@ -1167,7 +1170,9 @@ def parse_report_file(
         try:
             if protocol_v2:
                 with report_path.open("rb") as source:
-                    candidate_text = source.read(PROTOCOL_LIMIT + 1).decode("utf-8").strip()
+                    payload = source.read(PROTOCOL_LIMIT + 1)
+                    if len(payload) <= PROTOCOL_LIMIT:
+                        candidate_text = payload.decode("utf-8")
             else:
                 candidate_text = report_path.read_text(encoding="utf-8", errors="strict").strip()
         except (OSError, UnicodeError):
@@ -1188,7 +1193,7 @@ def parse_report_file(
                 and all(isinstance(value[k], list) and all(isinstance(x, str) for x in value[k])
                         for k in ("files_modified", "commands_run", "risks_or_followups"))):
                 parsed = value
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, RecursionError):
             pass
     if parsed is None:
         tail = "" if protocol_v2 else "\n".join((candidate_text or fallback_text or stderr_text).splitlines()[-20:])[:1500]
