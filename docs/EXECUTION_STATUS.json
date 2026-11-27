@@ -195,8 +195,8 @@
         "D05"
       ],
       "status": "BLOCKED",
-      "evidence": "Four-environment CI PASS; fail-closed candidate ready, trusted host authorization and actual sandbox NOT_RUN",
-      "next": "Plain cleanup authorization bypass remediation pending CI; trusted host and real sandbox still blocked.",
+      "evidence": "BUG-007 ordinary/force/delete-branch cleanup denial 4-platform PASS; no state access or deletion",
+      "next": "Synchronize verified denial to D07-D16; D05/actual trusted grants and sandbox remain blocked.",
       "branch": "dev/d06",
       "approval": "2026-11-27 用户批准分离候选开发与正式验收/合并。D06–D22 可基于经 CI 验证的前置候选分支依赖顺序开发、独立 stacked Draft PR；实际验收门槛、DONE、main 合并条件不变。前置候选有未解决的 CI FAIL/安全缺陷时先修复；缺真实宿主等环境证据可在不启用受阻能力的前提下继续候选开发。禁止真实模型测试、权限扩张、发布。",
       "pr": 8,
@@ -216,15 +216,16 @@
         },
         {
           "name": "D06 plain cleanup deny and metadata regression",
-          "status": "NOT_RUN",
-          "ref": "docs/evidence/D06-policy.md"
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004369900",
+          "tested_commit": "b9c3fe4df5636aa32bac3ee673e9a0ca5839ddeb"
         }
       ],
       "candidate": {
-        "ready": false,
-        "tested_commit": "b652c5877df2e5a91d5191e1f21fab8c208b3015",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937059171",
-        "limitations": "No positive trusted grant issuance or real OS sandbox proof; network, unmanaged queue/resume, live quota disabled; no production merge. Previous PASS applies to old head; cleanup denial correction requires fresh CI."
+        "ready": true,
+        "tested_commit": "b9c3fe4df5636aa32bac3ee673e9a0ca5839ddeb",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004369900",
+        "limitations": "Cleanup denial verified in four environments; trusted positive grants, OS sandbox and actual host remain unverified. Exact tested code head only."
       }
     },
     {
