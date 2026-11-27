@@ -1,7 +1,7 @@
 {
   "version": 1,
   "as_of": "2026-11-27",
-  "main_commit": "995db122b2049ca73efd624fd8752813f4e5d975",
+  "main_commit": "114e0c205f326b4af0935656ef482bba8270b284",
   "permissions": {
     "automatic_merge": false,
     "release": false,
@@ -409,21 +409,33 @@
         "D10",
         "D11"
       ],
-      "status": "IN_PROGRESS",
-      "evidence": "D12 terminal usage, persistent boundary budgets and cached routing candidate; CI pending",
-      "next": "CI; real provider telemetry/usage semantics and comparative benchmark pending",
+      "status": "BLOCKED",
+      "evidence": "Exact-head four-environment D12 budget (24/24) and cumulative regression PASS; real provider/host/benchmark NOT_RUN",
+      "next": "D13 candidate permitted; real provider semantics, actual model/host, comparative benchmark and dependency merges remain blocked",
       "branch": "dev/d12",
       "approval": "2026-11-27 user authorized A candidate development",
-      "pr": null,
+      "pr": 14,
       "accepted": false,
       "merged": false,
       "checks": [
         {
           "name": "D12 budget and cumulative regression",
-          "status": "NOT_RUN",
-          "ref": "pending CI"
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45947305027",
+          "tested_commit": "f5b1bf017d1f1c259e1c50f0fd89a85100cf082f"
+        },
+        {
+          "name": "Real provider usage semantics, actual host/model and comparative benchmark",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D12-budget.md"
         }
-      ]
+      ],
+      "candidate": {
+        "ready": true,
+        "tested_commit": "f5b1bf017d1f1c259e1c50f0fd89a85100cf082f",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45947305027",
+        "limitations": "Synthetic usage only; actual provider semantics, Gemini usage, real host/model capabilities, benchmark and formal dependency merges pending; no hard system-wide budget."
+      }
     },
     {
       "id": "D13",
