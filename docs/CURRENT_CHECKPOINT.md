@@ -22,3 +22,9 @@
 ## 最终托管结果
 
 D05 新版 Run 45935195557 已 completed/success，三个平台成功，Windows 日志明确包含 console-only lifecycle。测试 head `06a06c144b4c238adc56baeebe7f8d5809dbeba2`；[证据](https://github.com/TttXxx36/antigravity-lead-codex-next/blob/dev/d05/docs/evidence/D05-install.md)，[实际 Win11 验收清单](https://github.com/TttXxx36/antigravity-lead-codex-next/blob/dev/d05/docs/evidence/D05-WINDOWS11-acceptance.md)。D05 分支台账和决策卡已标 BLOCKED，证据提交 `ab820b490a92cf0147f3d5afc1edb540f2f49248`。D05 未合并，main 仍以 D04 为生产代码基线。已正式完成 5/23，D05 阻塞，D06–D22 未实施。
+
+## 2026-11-27 Windows 11 替代验收推进
+
+PR #7 新 head 9813f19c222a858f2a4f7cf217702f62252cc540。新增公开免费 windows-11-arm（实际 Windows 11 工作站 OS 检查）、两种 Windows 的 SQLite 内容及 SHA256 保留回归；修复 push/PR 并发重复取消，采用 PR-only。四环境 [Run 45936238126](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45936238126)：Windows Server x64、Linux、macOS 已通过，Windows 11 ARM64 尚待最终结论。前次文档复检 Run 45935441825 success。详见 [替代验收记录](https://github.com/TttXxx36/antigravity-lead-codex-next/blob/dev/d05/docs/evidence/D05-alternative-validation.md)。
+
+无法查询仓库 self-hosted runner 列表（连接器接口不支持）；当前无可访问的已登录 Antigravity 桌面宿主。禁止在公共 CI 注入个人登录凭据或把日常电脑挂为公共 self-hosted runner。实际宿主 initialize 仍为独立门槛，D05 继续 BLOCKED，不将 OS 测试冒充 host 通过。D06–D22 未启动；条件合并权限不变。
