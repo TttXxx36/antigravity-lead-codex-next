@@ -107,15 +107,22 @@
         "D01",
         "D02"
       ],
-      "status": "PROPOSED",
-      "evidence": "PR #4 有候选 UTF-8/PATH 修复",
-      "next": "统一环境变量、exe 探测、路径校验、中文/空格/长路径测试",
+      "status": "REVIEW",
+      "evidence": "原生路径适配及三平台 smoke PASS；候选锁与 Node 测试启动复用；非真实客户端测试",
+      "next": "人工验收、合并后进入 D04；超长实际 I/O、真实客户端和安装仍待后续验证",
       "branch": "dev/d03",
-      "approval": null,
-      "pr": null,
+      "approval": "2026-11-27 user approved A for D03–D22, dependency order and Actions",
+      "pr": 5,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "three-platform Python/Node platform smoke + native synthetic MCP",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45933533805",
+          "tested_commit": "b37f1dd0d3d1fb2e0c10d2729def979b1d0660fb"
+        }
+      ]
     },
     {
       "id": "D04",
@@ -460,5 +467,15 @@
       "checks": []
     }
   ],
-  "roadmap_approval": "2026-11-27 用户明确验收 D01、D02 并授权合并 PR #2、#3；批准 D03–D22 推荐 A 按依赖实施及 GitHub Actions 测试。后续 PR 的合并、真实模型测试及正式发布仍遵守独立授权门禁。"
+  "roadmap_approval": "2026-11-27 用户明确验收 D01、D02 并授权合并 PR #2、#3；批准 D03–D22 推荐 A 按依赖实施及 GitHub Actions 测试。后续 PR 的合并、真实模型测试及正式发布仍遵守独立授权门禁。",
+  "conditional_merge_approval": {
+    "cards": "D03-D21",
+    "date": "2026-11-27",
+    "condition": "actual acceptance gates, tested exact head, dependencies DONE, no unresolved safety risk",
+    "exclusions": [
+      "real model tests",
+      "permission expansion",
+      "D22 release"
+    ]
+  }
 }

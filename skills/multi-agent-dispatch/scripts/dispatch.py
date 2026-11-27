@@ -12,28 +12,64 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import fcntl
+import errno
 import json
 import os
+import ntpath
 import re
 import shutil
 import subprocess
 import sys
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
+
 SKILL_DIR = Path(__file__).resolve().parent.parent
 SCHEMA_PATH = SKILL_DIR / "resources" / "report_schema.json"
 
-STATE_DIR = Path(
-    os.environ.get(
-        "AGY_DISPATCH_STATE_DIR",
-        os.path.expanduser("~/.local/state/multi-agent-dispatch"),
-    )
-)
+# Shared platform rules: mirrored by server/platform.mjs.
+_WINDOWS_RESERVED = re.compile(r"^(CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[1-9¹²³]|LPT[1-9¹²³])$", re.I)
+
+
+def validate_windows_path(value: str) -> None:
+    """Reject device namespaces, ADS, reserved names and ambiguous trailing dots/spaces."""
+    raw = value.replace("/", "\\")
+    if raw.startswith(("\\\\?\\", "\\\\.\\")):
+        raise ValueError("Windows device namespace paths are not supported")
+    _, rest = ntpath.splitdrive(raw)
+    for part in rest.split("\\"):
+        if not part or part in (".", ".."):
+            continue
+        if part.endswith((" ", ".")) or any(c in '<>:"|?*' or ord(c) < 32 for c in part):
+            raise ValueError("Invalid Windows path component")
+        if _WINDOWS_RESERVED.fullmatch(part.split(".", 1)[0].rstrip(" ")):
+            raise ValueError("Reserved Windows path component")
+
+
+def configured_path(value: str | Path, *, windows: bool | None = None) -> Path:
+    raw = os.path.expanduser(str(value))
+    if not raw or "\x00" in raw:
+        raise ValueError("Invalid empty/NUL path")
+    if windows if windows is not None else os.name == "nt":
+        validate_windows_path(raw)
+    return Path(os.path.abspath(raw))
+
+
+def environment_path(name: str, default: Path) -> Path:
+    return configured_path(os.environ.get(name) or default)
+
+
+CODEX_HOME = environment_path("CODEX_HOME", Path.home() / ".codex")
+GEMINI_CONFIG_DIR = environment_path("GEMINI_CONFIG_DIR", Path.home() / ".gemini" / "config")
+STATE_DIR = environment_path("AGY_DISPATCH_STATE_DIR", Path.home() / ".local" / "state" / "multi-agent-dispatch")
 STATE_FILE = STATE_DIR / "state.json"
 LOCK_FILE = STATE_DIR / "state.lock"
 RUNS_DIR = STATE_DIR / "runs"
@@ -41,8 +77,8 @@ WORKTREES_DIR = STATE_DIR / "worktrees"
 
 BUNDLED_CODEX_BIN = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex"
 MODELS_CACHE_PATHS = (
-    Path(os.path.expanduser("~/.codex/models_cache.json")),
-    Path(os.path.expanduser("~/.codex/models_cache.codex_work_desktop.json")),
+    CODEX_HOME / "models_cache.json",
+    CODEX_HOME / "models_cache.codex_work_desktop.json",
 )
 
 VALID_DIFFICULTIES = ("auto", "low", "medium", "hard", "extreme")
@@ -136,45 +172,108 @@ def ensure_state_dirs() -> None:
 
 
 @contextlib.contextmanager
-def locked_state() -> Iterator[dict[str, Any]]:
-    """Load state.json under an exclusive flock and persist any mutations on exit."""
-    ensure_state_dirs()
-    with open(LOCK_FILE, "a+", encoding="utf-8") as lock_fh:
-        fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX)
-        try:
-            if STATE_FILE.exists():
+def exclusive_state_lock(lock_path: Path, timeout: float = 30.0) -> Iterator[None]:
+    """Hold an OS-backed interprocess lock on a persistent lock file.
+
+    Windows locks byte zero (a range may extend beyond EOF). Never truncate or
+    replace the lock file, and release only a lock that was acquired.
+    """
+    with lock_path.open("a+b") as lock_fh:
+        if os.name == "nt":
+            deadline = time.monotonic() + timeout
+            while True:
+                lock_fh.seek(0)
                 try:
-                    data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
-                except json.JSONDecodeError:
-                    data = {}
-            else:
-                data = {}
-            if not isinstance(data, dict):
-                data = {}
-            data.setdefault("rr_counter", 0)
-            data.setdefault("tasks", {})
-            snapshot = json.dumps(data, sort_keys=True)
-            yield data
-            if json.dumps(data, sort_keys=True) != snapshot or not STATE_FILE.exists():
-                tmp_path = STATE_FILE.with_suffix(".json.tmp")
-                tmp_path.write_text(
-                    json.dumps(data, ensure_ascii=False, indent=2) + "\n",
-                    encoding="utf-8",
-                )
-                tmp_path.replace(STATE_FILE)
-        finally:
-            fcntl.flock(lock_fh.fileno(), fcntl.LOCK_UN)
+                    msvcrt.locking(lock_fh.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError as exc:
+                    if exc.errno not in (errno.EACCES, errno.EAGAIN, errno.EDEADLK) and getattr(exc, "winerror", None) not in (33, 36):
+                        raise
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("Timed out acquiring dispatcher state lock") from exc
+                    time.sleep(0.05)
+            try:
+                yield
+            finally:
+                lock_fh.seek(0)
+                msvcrt.locking(lock_fh.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_fh.fileno(), fcntl.LOCK_UN)
 
 
-def find_binary(name: str, fallbacks: tuple[str, ...] = ()) -> str | None:
-    resolved = shutil.which(name)
-    if resolved:
-        return resolved
-    for candidate in fallbacks:
-        expanded = os.path.expanduser(candidate)
-        if os.path.isfile(expanded) and os.access(expanded, os.X_OK):
-            return expanded
+@contextlib.contextmanager
+def locked_state() -> Iterator[dict[str, Any]]:
+    """Load and persist state.json while holding the cross-platform lock."""
+    ensure_state_dirs()
+    with exclusive_state_lock(LOCK_FILE):
+        if STATE_FILE.exists():
+            try:
+                data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                data = {}
+        else:
+            data = {}
+        if not isinstance(data, dict):
+            data = {}
+        data.setdefault("rr_counter", 0)
+        data.setdefault("tasks", {})
+        snapshot = json.dumps(data, sort_keys=True)
+        yield data
+        if json.dumps(data, sort_keys=True) != snapshot or not STATE_FILE.exists():
+            tmp_path = STATE_FILE.with_suffix(".json.tmp")
+            tmp_path.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            tmp_path.replace(STATE_FILE)
+
+
+def native_executable(value: str | Path) -> str | None:
+    """Resolve an existing executable; Windows accepts .exe, never .cmd/.bat."""
+    try:
+        p = configured_path(value)
+        if os.name == "nt" and p.suffix.lower() != ".exe":
+            return None
+        if p.is_file() and os.access(p, os.X_OK):
+            return str(p)
+    except (OSError, ValueError):
+        pass
     return None
+
+
+def binary_candidates(name: str, fallbacks: tuple[str, ...] = (), override: str | None = None) -> list[str]:
+    if override and os.environ.get(override):
+        explicit = native_executable(os.environ[override])
+        return [explicit] if explicit else []
+    leaf = name + ".exe" if os.name == "nt" else name
+    # Do not implicitly search cwd or relative PATH entries.
+    raw = [str(Path(p.strip('"')) / leaf) for p in os.environ.get("PATH", "").split(os.pathsep)
+           if p and Path(p.strip('"')).is_absolute()]
+    if os.name != "nt":
+        raw.extend(fallbacks)
+    results = []
+    seen = set()
+    for candidate in raw:
+        resolved = native_executable(candidate)
+        if resolved:
+            key = os.path.normcase(os.path.realpath(resolved))
+            if key not in seen:
+                seen.add(key)
+                results.append(resolved)
+    return results
+
+
+def find_binary(name: str, fallbacks: tuple[str, ...] = (), override: str | None = None) -> str | None:
+    values = binary_candidates(name, fallbacks, override)
+    return values[0] if values else None
+
+
+CODEX_FALLBACKS = (BUNDLED_CODEX_BIN, "~/.local/bin/codex", "~/.npm-global/bin/codex",
+                   "~/.volta/bin/codex", "/opt/homebrew/bin/codex", "/usr/local/bin/codex")
 
 
 def parse_codex_semver(version_text: str | None) -> tuple[int, int, int, int, int]:
@@ -194,63 +293,26 @@ def parse_codex_semver(version_text: str | None) -> tuple[int, int, int, int, in
 
 
 def list_codex_candidates() -> list[dict[str, Any]]:
-    """Inspect all available Codex CLI binaries and sort newest-first."""
-    raw_candidates = [
-        BUNDLED_CODEX_BIN,
-        shutil.which("codex"),
-        os.path.expanduser("~/.local/bin/codex"),
-        os.path.expanduser("~/.npm-global/bin/codex"),
-        os.path.expanduser("~/.volta/bin/codex"),
-        "/opt/homebrew/bin/codex",
-        "/usr/local/bin/codex",
-    ]
-    seen_real: set[str] = set()
-    candidates: list[dict[str, Any]] = []
-    for path in raw_candidates:
-        if not path:
-            continue
-        expanded = os.path.expanduser(path)
-        if not (os.path.isfile(expanded) and os.access(expanded, os.X_OK)):
-            continue
-        real = os.path.realpath(expanded)
-        if real in seen_real:
-            continue
-        seen_real.add(real)
-        ver = probe_version([expanded, "--version"])
-        candidates.append(
-            {
-                "bin": expanded,
-                "version": ver,
-                "_rank": parse_codex_semver(ver),
-            }
-        )
-    candidates.sort(key=lambda item: item["_rank"], reverse=True)
-    for item in candidates:
-        item.pop("_rank", None)
-    return candidates
+    """Health diagnostics only; actual selection follows explicit/PATH priority."""
+    return [{"bin": candidate, "version": probe_version([candidate, "--version"])}
+            for candidate in binary_candidates("codex", CODEX_FALLBACKS, "CODEX_BIN")]
 
 
 def get_codex_bin() -> str | None:
-    env_bin = os.environ.get("CODEX_BIN")
-    if env_bin:
-        expanded = os.path.expanduser(env_bin)
-        if os.path.isfile(expanded) and os.access(expanded, os.X_OK):
-            return expanded
-    candidates = list_codex_candidates()
-    return candidates[0]["bin"] if candidates else None
+    return find_binary("codex", CODEX_FALLBACKS, "CODEX_BIN")
 
 
 def get_node_bin() -> str | None:
-    return find_binary("node", ("~/.local/bin/node", "/opt/homebrew/bin/node"))
+    return find_binary("node", ("~/.local/bin/node", "/opt/homebrew/bin/node", "/usr/local/bin/node"), "NODE_BIN")
 
 
 def get_git_bin() -> str | None:
-    return find_binary("git", ("/usr/bin/git", "/opt/homebrew/bin/git"))
+    return find_binary("git", ("/usr/bin/git", "/opt/homebrew/bin/git", "/usr/local/bin/git"), "GIT_BIN")
 
 
 def probe_version(cmd: list[str]) -> str | None:
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=10)
     except (OSError, subprocess.SubprocessError):
         return None
     output = (proc.stdout or proc.stderr or "").strip()
@@ -585,7 +647,7 @@ def inspect_git(workdir: Path) -> dict[str, Any]:
     top = subprocess.run(
         [git_bin, "-C", str(workdir), "rev-parse", "--show-toplevel"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     if top.returncode != 0:
         return {"is_git_repo": False, "repo_root": None, "head_sha": None, "branch": None}
@@ -594,14 +656,14 @@ def inspect_git(workdir: Path) -> dict[str, Any]:
     head = subprocess.run(
         [git_bin, "-C", str(repo_root), "rev-parse", "--verify", "HEAD"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     head_sha = head.stdout.strip() if head.returncode == 0 else None
 
     branch_proc = subprocess.run(
         [git_bin, "-C", str(repo_root), "rev-parse", "--abbrev-ref", "HEAD"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     branch = branch_proc.stdout.strip() if branch_proc.returncode == 0 else None
     return {
@@ -649,7 +711,7 @@ def create_worktree(repo_root: str, task_id: str, base_sha: str) -> tuple[Path, 
     proc = subprocess.run(
         [git_bin, "-C", repo_root, "worktree", "add", "-b", branch_name, str(wt_path), base_sha],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     if proc.returncode != 0:
         raise RuntimeError(
@@ -676,7 +738,7 @@ def remove_worktree(
         if force:
             cmd.append("--force")
         cmd.append(worktree_path)
-        proc = subprocess.run(cmd, capture_output=True, text=True)
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
         if proc.returncode != 0:
             raise RuntimeError(
                 f"git worktree remove failed: {(proc.stderr or proc.stdout).strip()}"
@@ -684,7 +746,7 @@ def remove_worktree(
         details["worktree_removed"] = True
         details["messages"].append(f"Removed worktree {worktree_path}")
     else:
-        subprocess.run([git_bin, "-C", repo_root, "worktree", "prune"], capture_output=True, text=True)
+        subprocess.run([git_bin, "-C", repo_root, "worktree", "prune"], capture_output=True, text=True, encoding="utf-8")
         details["messages"].append("Worktree directory already absent; ran git worktree prune")
 
     if delete_branch and branch_name:
@@ -692,7 +754,7 @@ def remove_worktree(
         proc = subprocess.run(
             [git_bin, "-C", repo_root, "branch", flag, branch_name],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         if proc.returncode != 0:
             details["messages"].append(
@@ -722,7 +784,7 @@ def collect_git_truth(workdir: Path, base_sha: str | None) -> dict[str, Any]:
     check = subprocess.run(
         [git_bin, "-C", str(workdir), "rev-parse", "--is-inside-work-tree"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     if check.returncode != 0:
         return {"is_git": False}
@@ -730,19 +792,19 @@ def collect_git_truth(workdir: Path, base_sha: str | None) -> dict[str, Any]:
     status_proc = subprocess.run(
         [git_bin, "-C", str(workdir), "status", "--short"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     head_proc = subprocess.run(
         [git_bin, "-C", str(workdir), "rev-parse", "HEAD"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     current_sha = head_proc.stdout.strip() if head_proc.returncode == 0 else None
 
     diff_cmd = [git_bin, "-C", str(workdir), "diff", "--stat"]
     if base_sha:
         diff_cmd.append(base_sha)
-    diff_proc = subprocess.run(diff_cmd, capture_output=True, text=True)
+    diff_proc = subprocess.run(diff_cmd, capture_output=True, text=True, encoding="utf-8")
 
     return {
         "is_git": True,
@@ -998,7 +1060,7 @@ def run_subprocess_with_timeout(
             input=stdin_text,
             env=env,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=timeout,
         )
         return proc.returncode, proc.stdout, proc.stderr, False
@@ -1027,6 +1089,7 @@ def execute_single_task(
     task_id: str | None,
     dry_run: bool,
 ) -> dict[str, Any]:
+    cwd = configured_path(cwd)
     if not cwd.exists() or not cwd.is_dir():
         raise ValueError(f"Target cwd does not exist or is not a directory: {cwd}")
     if network and sandbox != "workspace-write":
@@ -1206,6 +1269,9 @@ def cmd_health(_args: argparse.Namespace) -> int:
         "healthy": healthy,
         "schema_exists": SCHEMA_PATH.exists(),
         "state_dir": str(STATE_DIR),
+        "codex_home": str(CODEX_HOME),
+        "gemini_config_dir": str(GEMINI_CONFIG_DIR),
+        "runtime_errors": [f"{name} executable not found or invalid override" for name, value in (("codex", codex_bin), ("git", git_bin), ("node", node_bin)) if not value],
         "default_quality_mode": "smart",
         "codex": {"bin": codex_bin, "version": codex_ver, "candidates": candidates},
         "node": {"bin": node_bin, "version": node_ver},
