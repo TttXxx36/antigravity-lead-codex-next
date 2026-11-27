@@ -234,13 +234,13 @@ class SchedulerTests(unittest.TestCase):
             state["tasks"]["task-1"]={"task_id":"task-1","status":"completed","repo_root":str(self.work),
                 "worktree_path":str(wt),"branch":"agy-worker/task-1","verification_status":"passed","verification_passed":True}
         args=d.build_parser().parse_args(["cleanup","--task-id","task-1"])
-        original=d.cleanup_git_probe
+        original=d.risk_git
         calls=[]
         def probe(cwd,argv,deadline):
             calls.append(argv[0])
             if argv[0]=="status":self.fail("configured filter repo must not run status")
             return original(cwd,argv,deadline)
-        with patch.object(d,"cleanup_git_probe",side_effect=probe),patch.object(d,"remove_worktree") as remove,contextlib.redirect_stdout(io.StringIO()) as out:
+        with patch.object(d,"risk_git",side_effect=probe),patch.object(d,"remove_worktree") as remove,contextlib.redirect_stdout(io.StringIO()) as out:
             self.assertEqual(d.cmd_cleanup(args),1)
         remove.assert_not_called()
         self.assertIn("configured_filters_or_unknown",json.loads(out.getvalue())["blockers"])

@@ -11,3 +11,6 @@ D18 follow-up: initial Run 45985228514 orchestration regression step PASS on eac
 
 ## D18 exact-head candidate verification
 Run 45985424111 completed/success on all four actual runners; exact source fbd1dbc29cedf1c2d1900151dba11b8827f41788. Ubuntu 140459741740, macOS ARM64 140459741767, Windows Server x64 140459741267, Windows 11 ARM64 140459741896. 9/9 state-machine tests per environment (36/36), real local mock subprocess crash, timeout, duplicate/reservation, SQLite restart, explicit retry/CAS, tampered artifact/audit, scheduler gating and native MCP read-only receipt PASS; cumulative CI/governance PASS. Earlier run 45985228514 all four orchestration steps PASS; two jobs superseded, not a full four-platform PASS. Candidate ready; formal BLOCKED: actual host reconciliation, independent trusted acceptance/completed bridge, cancellation and upstream formal acceptance unverified. No automatic merge. Evidence-only head recheck required.
+
+
+D19 ancestry refresh: D18 updated D17 ancestry b2eabc3a24c1cb8fae06b249c1c8ed8961f44c7b integrated as second parent of D19; D18 orchestration read-only semantics retained. Exact-head CI pending.

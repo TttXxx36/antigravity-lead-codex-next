@@ -734,12 +734,18 @@
           "name": "D18 exact-head cumulative regression",
           "status": "NOT_RUN",
           "ref": "docs/evidence/D18-orchestration.md"
+        },
+        {
+          "name": "D18 D17 ancestry integration",
+          "status": "PASS",
+          "tested_commit": "b2eabc3a24c1cb8fae06b249c1c8ed8961f44c7b",
+          "ref": "docs/evidence/D18-orchestration.md"
         }
       ],
       "candidate": {
         "ready": false,
-        "tested_commit": "fbd1dbc29cedf1c2d1900151dba11b8827f41788",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45985424111",
+        "tested_commit": "b2eabc3a24c1cb8fae06b249c1c8ed8961f44c7b",
+        "ref": "pending exact-head CI after D19 ancestry integration",
         "limitations": "Mock subprocesses, real local Git/SQLite and MCP; trusted host acceptance/completed, actual host crash recovery and active cancellation unverified. No automatic merge."
       }
     },
@@ -750,15 +756,46 @@
       "depends": [
         "D18"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "风险分级、确定性检查、安全/并发/迁移必审",
+      "status": "BLOCKED",
+      "evidence": "Exact-head four-platform cumulative PASS; 40/40 risk tests incl CRLF and real Git/mock worker integration",
+      "next": "D18 updated ancestry integrated; D19 exact-head cumulative CI pending; trusted review/project tests remain BLOCKED",
       "branch": "dev/d19",
-      "approval": null,
-      "pr": null,
+      "approval": "2026-11-27 user authorized A candidate development D06-D22; no model/permission/merge grant",
+      "pr": 21,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D19 pinned Git review and cumulative CI",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45989218603",
+          "tested_commit": "cb785a16c940ab8cc18dea4441cf3936b8da35df"
+        },
+        {
+          "name": "Trusted independent acceptance and project tests",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D19-risk-review.md"
+        },
+        {
+          "name": "D18 updated ancestry integration",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D19-ancestry-integration.md"
+        }
+      ],
+      "observations": [
+        {
+          "name": "Windows CRLF false whitespace failure, initial run",
+          "status": "FAIL",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45989026894",
+          "tested_commit": "b28976db535482850c16b9dbd7918de54563aa6e"
+        }
+      ],
+      "candidate": {
+        "ready": false,
+        "tested_commit": "cb785a16c940ab8cc18dea4441cf3936b8da35df",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45989218603",
+        "limitations": "Actual Git pinned committed pair plus D18 mock worker fixtures; worktree, arbitrary project checks, trusted independent approval and scope compliance not verified. No automatic acceptance/merge."
+      }
     },
     {
       "id": "D20",

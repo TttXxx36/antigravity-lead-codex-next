@@ -1,0 +1,13 @@
+# D19 — Risk-driven review evidence
+
+
+## 2026-11-27 D19 candidate
+Base 7fbc1b0ac2821a6a3a09806b829503ae72361a05; D18 exact-head cumulative Run 45985424111 PASS. Explicit local CLI orchestrator-risk-review --task-id --expected-revision --head --approve-git-checks; no unapproved checks or arbitrary project code. Fixed bounded Git commands compare full immutable recorded base and explicit HEAD commit, ancestry, raw diff modes/paths, patch digest and whitespace; external diff/textconv/hooks/fsmonitor/lazy fetch disabled, no network protocols. Recheck HEAD and orchestration CAS before publishing one bounded digest-linked receipt per task; retain original evidence, duplicate reads do not rerun. Conservative high risk for all non-allowlisted changes, structural changes, sensitive paths/content, unknown/empty/binary/oversize diff; only ordinary modifications to docs/user-guide or docs/tutorials may skip repetitive review when all fixed Git checks PASS. Worktree, project tests and independent review explicitly NOT_RUN; committed pair only, not proof of clean tree, task scope compliance or trusted independent review. D18 verifying never becomes completed or auto-merges; receipt tampering fails closed. No real models, permissions, arbitrary commands or merge. CI pending; formal trusted host/operator and independent review blocked.
+
+CI NOT_RUN pending exact head verification.
+
+
+Initial Run 45989026894 D19 step Ubuntu/macOS PASS; both Windows runners FAIL (normal CRLF fixture reported whitespace FAIL; candidate not accepted). Set explicit Git core.whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol, fixture baseline LF and explicit CRLF positive/actual trailing-space negative tests. Original failure preserved; new exact-head CI pending. D18 evidence head 7fbc1b0 Run 45988615991 all four PASS.
+
+## D19 exact-head candidate verification
+Run 45989218603 completed/success, exact source cb785a16c940ab8cc18dea4441cf3936b8da35df. Four actual runners: Ubuntu 140472497754, macOS ARM64 140472497378, Windows Server x64 140472497959, Windows 11 ARM64 140472497825. All 10 risk tests per platform (40/40), explicit CRLF positive/real trailing whitespace negative, actual Git pinned evidence/ancestry, sensitive and unknown mandatory audit, no external diff/textconv, explicit approval, stale/tampered receipt rejection, real D18 mock worker integration, no completion/merge, cumulative CI and 23-card governance PASS. Initial Windows CRLF failure 45989026894 preserved. Candidate ready; formal BLOCKED: trusted independent human/host review, uncommitted worktree and project tests NOT_RUN by local Git-only evidence policy; full task scope/compliance and upstream formal acceptance unverified. Evidence-only head recheck required.
