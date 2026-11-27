@@ -5,3 +5,5 @@
 工作流：`.github/workflows/d01-mock-baseline.yml`，PR #2 同仓 dev/d01 → main 触发，checkout 精确 PR head，不保存凭据，contents:read，三平台矩阵 fail-fast=false，20 分钟 job 限制，5 次重复。仅合成 SQLite 和隔离 Mock；不读取用户真实账户或数据库。Node 运行依赖通过 npm ci --omit=dev --ignore-scripts 安装；无真实模型令牌注入。CI 原始 Bash MCP 集成在 Windows 明确 NOT_RUN，独立原生 Node MCP 探针仍尝试。原始 fcntl 限制保留实际失败/NOT_RUN。不把失败标通过。
 
 每个 runner 上传 ci-evidence 中的 JSON（14 天），包含版本、实际 checkout、基准原始样本、退出状态及摘要。未运行/失败保留，job 非零。当前工作流尚待远程触发及实测确认；以 GitHub Actions 的实际 run/job/ artifact 为准。托管 runner 不是用户 Windows 实机，也不是 Antigravity 实机验证。D01 仍 REVIEW。
+
+补充：增加 dev/d01 push 触发（与 PR 同分支 concurrency group 去重/取消旧运行）。初次写入后查询 PR head 和 merge test SHA 均未返回运行记录；不认定已运行。连接器不能直接 dispatch 新 workflow，也不能列出全部 push run。可在 [Actions](https://github.com/TttXxx36/antigravity-lead-codex-next/actions) 查看实际运行状态；若没有记录，需核验仓库 Actions 启用状态及触发权限。workflow_dispatch 需要 workflow 已存在默认分支才可手动触发，当前不为此合并 main。
