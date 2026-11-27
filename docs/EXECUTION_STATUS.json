@@ -687,11 +687,11 @@
         "D18"
       ],
       "status": "IN_PROGRESS",
-      "evidence": "Pinned Git evidence, conservative risk classification, durable receipt and NOT_RUN separation; CI pending",
+      "evidence": "Initial Ubuntu/macOS D19 steps PASS; Windows x64/ARM64 FAIL (CRLF whitespace false positive); explicit cross-platform whitespace policy and fixture fix, rerun pending",
       "next": "Verify actual Git/worker fixtures and cumulative four-platform CI",
       "branch": "dev/d19",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no model/permission/merge grant",
-      "pr": null,
+      "pr": 21,
       "accepted": false,
       "merged": false,
       "checks": [
@@ -699,6 +699,14 @@
           "name": "D19 risk review and cumulative CI",
           "status": "NOT_RUN",
           "ref": "Latest candidate CI pending"
+        }
+      ],
+      "observations": [
+        {
+          "name": "Windows CRLF false whitespace failure, initial run",
+          "status": "FAIL",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45989026894",
+          "tested_commit": "b28976db535482850c16b9dbd7918de54563aa6e"
         }
       ]
     },

@@ -15,13 +15,13 @@ class RiskTests(unittest.TestCase):
         self.git("init","-q");self.git("config","user.name","D19 fixture");self.git("config","user.email","fixture@example.invalid")
         self.git("config","core.autocrlf","false")
         self.guide=self.cwd/"docs"/"user-guide"/"intro.md";self.guide.parent.mkdir(parents=True)
-        self.guide.write_text("A short introduction.\n",encoding="utf8")
-        (self.cwd/"answer.txt").write_text("mock result\n",encoding="utf8")
+        self.guide.write_text("A short introduction.\n",encoding="utf8",newline="\n")
+        (self.cwd/"answer.txt").write_text("mock result\n",encoding="utf8",newline="\n")
         self.git("add",".");self.git("commit","-qm","baseline");self.base=self.git("rev-parse","HEAD")
     def git(self,*args):
         return subprocess.check_output(["git","-C",str(self.cwd),*args],stderr=subprocess.STDOUT).decode("utf8").strip()
     def edit(self,path,text):
-        p=self.cwd/path;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text,encoding="utf8")
+        p=self.cwd/path;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text,encoding="utf8",newline="\n")
         self.git("add","--",path);self.git("commit","-qm","candidate");return self.git("rev-parse","HEAD")
     def run_worker(self):
         self.f.queue();a=self.f.finish(self.f.start(self.f.runargs()));self.assertEqual(a[0],0,a)
@@ -81,6 +81,11 @@ class RiskTests(unittest.TestCase):
         with d.locked_state() as state:state[d.RISK_KEY]["task-1"]["evidence"]["accepted"]=True
         with self.assertRaises(d.StateIntegrityError):self.command(h)
         with self.assertRaises(d.StateIntegrityError):self.f.cmd("orchestrator-verify","--expected-revision","5",expect=1)
+    def test_crlf_eol_accepted_but_trailing_space_refused(self):
+        h=self.edit("docs/user-guide/intro.md","CRLF introduction.\r\n")
+        ev=self.collect(h);self.assertEqual(ev["checks"]["whitespace"],"PASS",ev);self.assertTrue(ev["repeatReviewMaySkip"])
+        h=self.edit("docs/user-guide/intro.md","CRLF trailing space. \r\n")
+        ev=self.collect(h);self.assertEqual(ev["checks"]["whitespace"],"FAIL",ev);self.assertFalse(ev["repeatReviewMaySkip"])
     def test_oversized_and_malformed_diff_never_low(self):
         self.assertIsNone(d.risk_diff_paths(b"invalid\0"))
         self.assertEqual(d.risk_classify(None,b"plain")[0],"high")

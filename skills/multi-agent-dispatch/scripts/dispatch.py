@@ -3228,7 +3228,9 @@ def risk_git(cwd,args,deadline):
                GIT_NO_REPLACE_OBJECTS="1",GIT_NO_LAZY_FETCH="1",GIT_OPTIONAL_LOCKS="0",
                GIT_PROTOCOL_FROM_USER="0",GIT_ALLOW_PROTOCOL="",LC_ALL="C")
     cmd=[binary,"--no-optional-locks","-c","core.fsmonitor=false","-c","core.hooksPath="+os.devnull,
-         "-c","diff.external=","-c","protocol.allow=never","-C",str(cwd),*args]
+         "-c","diff.external=","-c","protocol.allow=never",
+         "-c","core.whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol",
+         "-C",str(cwd),*args]
     try:
         proc=subprocess.Popen(cmd,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
             env=env,start_new_session=os.name!="nt",
