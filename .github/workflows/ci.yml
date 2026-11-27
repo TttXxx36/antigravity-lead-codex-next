@@ -89,6 +89,8 @@ jobs:
         run: node --test tests/test-platform.mjs
       - name: Governance ledger
         run: python scripts/check_governance.py docs/EXECUTION_STATUS.json
+      - name: SBOM repair offline regression
+        run: python -m unittest discover -s tests -p test_repair_sbom.py -v
       - name: Dependency notice audit offline regression
         run: python -m unittest discover -s tests -p test_dependency_notices.py -v
       - name: Prepare locked runtime dependencies
@@ -125,6 +127,16 @@ jobs:
           sbom_status=$?
           printf 'npm_audit_all_exit=%s\nnpm_audit_runtime_exit=%s\nnpm_audit_signatures_exit=%s\nnpm_sbom_exit=%s\n' "$all_status" "$runtime_status" "$signatures_status" "$sbom_status" > ../../dependency-audit/npm-security-summary.txt
           cat ../../dependency-audit/npm-security-summary.txt
+      - name: Preserve actual parent license notices (Linux, offline)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          cp plugins/codex-console/node_modules/esbuild/LICENSE.md dependency-audit/esbuild-LICENSE.md
+          cp plugins/codex-console/node_modules/rollup/LICENSE.md dependency-audit/rollup-LICENSE.md
+          sha256sum dependency-audit/esbuild-LICENSE.md dependency-audit/rollup-LICENSE.md > dependency-audit/parent-license-sha256.txt
+      - name: Verify and repair duplicate leaf SBOM refs (Linux, offline)
+        if: runner.os == 'Linux'
+        run: python scripts/repair_sbom.py --raw dependency-audit/npm-sbom.cdx.json --lock plugins/codex-console/package-lock.json --out dependency-audit/npm-sbom.derived.cdx.json --report dependency-audit/sbom-repair-report.json
       - name: Retain dependency audit metadata
         if: always() && github.event_name == 'pull_request' && github.head_ref == 'dev/d22'
         uses: actions/upload-artifact@v4
