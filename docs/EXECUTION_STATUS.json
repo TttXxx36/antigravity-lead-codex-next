@@ -690,9 +690,9 @@
       ],
       "candidate": {
         "ready": false,
-        "tested_commit": "8f95bd87739ca82d292cb1ed3ec8b5410fcae724",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46007215069",
-        "limitations": "Real subprocess/Git/SQLite mock fixtures; actual Antigravity host, live cancellation/escaped descendant reconciliation, trusted quota/cleanup approval and dependencies unverified; cleanup preview only."
+        "tested_commit": "5dc22853841b9d8b1df61661962e5f97dcc64bd9",
+        "ref": "pending repaired-evidence exact-head CI",
+        "limitations": "D16 ancestry integrated; D17 ancestry evidence restored; new exact-head CI pending. Real host cancellation/cleanup approval remains BLOCKED."
       }
     },
     {
@@ -704,15 +704,44 @@
         "D15",
         "D17"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "显式状态机、lease/revision、审计、恢复防重复",
+      "status": "BLOCKED",
+      "evidence": "Exact-head 4-platform cumulative PASS; 36/36 state-machine tests and native MCP receipts",
+      "next": "D17 updated ancestry and evidence integrated; D18 exact-head cumulative CI pending; trusted host/reconciliation gates remain BLOCKED",
       "branch": "dev/d18",
-      "approval": null,
-      "pr": null,
+      "approval": "2026-11-27 user authorized A candidate development D06-D22; no real model, permission or merge grant",
+      "pr": 20,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D18 exact-head orchestration and cumulative CI",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45985424111",
+          "tested_commit": "fbd1dbc29cedf1c2d1900151dba11b8827f41788"
+        },
+        {
+          "name": "Trusted host acceptance and actual recovery",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D18-orchestration.md"
+        },
+        {
+          "name": "D17 updated ancestry integration",
+          "status": "PASS",
+          "tested_commit": "5dc22853841b9d8b1df61661962e5f97dcc64bd9",
+          "ref": "docs/evidence/D17-ancestry-integration.md"
+        },
+        {
+          "name": "D18 exact-head cumulative regression",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D18-orchestration.md"
+        }
+      ],
+      "candidate": {
+        "ready": false,
+        "tested_commit": "fbd1dbc29cedf1c2d1900151dba11b8827f41788",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45985424111",
+        "limitations": "Mock subprocesses, real local Git/SQLite and MCP; trusted host acceptance/completed, actual host crash recovery and active cancellation unverified. No automatic merge."
+      }
     },
     {
       "id": "D19",

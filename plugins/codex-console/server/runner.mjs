@@ -75,6 +75,19 @@ export class CodexRunner {
   /**
    * Non-destructive read-only question / blocker diagnosis via `codex exec fork --ephemeral`
    */
+  async getOrchestrationStatus(taskId) {
+    if(typeof taskId!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$/.test(taskId))throw new Error('D18: invalid task ID');
+    if(!this.pythonBin||!fs.existsSync(DISPATCH_SCRIPT))throw new Error('D18: dispatcher unavailable');
+    // Single authoritative Python validator, no model worker or mutation tool.
+    const {stdout}=await execFileAsync(this.pythonBin,[DISPATCH_SCRIPT,'orchestrator-status','--task-id',taskId],
+      {env:buildExecEnv(),encoding:'utf8',timeout:5000,maxBuffer:16384,windowsHide:true});
+    const result=JSON.parse(stdout);
+    if(result.taskId!==taskId||result.accepted!==false||result.mergeAuthorized!==false||
+       !['queued','running','verifying','blocked','failed','timed_out','cancelled'].includes(result.status)||
+       !Number.isSafeInteger(result.revision))throw new Error('D18: invalid orchestration receipt');
+    return result;
+  }
+
   startReadonlyAsk({ threadId, prompt, cwd, opType = 'readonly_ask' }) {
     // Direct read-only forks are outside the managed Python slot protocol.
     // Deny them when the local resource governor is configured/was activated.

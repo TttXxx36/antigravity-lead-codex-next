@@ -234,6 +234,10 @@ async function runTests() {
   let closed;
   try {
     createSyntheticCodexHome(codexHome, dispatchDir);
+    const geminiConfig=path.join(tmpRoot,'gemini-config');
+    const installedDispatcher=path.join(geminiConfig,'skills','multi-agent-dispatch','scripts','dispatch.py');
+    fs.mkdirSync(path.dirname(installedDispatcher),{recursive:true});
+    fs.copyFileSync(path.join(ROOT,'skills','multi-agent-dispatch','scripts','dispatch.py'),installedDispatcher);
     const globalConfig=path.join(tmpRoot,'empty-gitconfig');
     fs.writeFileSync(globalConfig,'');
     const allowed = ['PATH', 'Path', 'SystemRoot', 'WINDIR', 'COMSPEC', 'PATHEXT', 'TEMP', 'TMP'];
@@ -247,6 +251,7 @@ async function runTests() {
         CODEX_BIN: process.execPath,
         CODEX_HOME: codexHome,
         ALC_QUERY_CACHE:'1',
+        GEMINI_CONFIG_DIR: geminiConfig,
         AGY_DISPATCH_STATE_DIR: dispatchDir,
         GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: globalConfig, GIT_TERMINAL_PROMPT: '0',
       },
@@ -640,8 +645,33 @@ async function runTests() {
     const deniedFork=await rpc('tools/call',{name:'ask_codex_readonly',arguments:{threadId:agyTask.id,prompt:'must not spawn',preset:'custom'}});
     assert.equal(deniedFork.result?.isError,true);
     assert.match(JSON.stringify(deniedFork.result),/D17: direct fork disabled/);
-    fs.unlinkSync(schedulerFile);
     console.log('[PASS] D17 direct MCP fork blocked under managed scheduler config');
+    // D18: real Python queue/receipt/CLI cancellation, native MCP status read.
+    // No worker is launched; no prompt/path/lease secret is returned.
+    const orchTask='orch-fixture',orchRequest='orch-request';
+    const orchPrompt=JSON.stringify({version:2,task_id:orchTask,rev:1,base_rev:0,goal:'private fixture goal',scope:['answer.txt'],accept:['test'],delta:''});
+    const queued=storageCmd('orchestrator-queue','--task-id',orchTask,'--request-id',orchRequest,'--cwd',tmpRoot,'--prompt',orchPrompt);
+    assert.equal(queued.status,'queued');
+    assert.equal(queued.revision,1);
+    const readOnlyBefore=crypto.createHash('sha256').update(fs.readFileSync(stateFile)).digest('hex');
+    const receipt=await compactCall('orchestration_status',{taskId:orchTask},1000);
+    assert.equal(receipt.status,'queued');
+    assert.equal(receipt.revision,1);
+    assert.equal(receipt.accepted,false);
+    assert.equal(receipt.mergeAuthorized,false);
+    assert.equal(receipt.leaseOutstanding,false);
+    assert.ok(!JSON.stringify(receipt).includes('private fixture goal'));
+    assert.ok(!JSON.stringify(receipt).includes(tmpRoot));
+    assert.equal(crypto.createHash('sha256').update(fs.readFileSync(stateFile)).digest('hex'),readOnlyBefore);
+    assert.equal((await rpc('tools/call',{name:'orchestration_status',arguments:{taskId:'../outside'}})).result.isError,true);
+    const registeredTools=(await rpc('tools/list')).result.tools;
+    assert.deepEqual(registeredTools.find(t=>t.name==='orchestration_status')?._meta?.ui?.visibility,['model']);
+    assert.ok(!registeredTools.some(t=>/^orchestrator[_-](queue|retry|verify|accept|cancel)$/.test(t.name)));
+    assert.equal(storageCmd('orchestrator-cancel','--task-id',orchTask,'--expected-revision','1').status,'cancelled');
+    assert.equal((await compactCall('orchestration_status',{taskId:orchTask},1000)).status,'cancelled');
+    assert.deepEqual(codexFiles.map(sha),before,'native DB bytes changed during orchestration receipt');
+    fs.unlinkSync(schedulerFile);
+    console.log('[PASS] D18 native MCP read-only authoritative Python orchestration receipt, CAS cancellation, no mutation tools or native DB changes');
     const incompatible=new DatabaseSync(path.join(codexHome,'state_5.sqlite'));
     incompatible.exec('ALTER TABLE threads RENAME TO incompatible_threads');
     incompatible.close();

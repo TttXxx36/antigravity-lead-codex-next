@@ -469,6 +469,8 @@ def require_storage_quiescent(data):
         raise StateIntegrityError("D15: reconcile outstanding request reservations")
     if any(t["status"] in SCHEDULER_LIVE for t in scheduler_registry(data)["tickets"].values()):
         raise StateIntegrityError("D17: reconcile scheduler tickets before storage change")
+    if any(rec["events"][-1]["status"] in ("queued","running","verifying") or rec["events"][-1]["lease"] is not None for rec in orchestrator_registry(data).values()):
+        raise StateIntegrityError("D18: reconcile orchestration revisions before storage change")
 
 
 def cmd_state_storage(args):
@@ -615,6 +617,12 @@ def reserve_run_dir(task_id: str, record: dict[str, Any] | None = None, request_
     tid = validate_task_id(task_id)
     with locked_state() as state:
         run_dir = bounded_child(RUNS_DIR, tid)
+        orch=orchestrator_lookup(state,tid)
+        if orch is not None:
+            event=orch["events"][-1];lease=event["lease"]
+            if (event["status"]!="running" or lease is None or lease["owner_pid"]!=os.getpid()
+                or request_id is None or event["request_id"]!=request_id.casefold()):
+                raise StateIntegrityError("D18: run reservation lacks orchestration lease")
         requests = request_records(state)
         keyed = [op for op in requests.values() if op["task_id"].casefold() == tid.casefold()]
         if keyed or request_id is not None:
@@ -2571,6 +2579,8 @@ def scheduler_admission(kind,task_id,cwd):
         registry=scheduler_registry(state,create=config is not None)
         tickets=registry["tickets"]
         if config is None:
+            if orchestrator_lookup(state,task_id) is not None:
+                raise StateIntegrityError("D18: scheduler required for orchestration")
             if any(t["status"] in SCHEDULER_LIVE for t in tickets.values()) or marker.exists():
                 raise StateIntegrityError("D17: scheduler config absent after activation; reconcile offline")
         else:
@@ -2581,6 +2591,7 @@ def scheduler_admission(kind,task_id,cwd):
                     raise StateIntegrityError("D17: stop/reconcile legacy work before activation")
                 atomic_write_bytes(marker,b"D17 scheduler activated; offline rollback only\n")
             ticket=uuid.uuid4().hex
+            orchestrator_ticket(state,kind,task_id,ticket)
             seq=registry["next_seq"];registry["next_seq"]+=1
             tickets[ticket]={"seq":seq,"task_id":validate_task_id(task_id),"kind":kind,
                              "scope":scope,"owner_pid":os.getpid(),"status":"queued",
@@ -2621,6 +2632,7 @@ def scheduler_admission(kind,task_id,cwd):
                     elif any(scheduler_conflict(rec,t) for t in active):
                         reason="scope_conflict"
                     else:
+                        orchestrator_admit(state,task_id,ticket)
                         rec.update(status="active",reason="admitted",updated_at=utc_now())
                         decision="active"
                     if decision=="wait" and rec.get("reason")!=reason:
@@ -2660,8 +2672,10 @@ def scheduler_reconciliation_packet(state, key):
     ops=sorted(((k,v) for k,v in request_records(state).items()
                 if v["task_id"].casefold()==tid.casefold()),key=lambda x:x[1]["ordinal"])
     latest_key,latest=ops[-1] if ops else (None,None)
-    # D18 orchestration does not exist in this independent D17 candidate.
-    event,lease,bound=None,None,False
+    rec=orchestrator_lookup(state,tid)
+    event=rec["events"][-1] if rec else None
+    lease=event["lease"] if event else None
+    bound=bool(lease and lease["ticket"]==key and lease["owner_pid"]==ticket["owner_pid"])
     reasons=["trusted_owned_process_tree_exit_evidence_required",
              "trusted_reconciliation_authority_required"]
     if any(op["status"] in ("pending","uncertain") for _,op in ops):
@@ -2680,7 +2694,7 @@ def scheduler_reconciliation_packet(state, key):
             "ticketDigest":request_hash(ticket),"taskId":tid,"kind":ticket["kind"],
             "taskRecordDigest":request_hash(task) if task is not None else None,
             "latestRequestId":latest_key,"latestRequestStatus":latest["status"] if latest else None,
-            "latestResultSha256":ref["sha256"] if isinstance(ref,dict) and set(ref)=={"turn","sha256"} and isinstance(ref["sha256"],str) and re.fullmatch(r"[a-f0-9]{64}",ref["sha256"]) and (ref["turn"] is None or (isinstance(ref["turn"],str) and re.fullmatch(r"turn-[A-Za-z0-9_-]{1,75}",ref["turn"]))) else None,
+            "latestResultSha256":ref["sha256"] if ref and orchestrator_result_ref(ref) else None,
             "orchestrationAuditDigest":event["digest"] if event else None,
             "orchestrationLeaseMatchesTicket":bound,"blockers":reasons,
             "processExitProof":"NOT_RUN","authority":"NOT_CONFIGURED",
@@ -3091,6 +3105,414 @@ def request_progress(record: dict[str, Any]) -> str | None:
     # Conservative metadata fingerprint: same-size edits can look unchanged.
     return request_hash({k: git[k] for k in ("head_sha", "status_short", "diff_stat")})
 
+
+# D18: opt-in, explicit local orchestration. The event log is authoritative
+# for this layer, not worker text. Hash chaining detects accidental corruption,
+# NOT a signature or proof of human authorization.
+ORCHESTRATOR_KEY = "orchestrator_v1"
+ORCHESTRATOR_LIMIT = 128
+ORCHESTRATOR_EVENT_LIMIT = 24
+ORCHESTRATOR_TRANSITIONS = {
+    "queue": (None, "queued"), "reserve": ("queued", "queued"),
+    "ticket": ("queued", "queued"), "admit": ("queued", "running"),
+    "result_ready": ("running", "verifying"), "failed": ("running", "failed"),
+    "timeout": ("running", "timed_out"), "worker_blocked": ("running", "blocked"),
+    "uncertain_queue": ("queued", "blocked"), "uncertain_run": ("running", "blocked"),
+    "verify_blocked": ("verifying", "blocked"), "accept": ("verifying", "completed"),
+    "cancel": ("queued", "cancelled"), "retry": ("failed", "queued"),
+}
+ORCHESTRATOR_REASONS = {
+    "explicit_queue", "request_reserved", "scheduler_ticket", "scheduler_admitted",
+    "worker_claim_only", "known_failure", "worker_timeout", "worker_not_accepted",
+    "reconciliation_required", "trusted_acceptance_unavailable", "artifact_invalid",
+    "queued_cancelled", "explicit_retry"
+}
+
+
+def orchestrator_hash_ok(value):
+    return isinstance(value,str) and re.fullmatch(r"[a-f0-9]{64}",value) is not None
+
+
+def orchestrator_result_ref(value):
+    if value is None:
+        return True
+    return (isinstance(value,dict) and set(value)=={"turn","sha256"} and orchestrator_hash_ok(value["sha256"])
+            and (value["turn"] is None or (isinstance(value["turn"],str) and
+                 re.fullmatch(r"turn-[A-Za-z0-9_-]{1,75}",value["turn"]) is not None)))
+
+
+def orchestrator_event_digest(rec,event):
+    return request_hash({"task_id":rec["task_id"],"scope":rec["scope"],"cwd":rec["cwd"],
+                         "event":{k:v for k,v in event.items() if k!="digest"}})
+
+
+def orchestrator_transition_valid(prev,event):
+    kind=event["event"]
+    if kind not in ORCHESTRATOR_TRANSITIONS or kind=="accept":
+        # There is intentionally no trusted human/test approval adapter yet.
+        # Even a caller-supplied flag or fabricated receipt cannot complete.
+        return False
+    if ORCHESTRATOR_TRANSITIONS[kind]!=(prev["status"] if prev else None,event["status"]):
+        return False
+    lease=event["lease"]
+    if prev is None:
+        return (kind=="queue" and event["attempt"]==0 and event["protocol_rev"]==1
+                and lease is None and event["result_ref"] is None)
+    if kind=="retry":
+        return (prev["lease"] is None and lease is None and event["attempt"]==prev["attempt"]+1<=2
+                and event["protocol_rev"]==prev["protocol_rev"]+1 and event["request_id"]!=prev["request_id"]
+                and event["result_ref"] is None)
+    if any(event[k]!=prev[k] for k in ("attempt","protocol_rev","request_id","envelope")):
+        return False
+    prior=prev["lease"]
+    if kind=="reserve":
+        return prior is None and lease is not None and lease["ticket"] is None and event["result_ref"] is None
+    if kind=="ticket":
+        return (prior is not None and prior["ticket"] is None and lease is not None and
+                lease["ticket"] is not None and {k:lease[k] for k in ("id","owner_pid")}==
+                {k:prior[k] for k in ("id","owner_pid")} and event["result_ref"] is None)
+    if kind=="admit":
+        return prior is not None and prior["ticket"] is not None and lease==prior and event["result_ref"] is None
+    if kind=="cancel":
+        return prior is None and lease is None and event["result_ref"] is None
+    if kind in ("result_ready","failed"):
+        return prior is not None and prior["ticket"] is not None and lease is None and event["result_ref"] is not None
+    if kind=="timeout":
+        return prior is not None and lease==prior and event["result_ref"] is not None
+    if kind=="worker_blocked":
+        return prior is not None and (lease is None or lease==prior) and event["result_ref"] is not None
+    if kind in ("uncertain_queue","uncertain_run"):
+        return prior is not None and lease==prior and event["result_ref"] is None
+    if kind=="verify_blocked":
+        return prior is None and lease is None and event["result_ref"]==prev["result_ref"]
+    return False
+
+
+def orchestrator_registry(state,create=False):
+    registry=state.get(ORCHESTRATOR_KEY)
+    if registry is None:
+        if ORCHESTRATOR_KEY in state:
+            raise StateIntegrityError("D18: invalid orchestration registry")
+        if not create:
+            return {}
+        registry={}
+        state[ORCHESTRATOR_KEY]=registry
+    if not isinstance(registry,dict) or len(registry)>ORCHESTRATOR_LIMIT:
+        raise StateIntegrityError("D18: invalid orchestration registry")
+    names=set()
+    requests={}
+    for key,rec in registry.items():
+        validate_task_id(key)
+        if (key.casefold() in names or not isinstance(rec,dict) or
+            set(rec)!={"task_id","scope","cwd","events"} or rec["task_id"]!=key
+            or not orchestrator_hash_ok(rec["scope"]) or not isinstance(rec["cwd"],str)
+            or not Path(rec["cwd"]).is_absolute() or len(rec["cwd"])>4096
+            or not isinstance(rec["events"],list) or not 1<=len(rec["events"])<=ORCHESTRATOR_EVENT_LIMIT):
+            raise StateIntegrityError("D18: invalid orchestration identity")
+        names.add(key.casefold())
+        prev=None
+        for seq,event in enumerate(rec["events"],1):
+            if (not isinstance(event,dict) or set(event)!={"revision","event","status","request_id","protocol_rev",
+                    "attempt","envelope","lease","result_ref","reason","at","previous","digest"}
+                or type(event["revision"]) is not int or event["revision"]!=seq
+                or not isinstance(event["event"],str) or not isinstance(event["status"],str)
+                or type(event["protocol_rev"]) is not int or not 1<=event["protocol_rev"]<=3
+                or type(event["attempt"]) is not int or not 0<=event["attempt"]<=2
+                or not orchestrator_hash_ok(event["envelope"]) or not orchestrator_result_ref(event["result_ref"])
+                or event["reason"] not in ORCHESTRATOR_REASONS or not isinstance(event["at"],str)
+                or not 1<=len(event["at"])<=64 or event["previous"]!=(prev["digest"] if prev else None)
+                or not orchestrator_hash_ok(event["digest"])):
+                raise StateIntegrityError("D18: invalid audit event")
+            req=validate_task_id(event["request_id"]).casefold()
+            if req!=event["request_id"] or (req in requests and requests[req]!=(key,event["protocol_rev"])):
+                raise StateIntegrityError("D18: request identity reused")
+            requests[req]=(key,event["protocol_rev"])
+            lease=event["lease"]
+            if lease is not None and (not isinstance(lease,dict) or set(lease)!={"id","owner_pid","ticket"}
+                or not isinstance(lease["id"],str) or not re.fullmatch(r"[a-f0-9]{32}",lease["id"])
+                or type(lease["owner_pid"]) is not int or lease["owner_pid"]<=0
+                or (lease["ticket"] is not None and (not isinstance(lease["ticket"],str)
+                    or not re.fullmatch(r"[a-f0-9]{32}",lease["ticket"])))):
+                raise StateIntegrityError("D18: invalid lease")
+            if not orchestrator_transition_valid(prev,event) or event["digest"]!=orchestrator_event_digest(rec,event):
+                raise StateIntegrityError("D18: audit chain or transition invalid")
+            prev=event
+    return registry
+
+
+def orchestrator_lookup(state,task_id):
+    registry=orchestrator_registry(state)
+    if task_id is None:
+        return None
+    matches=[rec for key,rec in registry.items() if key.casefold()==task_id.casefold()]
+    if matches and matches[0]["task_id"]!=task_id:
+        raise ValueError("D18: case-ambiguous orchestration identity")
+    return matches[0] if matches else None
+
+
+def orchestrator_request_owner(state,key):
+    for rec in orchestrator_registry(state).values():
+        if any(e["request_id"]==key for e in rec["events"]):
+            return rec
+    return None
+
+
+def orchestrator_append(rec,kind,reason,**patch):
+    prev=rec["events"][-1] if rec["events"] else None
+    if kind=="accept":
+        raise StateIntegrityError("D18: trusted independent acceptance unavailable")
+    if len(rec["events"])>=ORCHESTRATOR_EVENT_LIMIT:
+        raise StateIntegrityError("D18: audit full; never discard history")
+    if kind not in ORCHESTRATOR_TRANSITIONS or reason not in ORCHESTRATOR_REASONS:
+        raise ValueError("D18: unknown transition")
+    event={k:prev[k] for k in ("request_id","protocol_rev","attempt","envelope","lease","result_ref")} if prev else {}
+    event.update(patch)
+    event.update(revision=len(rec["events"])+1,event=kind,status=ORCHESTRATOR_TRANSITIONS[kind][1],
+                 reason=reason,at=utc_now(),previous=prev["digest"] if prev else None)
+    if not orchestrator_transition_valid(prev,event):
+        raise ValueError("D18: illegal state transition")
+    event["digest"]=orchestrator_event_digest(rec,event)
+    rec["events"].append(event)
+    return event
+
+
+def orchestrator_reserve(state,args,key,rev,scope):
+    rec=orchestrator_lookup(state,args.task_id)
+    owner=orchestrator_request_owner(state,key)
+    if owner is not None and owner is not rec:
+        raise ValueError("D18: request ID reserved for another orchestration")
+    if rec is None:
+        return
+    e=rec["events"][-1]
+    if (e["status"]!="queued" or e["lease"] is not None or e["request_id"]!=key or
+        e["protocol_rev"]!=rev or rec["scope"]!=scope or args.subcommand!=("run" if rev==1 else "resume")):
+        raise ValueError("D18: no matching queued revision")
+    envelope=parse_task_envelope(args.prompt,args.task_id,rev-1)
+    if request_hash(envelope)!=e["envelope"]:
+        raise ValueError("D18: queued envelope changed")
+    if args.subcommand=="run":
+        if str(Path(args.cwd).resolve(strict=True))!=rec["cwd"]:
+            raise ValueError("D18: queued cwd changed")
+    else:
+        record=state["tasks"].get(args.task_id)
+        if not record or str(Path(record["original_cwd"]).resolve(strict=True))!=rec["cwd"]:
+            raise ValueError("D18: retry cwd changed")
+        previous=next((x for x in reversed(rec["events"][:-1]) if x["event"]=="failed"),None)
+        if previous is None or getattr(args,"retry_of",None) is None or args.retry_of.casefold()!=previous["request_id"]:
+            raise ValueError("D18: explicit prior failed request required")
+    if scheduler_config() is None:
+        raise StateIntegrityError("D18: configured D17 scheduler required")
+    orchestrator_append(rec,"reserve","request_reserved",
+                       lease={"id":uuid.uuid4().hex,"owner_pid":os.getpid(),"ticket":None})
+
+
+def orchestrator_ticket(state,kind,task_id,ticket):
+    rec=orchestrator_lookup(state,task_id)
+    if rec is None:
+        return
+    e=rec["events"][-1];lease=e["lease"]
+    op=request_records(state).get(e["request_id"])
+    if (e["status"]!="queued" or lease is None or lease["owner_pid"]!=os.getpid() or
+        lease["ticket"] is not None or op is None or op["status"]!="pending" or
+        op["task_id"]!=task_id or op["kind"]!=kind or op["revision"]!=e["protocol_rev"]):
+        raise StateIntegrityError("D18: scheduler ticket lacks matching durable request lease")
+    orchestrator_append(rec,"ticket","scheduler_ticket",lease={**lease,"ticket":ticket})
+
+
+def orchestrator_admit(state,task_id,ticket):
+    rec=orchestrator_lookup(state,task_id)
+    if rec is None:
+        return
+    e=rec["events"][-1];lease=e["lease"]
+    if lease is None or lease["owner_pid"]!=os.getpid() or lease["ticket"]!=ticket:
+        raise StateIntegrityError("D18: scheduler admission lease mismatch")
+    orchestrator_append(rec,"admit","scheduler_admitted")
+
+
+def orchestrator_settle(state,task_id,key,rc):
+    rec=orchestrator_lookup(state,task_id)
+    if rec is None:
+        return
+    e=rec["events"][-1];lease=e["lease"];op=request_records(state).get(key)
+    if (e["status"]!="running" or e["request_id"]!=key or lease is None or lease["owner_pid"]!=os.getpid()
+        or op is None or op["status"]!="returned" or op["revision"]!=e["protocol_rev"]):
+        raise StateIntegrityError("D18: result without matching live lease")
+    task=state["tasks"].get(task_id)
+    ticket=scheduler_registry(state)["tickets"].get(lease["ticket"])
+    if (not task or task.get("task_id")!=task_id or task.get("protocol_rev")!=e["protocol_rev"]
+        or task.get("active_turn_id") or not orchestrator_result_ref(task.get("result_ref"))
+        or task.get("result_ref") is None or op.get("result_ref")!=task["result_ref"]
+        or not ticket or ticket["task_id"]!=task_id or ticket["owner_pid"]!=lease["owner_pid"]
+        or ticket["status"] not in ("released","uncertain")):
+        raise StateIntegrityError("D18: missing terminal task/scheduler receipt")
+    released=ticket["status"]=="released"
+    if task.get("status")=="timed_out" or task.get("process_status")=="timed_out":
+        kind,reason,remaining="timeout","worker_timeout",lease
+    elif released and rc==0 and task.get("status")=="completed" and task.get("process_status")=="exited" and task.get("exit_code")==0 and task.get("stream_integrity")!="incomplete":
+        kind,reason,remaining="result_ready","worker_claim_only",None
+    elif released and rc==1 and task.get("status")=="failed" and task.get("process_status")=="failed" and task.get("stream_integrity")!="incomplete":
+        kind,reason,remaining="failed","known_failure",None
+    else:
+        kind,reason,remaining="worker_blocked","worker_not_accepted",None if released else lease
+    orchestrator_append(rec,kind,reason,lease=remaining,result_ref=task["result_ref"])
+
+
+def orchestrator_uncertain(state,task_id,key):
+    rec=orchestrator_lookup(state,task_id)
+    if rec is None:
+        return
+    e=rec["events"][-1]
+    if e["request_id"]==key and e["lease"] is not None and e["lease"]["owner_pid"]==os.getpid() and e["status"] in ("queued","running"):
+        orchestrator_append(rec,"uncertain_queue" if e["status"]=="queued" else "uncertain_run",
+                           "reconciliation_required")
+
+
+def orchestrator_artifact_matches(state,rec):
+    e=rec["events"][-1];tid=rec["task_id"];ref=e["result_ref"]
+    task=state["tasks"].get(tid)
+    op=request_records(state).get(e["request_id"])
+    try:
+        if (ref is None or not task or task.get("result_ref")!=ref or task.get("protocol_rev")!=e["protocol_rev"]
+            or task.get("task_id")!=tid or task.get("active_turn_id") or task.get("status")!="completed"
+            or not op or op["status"]!="returned" or op.get("exit_code")!=0 or op.get("result_ref")!=ref):
+            return False
+        root=bounded_child(RUNS_DIR,tid)
+        if configured_path(task["run_dir"])!=root:
+            return False
+        directory=root if ref["turn"] is None else bounded_child(root,ref["turn"])
+        file=directory/"result.json"
+        reject_link(file)
+        if not file.is_file() or file.stat().st_size>262144:
+            return False
+        with file.open("rb") as fh:
+            raw=fh.read(262145)
+        if len(raw)>262144 or hashlib.sha256(raw).hexdigest()!=ref["sha256"]:
+            return False
+        value=strict_state_json(raw)
+        return (isinstance(value,dict) and value.get("task_id")==tid and value.get("turn_id")==ref["turn"]
+                and value.get("session_id")==task.get("session_id") and value.get("exit_code")==0
+                and value.get("task_status")=="completed" and isinstance(value.get("report"),dict)
+                and value["report"].get("status")=="completed")
+    except (OSError,ValueError,KeyError,StateIntegrityError):
+        return False
+
+
+def orchestrator_public(state,rec):
+    e=rec["events"][-1];lease=e["lease"]
+    op=request_records(state).get(e["request_id"])
+    # No PID-liveness inference: PID reuse/host restart is not execution proof.
+    return {"taskId":rec["task_id"],"status":e["status"],"revision":e["revision"],
+            "protocolRevision":e["protocol_rev"],"attempt":e["attempt"],"requestId":e["request_id"],
+            "requestStatus":op["status"] if op else None,"reason":e["reason"],
+            "leaseOutstanding":lease is not None,"recoveryRequired":lease is not None,
+            "workerResultPresent":e["result_ref"] is not None,
+            "accepted":False,"mergeAuthorized":False,"auditDigest":e["digest"]}
+
+
+def orchestrator_acceptance_packet(state,rec,expected_revision):
+    e=rec["events"][-1]
+    if type(expected_revision) is not int or expected_revision!=e["revision"] or e["status"]!="verifying" or e["lease"] is not None:
+        raise ValueError("D18: current verifying revision required for acceptance packet")
+    artifact_ok=orchestrator_artifact_matches(state,rec)
+    # D19 pinned Git evidence is not yet available in this independent card.
+    risk,current_risk,git_ok=None,False,False
+    packet={"version":1,"operation":"independent_acceptance_preview","taskId":rec["task_id"],
+            "revision":e["revision"],"protocolRevision":e["protocol_rev"],"requestId":e["request_id"],
+            "scopeDigest":rec["scope"],"envelopeDigest":e["envelope"],"auditDigest":e["digest"],
+            "artifactSha256":e["result_ref"]["sha256"],"riskReceiptDigest":risk["digest"] if current_risk else None,
+            "base":risk["base"] if current_risk else None,"head":risk["head"] if current_risk else None,
+            "checks":{"workerArtifact":"PASS" if artifact_ok else "FAIL",
+                      "pinnedGitChecks":"PASS" if git_ok else "FAIL" if current_risk else "NOT_RUN",
+                      "worktree":"NOT_RUN","projectTests":"NOT_RUN","independentReview":"NOT_RUN",
+                      "trustedAuthority":"NOT_CONFIGURED"},
+            "readyForIndependentReview":artifact_ok and git_ok,
+            "accepted":False,"mergeAuthorized":False,"stateChanged":False}
+    packet["evidenceDigest"]=request_hash(packet)
+    return packet
+
+
+def orchestrator_command(args):
+    kind=args.subcommand
+    tid=validate_task_id(args.task_id)
+    if kind in ("orchestrator-status","orchestrator-audit","orchestrator-recover","orchestrator-acceptance-preview") and not STATE_FILE.exists():
+        raise ValueError("D18: orchestration not found")
+    with locked_state() as state:
+        registry=orchestrator_registry(state,create=kind=="orchestrator-queue")
+        rec=orchestrator_lookup(state,tid)
+        if kind=="orchestrator-queue":
+            if rec or len(registry)>=ORCHESTRATOR_LIMIT:
+                raise ValueError("D18: duplicate orchestration or audit limit")
+            if scheduler_config() is None:
+                raise ValueError("D18: configure D17 scheduler offline before queueing")
+            if any(k.casefold()==tid.casefold() for k in state["tasks"]) or any(p.name.casefold()==tid.casefold() for p in RUNS_DIR.iterdir()) or any(op["task_id"].casefold()==tid.casefold() for op in request_records(state).values()):
+                raise ValueError("D18: existing task or orphaned artifacts")
+            key=validate_task_id(args.request_id).casefold()
+            if key in request_records(state) or orchestrator_request_owner(state,key):
+                raise ValueError("D18: request ID already in use")
+            envelope=parse_task_envelope(args.prompt,tid,0)
+            cwd=Path(args.cwd).resolve(strict=True)
+            if not cwd.is_dir():
+                raise ValueError("D18: cwd must be directory")
+            rec={"task_id":tid,"scope":request_scope(envelope),"cwd":str(cwd),"events":[]}
+            orchestrator_append(rec,"queue","explicit_queue",request_id=key,protocol_rev=1,attempt=0,
+                               envelope=request_hash(envelope),lease=None,result_ref=None)
+            registry[tid]=rec
+        elif rec is None:
+            raise ValueError("D18: orchestration not found")
+        else:
+            e=rec["events"][-1]
+            if kind in ("orchestrator-cancel","orchestrator-retry","orchestrator-verify"):
+                if args.expected_revision!=e["revision"]:
+                    raise ValueError("D18: stale orchestration revision")
+            if kind=="orchestrator-cancel":
+                orchestrator_append(rec,"cancel","queued_cancelled")
+            elif kind=="orchestrator-retry":
+                if e["status"]!="failed" or e["lease"] is not None or e["attempt"]>=2:
+                    raise ValueError("D18: only known failed tasks may be explicitly retried twice")
+                old=request_records(state).get(e["request_id"]);task=state["tasks"].get(tid)
+                if (not old or old["status"]!="returned" or old.get("exit_code")!=1 or not task
+                    or task.get("status")!="failed" or task.get("process_status")!="failed"
+                    or task.get("protocol_rev")!=e["protocol_rev"] or task.get("result_ref")!=e["result_ref"]):
+                    raise StateIntegrityError("D18: failed request receipt not current")
+                # Do not queue a retry that D13 would already refuse. The
+                # authoritative launch gate still repeats these checks.
+                workers=sorted((op for op in request_records(state).values()
+                    if op["task_id"]==tid and op["kind"] in ("run","resume")),key=lambda op:op["ordinal"])
+                if (not workers or workers[-1] is not old or old.get("stagnant",0)>=2
+                    or (len(workers)>=2 and old.get("failure") is not None and workers[-2].get("failure")==old["failure"])):
+                    raise ValueError("D18: repeated failure or no progress; independent review required")
+                key=validate_task_id(args.request_id).casefold()
+                if key in request_records(state) or orchestrator_request_owner(state,key):
+                    raise ValueError("D18: request ID already in use")
+                env=parse_task_envelope(args.prompt,tid,e["protocol_rev"])
+                if request_scope(env)!=rec["scope"]:
+                    raise ValueError("D18: retry scope changed")
+                orchestrator_append(rec,"retry","explicit_retry",request_id=key,protocol_rev=env["rev"],
+                    attempt=e["attempt"]+1,envelope=request_hash(env),lease=None,result_ref=None)
+            elif kind=="orchestrator-verify":
+                if e["status"]!="verifying":
+                    raise ValueError("D18: verification requires verifying state")
+                reason="trusted_acceptance_unavailable" if orchestrator_artifact_matches(state,rec) else "artifact_invalid"
+                orchestrator_append(rec,"verify_blocked",reason)
+        payload=orchestrator_public(state,rec)
+        if kind=="orchestrator-acceptance-preview":
+            payload=orchestrator_acceptance_packet(state,rec,args.expected_revision)
+        if kind=="orchestrator-audit":
+            cursor=args.cursor
+            if cursor<0 or cursor>len(rec["events"]) or not 1<=args.limit<=10:
+                raise ValueError("D18: invalid audit cursor")
+            page=rec["events"][cursor:cursor+args.limit]
+            payload.update(events=[{k:e[k] for k in ("revision","event","status","request_id","protocol_rev","attempt","reason","at","previous","digest")} for e in page],
+                nextCursor=cursor+len(page),hasMore=cursor+len(page)<len(rec["events"]))
+        if kind=="orchestrator-recover":
+            payload["action"]="manual_reconciliation_required" if payload["leaseOutstanding"] else "no_automatic_execution"
+        # Revalidate complete chain before committing any mutation.
+        orchestrator_registry(state)
+    print(json.dumps(payload,ensure_ascii=True,separators=(",",":")))
+    return 1 if kind=="orchestrator-verify" else 0
+
+
+
 def guarded_dispatch(args: argparse.Namespace, handler) -> int:
     kind = args.subcommand
     tid = getattr(args, "task_id", None)
@@ -3101,6 +3523,8 @@ def guarded_dispatch(args: argparse.Namespace, handler) -> int:
             raise ValueError("D13: retry requires a new request_id")
         if tid is not None and not args.dry_run:
             with locked_state() as state:
+                if orchestrator_lookup(state,tid) is not None:
+                    raise ValueError("D18: orchestrated task requires matching keyed request")
                 if any(op["task_id"].casefold() == tid.casefold() for op in request_records(state).values()):
                     raise ValueError("D13: managed keyed task requires request_id")
         return handler(args)
@@ -3123,6 +3547,9 @@ def guarded_dispatch(args: argparse.Namespace, handler) -> int:
     digest = request_hash(params)
     with locked_state() as state:
         records = request_records(state)
+        owner=orchestrator_request_owner(state,key)
+        if owner is not None and owner["task_id"]!=tid:
+            raise ValueError("D18: request ID reserved for another orchestration")
         old = records.get(key)
         if old is not None:
             return request_response(key, old, old["fingerprint"] != digest or old["task_id"] != tid)
@@ -3193,6 +3620,7 @@ def guarded_dispatch(args: argparse.Namespace, handler) -> int:
               "retry_of": retry.casefold() if retry is not None else None,
               "stagnant": 0, "progress": None, "failure": None,
               "created_at": utc_now()}
+        orchestrator_reserve(state,args,key,rev,scope)
         records[key] = op
         state[REQUEST_REGISTRY] = records
     # Reservation is durable before handler or child launch. Crash/exception
@@ -3221,12 +3649,14 @@ def guarded_dispatch(args: argparse.Namespace, handler) -> int:
             else:
                 op["review_id"] = getattr(args, "_d13_review_id", None)
             op.update(status="returned", exit_code=rc, updated_at=utc_now())
+            orchestrator_settle(state,tid,key,rc)
         return rc
     except Exception:
         with locked_state() as state:
             op = request_records(state).get(key)
             if op is not None and op["status"] == "pending" and op["fingerprint"] == digest:
                 op.update(status="uncertain", updated_at=utc_now())
+                orchestrator_uncertain(state,tid,key)
         raise
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -4047,6 +4477,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_st = sub.add_parser("status", help="Inspect tracked task metadata and round-robin state.")
     p_st.add_argument("--task-id", default=None)
 
+    for operation in ("orchestrator-queue","orchestrator-retry","orchestrator-cancel","orchestrator-verify","orchestrator-status","orchestrator-audit","orchestrator-recover","orchestrator-acceptance-preview"):
+        p_orch=sub.add_parser(operation,allow_abbrev=False,help="D18 explicit local orchestration; no automatic execution or merge")
+        p_orch.add_argument("--task-id",required=True)
+        if operation in ("orchestrator-queue","orchestrator-retry"):
+            p_orch.add_argument("--request-id",required=True)
+            p_orch.add_argument("--prompt",required=True,help="Exact bounded v2 task envelope; not an approval grant")
+        if operation=="orchestrator-queue":
+            p_orch.add_argument("--cwd",required=True)
+        if operation in ("orchestrator-retry","orchestrator-cancel","orchestrator-verify","orchestrator-acceptance-preview"):
+            p_orch.add_argument("--expected-revision",type=int,required=True)
+        if operation=="orchestrator-audit":
+            p_orch.add_argument("--cursor",type=int,default=0)
+            p_orch.add_argument("--limit",type=int,default=10)
     sub.add_parser("scheduler-status",allow_abbrev=False,help="Read bounded local scheduler metadata")
     p_cancel=sub.add_parser("scheduler-cancel",allow_abbrev=False,help="Cancel queued ticket only; never kills an active worker")
     p_cancel.add_argument("--ticket",required=True)
@@ -4079,6 +4522,8 @@ def main() -> int:
         "scheduler-reconcile-preview": scheduler_status_cmd,
     }
     try:
+        if args.subcommand.startswith('orchestrator-'):
+            return orchestrator_command(args)
         if args.subcommand in ('run', 'resume', 'review'):
             return guarded_dispatch(args, handlers[args.subcommand])
         return handlers[args.subcommand](args)

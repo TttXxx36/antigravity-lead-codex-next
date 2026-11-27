@@ -24,7 +24,7 @@
 | [D15](decisions/D15.md) SQLite 任务状态迁移 | V1.3 | D04,D14 | BLOCKED | PR #17 四环境 PASS；真实宿主迁移/恢复及依赖验收阻塞；D16 可继续 |
 | [D16](decisions/D16.md) MCP 查询缓存与 UI 增量刷新 | V1.3 | D14,D15 | BLOCKED | PR #18 四环境 PASS；UI 构建/性能证据已补齐；真实宿主及物理 I/O 未验收；D17 可继续 |
 | [D17](decisions/D17.md) 动态并发与 Worktree 资源治理 | V1.3 | D14,D15,D16 | BLOCKED | PR #19 集成四环境 PASS；真实宿主、取消及可信清理未验收；D18 可继续 |
-| [D18](decisions/D18.md) 确定性编排状态机 | V2.0 | D13,D15,D17 | PROPOSED | 未实施；显式状态机、lease/revision、审计、恢复防重复 |
+| [D18](decisions/D18.md) 确定性编排状态机 | V2.0 | D13,D15,D17 | BLOCKED | PR #20 四环境累计 PASS；可信验收/实际恢复未验证；D19 可继续 |
 | [D19](decisions/D19.md) 风险驱动审查与验收 | V2.0 | D18 | PROPOSED | 未实施；风险分级、确定性检查、安全/并发/迁移必审 |
 | [D20](decisions/D20.md) 常驻 Codex App Server 可选适配 | V2.0 | D18,D19 | PROPOSED | 未实施；官方能力协商、CLI 兜底、权限对等、复用/断线测试 |
 | [D21](decisions/D21.md) 可观测性与性能/Token 验收 | V2.0 | D12,D16,D19,D20 | PROPOSED | 未实施；配对基准、质量/成功率、真实用量及置信限制 |
@@ -230,3 +230,16 @@ Integrate updated D15 `cd140bf583c0023d1d2be1970eb3eb248cabf120`, which carries 
 
 
 2026-11-27 refresh: integrate updated D16 `835999d29e106d56ea4b9ee8c35e64c22fcdce60`, carrying D15 `cd140bf583c0023d1d2be1970eb3eb248cabf120` and D14 ancestry. Preserve D17 scheduler and read-only cleanup preview. New D16 and D17 exact-head CI pending; no deletion/permission expansion/formal merge.
+
+
+## 2026-11-27 D18 initial candidate
+Base adefa4881d3c7ffa1480ab77139cd0fbd6d3a417, D17 verified 838787a Run 45983586382 all four PASS. A: explicit opt-in local CLI orchestration state machine persisted in existing locked JSON/SQLite state. Queue pins exact task/request ID, envelope SHA, immutable scope and canonical cwd; D13 request reservation creates lease atomically, D17 ticket and admission change queued→running in same transaction, D13 terminal receipt and orchestration settlement commit together. Explicit revision CAS for cancel/retry/verify, bounded two known-failure retries retain D13 progress/retry guards; no automatic retry/replay or PID lease expiry. Abrupt owner death leaves durable pending lease, read-only recover reports manual reconciliation, no new worker; queued cancellation only before reservation. Hash-linked bounded audit (128 tasks, 24 events/task, cursor limit 10); hashes detect accidental corruption, not authentication. Worker success → verifying only; artifact digest/identity check cannot substitute for independent trusted acceptance, verify always BLOCKED, completed transition explicitly unavailable until trusted host approval bridge. Timeout/uncertainty retain lease, migration blocked while unresolved. Existing non-orchestrated behavior remains default; managed registered task cannot bypass keyed/scheduler gates. MCP adds exact bounded read-only orchestration_status; no model-facing mutation, acceptance, cleanup or merge. No real model/production writes, permissions or formal merge. Actual host/trusted acceptance and active cancellation/reconciliation remain unverified. Candidate CI pending.
+
+D18 follow-up: initial Run 45985228514 orchestration regression step PASS on each platform (full initial run may be superseded). Added real installed Python dispatcher fixture to native MCP integration, exact queued/cancelled receipts, no task goal/path leakage, no model-facing mutations, unchanged state JSON/native DB hashes. Reject repeated failure/no-progress when queueing retry, before creating a doomed revision; D13 launch gate remains authoritative. D17 evidence-head recheck Run 45984857562 four environments PASS. Latest exact-head cumulative CI pending.
+
+## D18 exact-head candidate verification
+Run 45985424111 completed/success on all four actual runners; exact source fbd1dbc29cedf1c2d1900151dba11b8827f41788. Ubuntu 140459741740, macOS ARM64 140459741767, Windows Server x64 140459741267, Windows 11 ARM64 140459741896. 9/9 state-machine tests per environment (36/36), real local mock subprocess crash, timeout, duplicate/reservation, SQLite restart, explicit retry/CAS, tampered artifact/audit, scheduler gating and native MCP read-only receipt PASS; cumulative CI/governance PASS. Earlier run 45985228514 all four orchestration steps PASS; two jobs superseded, not a full four-platform PASS. Candidate ready; formal BLOCKED: actual host reconciliation, independent trusted acceptance/completed bridge, cancellation and upstream formal acceptance unverified. No automatic merge. Evidence-only head recheck required.
+
+
+## D18 updated D17 ancestry integration (2026-11-27)
+D17 updated candidate 5dc22853841b9d8b1df61661962e5f97dcc64bd9 carries the verified D16/D15/D14 ancestry and repaired D16/D17 evidence records. Preserve D18 orchestration state machine, revision/lease/receipt gates, no worker launch on read-only status, and D17 scheduler/cleanup preview. D17 repaired-evidence and D18 new exact-head CI pending. No real model, host approval, cleanup, production write or formal merge.
