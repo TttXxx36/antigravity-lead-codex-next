@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "task_id",
+    "rev",
+    "base_rev",
+    "goal",
+    "scope",
+    "accept",
+    "delta"
+  ],
+  "properties": {
+    "version": {
+      "const": 2
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$"
+    },
+    "rev": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "base_rev": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483646
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1600
+    },
+    "scope": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      }
+    },
+    "accept": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      }
+    },
+    "delta": {
+      "type": "string",
+      "maxLength": 1600
+    }
+  }
+}

@@ -21,13 +21,13 @@ export function compactStatus(store,args,includeResult=false) {
     const entry=store.getManagedTask(args.taskId,includeResult);
     if(!entry) throw new Error('Task not found');
     const {task,result}=entry;
-    const out={taskId:id(task.task_id),threadId:id(task.session_id),status:status(task.status),exitCode:num(task.exit_code),verification:'unknown'};
+    const out={taskId:id(task.task_id),threadId:id(task.session_id),status:status(task.status),exitCode:num(task.exit_code),verification:'unknown',...(task.protocol_version===2?{protocolVersion:2,rev:num(task.protocol_rev)}:{})};
     if(!includeResult) return out;
     // A report from a prior resume is not current terminal verification.
     const terminal=['completed','failed','partial','blocked','timed_out'].includes(task.status);
     return {...out,reportAvailable:terminal && !!result,summary:terminal?clip(result?.report?.summary ?? result?.summary,240):null,
       risks:terminal && Array.isArray(result?.report?.risks_or_followups)?result.report.risks_or_followups.slice(0,2).map(v=>clip(v,80)):[],
-      reportTrust:'worker_claim',verification:'unknown'};
+      reportTrust:'worker_claim',verification:'unknown',...(terminal && result?.report?.risks_or_followups?.length>2?{risksTruncated:true}:{})};
   }
   const t=store.getThread(args.threadId);
   if(!t) throw new Error('Thread not found');

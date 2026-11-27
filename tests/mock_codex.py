@@ -25,6 +25,8 @@ def main():
     for name in files:
         (cwd / name).write_text('mock resume\n' if resume else 'mock result\n', encoding='utf-8')
     report = dict(status='failed' if failed else 'completed', summary='synthetic error' if failed else 'synthetic result', files_modified=files, commands_run=[], verification_passed=False, risks_or_followups=['mock only; checks not run'], notes_for_orchestrator='')
+    if '--output-schema' in args and Path(args[args.index('--output-schema')+1]).name == 'report_schema_v2.json':
+        report = dict(version=2,status=report['status'],summary=report['summary'],risks=['mock only; checks not run'],blockers=['synthetic failure'] if failed else [],verification_claim='not_run')
     Path(args[args.index('-o') + 1]).write_text(json.dumps(report), encoding='utf-8')
     print(json.dumps({'type': 'thread.started', 'thread_id': 'mock-thread-01'}))
     if failed:

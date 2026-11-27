@@ -320,7 +320,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Initial and follow-up four environments PASS; current artifact and op boundaries exercised",
-      "next": "D08 updated candidate ancestry integrated; exact-head regression and formal gates pending.",
+      "next": "Formal dependency/actual host gates still BLOCKED",
       "branch": "dev/d09",
       "approval": "2026-11-27 user approved A and verified candidate development",
       "pr": 11,
@@ -342,13 +342,19 @@
           "name": "BUG-007 cleanup denial synchronization",
           "status": "NOT_RUN",
           "ref": "docs/evidence/D09-cleanup-integration.md"
+        },
+        {
+          "name": "D09 exact ancestry and cleanup regression",
+          "status": "PASS",
+          "tested_commit": "61ed00c712fc0d5bf9a7f24eb5e4aed7f98fbb78",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006153189"
         }
       ],
       "candidate": {
-        "ready": false,
-        "tested_commit": "99c0e5544bf03c1702fee7b7deb1a196b9fba502",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45940757723",
-        "limitations": "Actual host and token tests NOT_RUN; old records without result_ref unavailable; metadata-only log cursor and nonpersistent hash; not merged. Verified D06 cleanup denial synchronized; current head needs CI."
+        "ready": true,
+        "tested_commit": "61ed00c712fc0d5bf9a7f24eb5e4aed7f98fbb78",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006153189",
+        "limitations": "Exact integrated D09 code 4/4 CI PASS; real host and Token acceptance still missing."
       }
     },
     {
@@ -358,15 +364,43 @@
       "depends": [
         "D09"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "版本化 task/result/delta、字段预算、程序证据、拒绝乱序",
+      "status": "BLOCKED",
+      "evidence": "Four environments protocol and mock run/resume PASS",
+      "next": "D09 verified ancestry integrated; exact-head CI pending; formal gates unchanged",
       "branch": "dev/d10",
-      "approval": null,
-      "pr": null,
+      "approval": "2026-11-27 user authorized A candidate development",
+      "pr": 12,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D10 final protocol and cumulative regression",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45941283814",
+          "tested_commit": "5e937fcb4de98d0df60cef144b81e8f619f9e550"
+        },
+        {
+          "name": "Actual model structured output and host compatibility",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D10-protocol.md"
+        },
+        {
+          "name": "BUG-007 cleanup denial synchronization",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D10-cleanup-integration.md"
+        },
+        {
+          "name": "D09 verified ancestry integration",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D10-ancestry-integration.md"
+        }
+      ],
+      "candidate": {
+        "ready": false,
+        "tested_commit": "5e937fcb4de98d0df60cef144b81e8f619f9e550",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45941283814",
+        "limitations": "Actual model and host unverified; v2 opt-in; batch/MCP v1; no formal merge. Verified D06 cleanup denial synchronized; current head needs CI."
+      }
     },
     {
       "id": "D11",

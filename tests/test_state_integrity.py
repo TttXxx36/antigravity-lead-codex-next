@@ -221,6 +221,57 @@ with d.locked_state() as state:
             self.assertEqual(ref["sha256"], hashlib.sha256((Path(resumed["run_dir"])/"result.json").read_bytes()).hexdigest())
             self.assertEqual(len(state["tasks"]),1)
 
+    def test_v2_run_resume_revision_and_legacy_compatibility(self):
+        work=Path(self.tmp.name)/"v2";work.mkdir()
+        route={"model":"mock","effort":"low","effective_difficulty":"low"}
+        calls=[]
+        original=d.run_subprocess_with_timeout
+        def boundary(cmd,**kwargs):
+            self.assertEqual(cmd[0],"MOCK_ONLY")
+            self.assertEqual(Path(cmd[cmd.index("--output-schema")+1]).name,"report_schema_v2.json")
+            calls.append(cmd)
+            kwargs["env"]=dict(self.env,ALC_MOCK_CASE="B01")
+            return original([sys.executable,"-I",str(ROOT/"tests/mock_codex.py"),*cmd[1:]],**kwargs)
+        def envelope(rev,base,delta=""):
+            return json.dumps(dict(version=2,task_id="v2-task",rev=rev,base_rev=base,goal="synthetic",scope=["answer.txt"],accept=["write fixture"],delta=delta))
+        with patch.object(d,"get_codex_bin",return_value="MOCK_ONLY"),patch.object(d,"resolve_model_and_effort",return_value=route),patch.object(d,"run_subprocess_with_timeout",side_effect=boundary):
+            result=d.execute_single_task(prompt=envelope(1,0),cwd=work,backend="codex",difficulty="low",
+                model="mock",effort="low",quality="balanced",alternate=False,prefer_wide=False,
+                sandbox="workspace-write",network=False,isolation="inplace",timeout=15,
+                files_hint=None,task_id=None,dry_run=False,protocol_v2=True)
+            self.assertEqual(result["protocol_result"]["rev"],1)
+            self.assertEqual(result["protocol_result"]["usage"],{"source":"unknown","counts":{}})
+            self.assertEqual(result["protocol_result"]["verification_status"],"unknown")
+            self.assertEqual(result["protocol_result"]["worker_verification_claim"],"not_run")
+            self.assertGreaterEqual(result["protocol_result"]["duration_ms"],0)
+            self.assertEqual(len(calls),1)
+            def resume(raw,flag=True):
+                args=d.build_parser().parse_args(["resume","--task-id","v2-task","--prompt",raw]+(["--protocol-v2"] if flag else []))
+                out=io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    rc=d.cmd_resume(args)
+                return rc,json.loads(out.getvalue())
+            for raw in (envelope(1,0),envelope(3,2,"skipped"),envelope(2,1)):
+                with self.assertRaises(ValueError):
+                    resume(raw)
+            with self.assertRaises(ValueError):
+                resume("legacy",False)
+            self.assertEqual(len(calls),1)
+            rc,result=resume(envelope(2,1,"update fixture"))
+            self.assertEqual(rc,0)
+            self.assertEqual(result["rev"],2)
+            self.assertEqual(result["base_rev"],1)
+            self.assertEqual(result["task_id"],"v2-task")
+            self.assertNotIn("git_truth",result)
+            self.assertNotIn("routing",result)
+            self.assertEqual(len(calls),2)
+            with self.assertRaises(ValueError):
+                resume(envelope(2,1,"duplicate"))
+            self.assertEqual(len(calls),2)
+            state=json.loads(d.STATE_FILE.read_bytes())
+            self.assertEqual(state["tasks"]["v2-task"]["protocol_rev"],2)
+            self.assertEqual(state["tasks"]["v2-task"]["protocol_version"],2)
+
     def test_resume_lock_refuses_parallel_resume(self):
         d.reserve_run_dir("resume-race", {"backend":"mock"})
         root=d.RUNS_DIR/"resume-race"

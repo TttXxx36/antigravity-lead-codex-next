@@ -16,7 +16,7 @@
 | [D07](decisions/D07.md) 任务结果与进程生命周期正确性 | V1.1 | D04,D06 | BLOCKED | PR #9 四环境 44/44 outcome PASS；真实宿主进程树未验收；可继续 D08 候选 |
 | [D08](decisions/D08.md) 历史任务定位与 Windows 发布门禁 | V1.1 | D05,D06,D07 | BLOCKED | PR #10 四环境 CI PASS；实机宿主未验收；D09 候选可继续 |
 | [D09](decisions/D09.md) 模型可见的轻量 MCP 接口 | V1.2 | D08 | BLOCKED | PR #11 两轮四环境 PASS；正向 op 与结果边界补测通过；真实宿主与 Token 待验收；可继续 D10 |
-| [D10](decisions/D10.md) 结构化通信与短报告协议 | V1.2 | D09 | PROPOSED | 未实施；版本化 task/result/delta、字段预算、程序证据、拒绝乱序 |
+| [D10](decisions/D10.md) 结构化通信与短报告协议 | V1.2 | D09 | BLOCKED | PR #12 四环境候选 PASS；真实 structured output/宿主待验收；D11 可继续 |
 | [D11](decisions/D11.md) 共享黑板与会话复用 | V1.2 | D10 | PROPOSED | 未实施；rev、增量 resume、受控压缩重建、跨任务隔离 |
 | [D12](decisions/D12.md) Token 遥测、预算与动态模型路由 | V1.2 | D01,D10,D11 | PROPOSED | 未实施；真实/估算/unknown 区分、预算、路由、避免重复累加 |
 | [D13](decisions/D13.md) 幂等派发与循环终止 | V1.2 | D10,D12 | PROPOSED | 未实施；持久 request_id、进度指纹、重复错误停止、授权重试 |
@@ -98,9 +98,18 @@ D08 候选：直接查询历史任务、拒绝歧义、Git -z、显式 schema �
 [Run 45940757723](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45940757723) completed/success，tested commit `99c0e5544bf03c1702fee7b7deb1a196b9fba502`。Ubuntu (140314263163)、Windows Server x64 (140314263322)、macOS (140314263379)、Windows 11 ARM64 (140314263404) 四个 job 全部成功。正向操作状态、当前 artifact SHA256/身份、running/stale/missing/oversized/identity/link 拒绝及实际 Mock run/resume 结果引用验证均通过；累计回归和两种 Windows 安装生命周期通过。真实模型调用 0；真实 Antigravity 可见性/UI、实际 Token、真实宿主及前置正式合并仍 BLOCKED。旧数据无 result_ref 不推断；日志只返回事件元数据；内容哈希不是持久 revision。D09 候选可作为 D10 基础，PR #11 Draft，未合并。
 
 
+## D10 最终候选实测
+[Run 45941283814](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45941283814) completed/success，精确代码 head `5e937fcb4de98d0df60cef144b81e8f619f9e550`；Ubuntu、macOS、Windows Server x64、Windows 11 ARM64 四环境全绿。各环境6项协议测试及1项实际 Mock run/resume revision 回归（28次新增测试），累计 D03–D09 回归通过。首轮 45941194963 因后续修正被取消，不计为通过。真实模型 structured output、真实宿主及实际 Token 未验证；v2 仍显式选择，batch/MCP 默认 v1。D10 候选可复用，正式验收 BLOCKED，PR #12 Draft 未合并。
+
+
+
 ## 2026-11-27 formal acceptance security review
 Static review of exact D06 head 39cc294bba80c5d563df21b4b329a2646293e017 found a plain cleanup path calling remove_worktree and setting cleaned without trusted authorization (only force/delete-branch and reserved state rejected). BUG-007 proposed P1; potential worktree removal during active/unaccepted task, not a reproduced data loss. Correction rejects all D06 cleanup before state access or Git mutation, and regression checks plain/force/delete-branch denial. D17+ cumulative cleanup already preview-only; intermediate D07–D16 need safe integration before formal acceptance. MCP descriptions now accurately describe denied unmanaged queue/resume and local quota only; tool identifiers/schema preserved. No actual deletion, model calls, permission expansion or host grants. New exact-head tests NOT_RUN until CI; candidate.ready=false, formal BLOCKED. D05 real environment still missing. Trusted scoped grants and actual OS sandbox remain unimplemented/unverified respectively.
 
 
 ## Formal acceptance round 3: BUG-007 candidate evidence
 [Run 46004369900](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004369900) four environments success, exact checkout b9c3fe4df5636aa32bac3ee673e9a0ca5839ddeb directly checked in all logs. Jobs ARM64 140523698666, Windows x64 140523698892, macOS 140523699016, Ubuntu 140523699106. Five execution-policy tests per job PASS (20/20), including plain/force/delete-branch cleanup denial before state/Git access; five dispatch/hook and 18 governance tests per job PASS. BUG-007 candidate fix verified, not formally closed. No real host or model or data deletion. D07–D16 must integrate; D17+ preview-only implementation remains. Formal D06 BLOCKED. Evidence-only head requires recheck.
+
+
+# D10 candidate ancestry integration
+2026-11-27: integrate D09 candidate 61ed00c712fc0d5bf9a7f24eb5e4aed7f98fbb78 / Run 46006153189 completed/success. Four checkout logs and cleanup denial assertions confirmed. Existing D10 cleanup function and test blob equal D09; D10 protocol code retained. Carry parent history/evidence and MCP metadata correction forward, no main merge. Current exact-head CI required; real models, host and dependencies remain BLOCKED.

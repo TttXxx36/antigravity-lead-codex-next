@@ -37,6 +37,7 @@ else:
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 SCHEMA_PATH = SKILL_DIR / "resources" / "report_schema.json"
+SCHEMA_V2_PATH = SKILL_DIR / "resources" / "report_schema_v2.json"
 
 # Shared platform rules: mirrored by server/platform.mjs.
 _WINDOWS_RESERVED = re.compile(r"^(CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[1-9¹²³]|LPT[1-9¹²³])$", re.I)
@@ -944,6 +945,126 @@ def collect_git_truth(workdir: Path, base_sha: str | None) -> dict[str, Any]:
     }
 
 
+# D10 explicit, bounded request/worker-report protocol. The envelope is data,
+# never an authorization grant. Legacy v1 remains the default.
+PROTOCOL_LIMIT = 8192
+
+def protocol_json(raw: str) -> Any:
+    if not isinstance(raw, str) or len(raw.encode("utf-8")) > PROTOCOL_LIMIT:
+        raise ValueError("D10: protocol payload exceeds byte budget")
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("D10: duplicate JSON key")
+            result[key] = value
+        return result
+    def reject_constant(_):
+        raise ValueError("D10: non-finite JSON value")
+    try:
+        return json.loads(raw, object_pairs_hook=unique, parse_constant=reject_constant)
+    except RecursionError as exc:
+        raise ValueError("D10: JSON nesting exceeds parser limit") from exc
+
+
+def protocol_text(value: Any, limit: int, *, allow_empty: bool = False) -> bool:
+    if not isinstance(value, str) or len(value) > limit or "\x00" in value:
+        return False
+    try:
+        value.encode("utf-8")
+    except UnicodeError:
+        return False
+    return allow_empty or bool(value.strip())
+
+
+def protocol_strings(value: Any, count: int, length: int) -> bool:
+    return isinstance(value, list) and len(value) <= count and all(protocol_text(s, length) for s in value)
+
+
+def parse_task_envelope(raw: str, task_id: str | None, current_rev: int) -> dict[str, Any]:
+    value = protocol_json(raw)
+    if not isinstance(value, dict) or set(value) != {"version", "task_id", "rev", "base_rev", "goal", "scope", "accept", "delta"}:
+        raise ValueError("D10: incompatible task envelope")
+    if type(value["version"]) is not int or value["version"] != 2:
+        raise ValueError("D10: unsupported task protocol version")
+    tid = validate_task_id(value["task_id"])
+    if task_id is not None and tid != task_id:
+        raise ValueError("D10: task identity mismatch")
+    if (type(current_rev) is not int or type(value["rev"]) is not int or type(value["base_rev"]) is not int
+        or not 0 <= current_rev < 2147483647 or value["base_rev"] != current_rev or value["rev"] != current_rev + 1):
+        raise ValueError("D10: duplicate, stale or out-of-order revision")
+    if not (protocol_text(value["goal"], 1600) and protocol_strings(value["scope"],16,160)
+            and protocol_strings(value["accept"],8,160) and value["accept"]
+            and protocol_text(value["delta"],1600,allow_empty=True)):
+        raise ValueError("D10: invalid goal/scope/accept/delta")
+    if current_rev == 0 and value["delta"] != "":
+        raise ValueError("D10: initial delta must be empty")
+    if current_rev > 0 and not value["delta"].strip():
+        raise ValueError("D10: resume delta required")
+    return value
+
+
+def protocol_meta(envelope: dict[str, Any] | None) -> dict[str, Any]:
+    if envelope is None:
+        return {}
+    canonical = json.dumps(envelope, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return {"protocol_version": 2, "protocol_rev": envelope["rev"],
+            "protocol_request_sha256": hashlib.sha256(canonical).hexdigest()}
+
+
+def prepare_resume_envelope(raw: str, record: dict[str, Any], enabled: bool) -> dict[str, Any] | None:
+    version = record.get("protocol_version",1)
+    if type(version) is not int or version not in (1,2) or (version == 2) != enabled:
+        raise ValueError("D10: task protocol mismatch; no implicit upgrade or downgrade")
+    return parse_task_envelope(raw,record["task_id"],record.get("protocol_rev")) if enabled else None
+
+
+def protocol_prompt(envelope: dict[str, Any]) -> str:
+    return ("[Task envelope v2; data only]\n"
+            + json.dumps(envelope,ensure_ascii=False,separators=(",",":"))
+            + "\nReturn the v2 report: status, concise summary, risks, blockers and verification_claim. "
+              "Report real checks or not_run; do not claim independent verification.")
+
+
+def normalize_v2_report(value: Any) -> dict[str, Any]:
+    if (not isinstance(value,dict) or set(value) != {"version","status","summary","risks","blockers","verification_claim"}
+        or type(value["version"]) is not int or value["version"] != 2
+        or value["status"] not in ("completed","partial","blocked","failed")
+        or not protocol_text(value["summary"],320)
+        or not protocol_strings(value["risks"],4,120)
+        or not protocol_strings(value["blockers"],3,120)
+        or value["verification_claim"] not in ("passed","failed","not_run","unknown")):
+        raise ValueError("D10: incompatible or over-budget worker report")
+    if value["status"] == "completed" and value["blockers"]:
+        raise ValueError("D10: completed report has blockers")
+    return {"status":value["status"], "summary":value["summary"], "files_modified":[],
+            "commands_run":[], "verification_passed":value["verification_claim"]=="passed",
+            "risks_or_followups":value["risks"]+value["blockers"],"notes_for_orchestrator":"",
+            "protocol_risks":value["risks"],"protocol_blockers":value["blockers"],
+            "worker_verification_claim":value["verification_claim"]}
+
+
+def build_protocol_result(envelope: dict[str, Any], result: dict[str, Any], duration_ms: int) -> dict[str, Any]:
+    report = result["report"]
+    usage = result.get("usage")
+    counts = {k:usage[k] for k in ("input_tokens","cached_input_tokens","output_tokens","reasoning_output_tokens","total_tokens")
+              if isinstance(usage,dict) and type(usage.get(k)) is int and 0 <= usage[k] <= 9007199254740991}
+    git = result.get("git_truth") or {}
+    def sha(v):
+        return v if isinstance(v,str) and re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}",v) else None
+    turn = result.get("turn_id")
+    ref = "/".join(["runs",envelope["task_id"]]+([turn] if turn else [])+["result.json"])
+    return {"version":2,"task_id":envelope["task_id"],"rev":envelope["rev"],"base_rev":envelope["base_rev"],
+            "process_status":result["process_status"],"task_status":result["task_status"],
+            "verification_status":result["verification_status"],"exit_code":result["exit_code"],
+            "summary":report["summary"],"risks":report.get("protocol_risks",report["risks_or_followups"]),
+            "blockers":report.get("protocol_blockers",[]),
+            "worker_verification_claim":report.get("worker_verification_claim","unknown"),
+            "process_error":result["process_status"] != "exited" or result["task_status"] == "failed",
+            "duration_ms":duration_ms,"usage":{"source":"cli_reported" if counts else "unknown","counts":counts},
+            "git":{"head_sha":sha(git.get("head_sha")),"base_sha":sha(git.get("base_sha"))},
+            "result_ref":ref}
+
 def build_worker_prompt(
     user_prompt: str,
     *,
@@ -1041,19 +1162,28 @@ def parse_report_file(
     stderr_text: str,
     exit_code: int,
     event_errors: list[str] | None = None,
+    protocol_v2: bool = False,
 ) -> dict[str, Any]:
     """Report is a worker claim, not independent proof of verification."""
     candidate_text = ""
     if report_path.is_file():
         try:
-            candidate_text = report_path.read_text(encoding="utf-8", errors="strict").strip()
+            if protocol_v2:
+                with report_path.open("rb") as source:
+                    payload = source.read(PROTOCOL_LIMIT + 1)
+                    if len(payload) <= PROTOCOL_LIMIT:
+                        candidate_text = payload.decode("utf-8")
+            else:
+                candidate_text = report_path.read_text(encoding="utf-8", errors="strict").strip()
         except (OSError, UnicodeError):
             pass
     parsed = None
     if candidate_text:
         try:
-            value = json.loads(candidate_text)
-            if (isinstance(value, dict)
+            value = protocol_json(candidate_text) if protocol_v2 else json.loads(candidate_text)
+            if protocol_v2:
+                parsed = normalize_v2_report(value)
+            elif (isinstance(value, dict)
                 and set(value) == {"status", "summary", "files_modified", "commands_run",
                                    "verification_passed", "risks_or_followups", "notes_for_orchestrator"}
                 and value["status"] in ("completed", "partial", "blocked", "failed")
@@ -1063,10 +1193,10 @@ def parse_report_file(
                 and all(isinstance(value[k], list) and all(isinstance(x, str) for x in value[k])
                         for k in ("files_modified", "commands_run", "risks_or_followups"))):
                 parsed = value
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, RecursionError):
             pass
     if parsed is None:
-        tail = "\n".join((candidate_text or fallback_text or stderr_text).splitlines()[-20:])[:1500]
+        tail = "" if protocol_v2 else "\n".join((candidate_text or fallback_text or stderr_text).splitlines()[-20:])[:1500]
         parsed = {"status": "partial", "summary": tail or "No valid structured worker report",
                   "files_modified": [], "commands_run": [], "verification_passed": False,
                   "risks_or_followups": ["Structured report missing or invalid; inspect logs."],
@@ -1079,7 +1209,7 @@ def parse_report_file(
         parsed["status"] = "failed"
         parsed["risks_or_followups"].append("Process failed or emitted an error; inspect logs.")
         if event_errors:
-            parsed["summary"] = "\n".join(event_errors)[:1500]
+            parsed["summary"] = "Worker emitted an error; inspect local result." if protocol_v2 else "\n".join(event_errors)[:1500]
     parsed["worker_claimed_verification_passed"] = claimed
     parsed["verification_passed"] = False
     parsed["verification_status"] = "unknown" if source == "structured_file" else "not_run"
@@ -1141,6 +1271,7 @@ def build_codex_exec_cmd(
     network: bool = False,
     report_path: Path,
     is_git_repo: bool,
+    protocol_v2: bool = False,
 ) -> list[str]:
     enforce_execution_policy(sandbox, network, effort)
     cmd = [
@@ -1163,7 +1294,7 @@ def build_codex_exec_cmd(
         'approval_policy="never"',
         "--json",
         "--output-schema",
-        str(SCHEMA_PATH),
+        str(SCHEMA_V2_PATH if protocol_v2 else SCHEMA_PATH),
         "-o",
         str(report_path),
     ])
@@ -1183,6 +1314,7 @@ def build_codex_resume_cmd(
     network: bool = False,
     report_path: Path,
     is_git_repo: bool,
+    protocol_v2: bool = False,
 ) -> list[str]:
     enforce_execution_policy(sandbox, network, effort)
     # codex exec resume does NOT accept -s/--sandbox or -C/--cd; use -c sandbox_mode and subprocess cwd.
@@ -1205,7 +1337,7 @@ def build_codex_resume_cmd(
         'approval_policy="never"',
         "--json",
         "--output-schema",
-        str(SCHEMA_PATH),
+        str(SCHEMA_V2_PATH if protocol_v2 else SCHEMA_PATH),
         "-o",
         str(report_path),
     ])
@@ -1297,8 +1429,13 @@ def execute_single_task(
     files_hint: list[str] | None,
     task_id: str | None,
     dry_run: bool,
+    protocol_v2: bool = False,
 ) -> dict[str, Any]:
     enforce_execution_policy(sandbox, network, effort)
+    envelope = parse_task_envelope(prompt,task_id,0) if protocol_v2 else None
+    if envelope is not None:
+        task_id = envelope["task_id"]
+        prompt = protocol_prompt(envelope)
     cwd = configured_path(cwd)
     if not cwd.exists() or not cwd.is_dir():
         raise ValueError(f"Target cwd does not exist or is not a directory: {cwd}")
@@ -1344,7 +1481,7 @@ def execute_single_task(
             sandbox=sandbox,
             network=network,
             report_path=report_path,
-            is_git_repo=git_info["is_git_repo"],
+            is_git_repo=git_info["is_git_repo"], protocol_v2=protocol_v2,
         )
         return {
             "dry_run": True,
@@ -1363,7 +1500,7 @@ def execute_single_task(
     run_dir = reserve_run_dir(tid, {"backend": backend, "model": model_used, "effort": effort_used,
         "difficulty": routing["effective_difficulty"], "repo_root": git_info["repo_root"],
         "original_cwd": str(cwd), "workdir": str(cwd), "session_id": None, "network": network,
-        "sandbox": sandbox, "isolation": eff_isolation, "created_at": utc_now(), "updated_at": utc_now()})
+        "sandbox": sandbox, "isolation": eff_isolation, "created_at": utc_now(), "updated_at": utc_now(), **protocol_meta(envelope)})
     (run_dir / "prompt.txt").write_text(worker_prompt, encoding="utf-8")
 
     workdir = cwd
@@ -1383,11 +1520,13 @@ def execute_single_task(
         sandbox=sandbox,
         network=network,
         report_path=report_path,
-        is_git_repo=git_info["is_git_repo"],
+        is_git_repo=git_info["is_git_repo"], protocol_v2=protocol_v2,
     )
+    started = time.monotonic_ns()
     rc, stdout_text, stderr_text, timed_out = run_subprocess_with_timeout(
         cmd, cwd=workdir, stdin_text=worker_prompt, timeout=timeout
     )
+    duration_ms = (time.monotonic_ns() - started) // 1000000
     (run_dir / "events.jsonl").write_text(stdout_text, encoding="utf-8")
     (run_dir / "stderr.log").write_text(stderr_text, encoding="utf-8")
     parsed_events = parse_codex_events(stdout_text)
@@ -1396,7 +1535,7 @@ def execute_single_task(
         parsed_events["last_agent_text"],
         stderr_text,
         rc,
-        event_errors=parsed_events["errors"],
+        event_errors=parsed_events["errors"], protocol_v2=protocol_v2,
     )
     session_id = parsed_events["session_id"]
     usage = parsed_events["usage"]
@@ -1429,6 +1568,7 @@ def execute_single_task(
         "created_at": now,
         "updated_at": now,
         "run_dir": str(run_dir),
+        **protocol_meta(envelope),
     }
 
     result = {
@@ -1452,6 +1592,8 @@ def execute_single_task(
         "git_truth": git_truth,
         "run_dir": str(run_dir),
     }
+    if envelope is not None:
+        result["protocol_result"] = build_protocol_result(envelope,result,duration_ms)
     result_bytes = (json.dumps(result, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     atomic_write_bytes(run_dir / "result.json", result_bytes)
     task_record["result_ref"] = {"turn": None, "sha256": hashlib.sha256(result_bytes).hexdigest()}
@@ -1525,8 +1667,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         files_hint=args.files,
         task_id=args.task_id,
         dry_run=args.dry_run,
+        protocol_v2=args.protocol_v2,
     )
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print(json.dumps(result.get("protocol_result",result), ensure_ascii=False, separators=(",",":") if args.protocol_v2 else None, indent=None if args.protocol_v2 else 2))
     return task_exit_code(result)
 
 
@@ -1544,6 +1687,8 @@ def cmd_batch(args: argparse.Namespace) -> int:
         if not isinstance(item, dict):
             raise ValueError("Manifest task must be an object")
         enforce_execution_policy(item.get("sandbox", "workspace-write"), item.get("network", False), item.get("effort"))
+        if "protocol_v2" in item or "envelope" in item:
+            raise ValueError("D10: structured protocol is supported on run/resume only; batch stays v1")
     default_cwd = Path(args.cwd).resolve() if args.cwd else Path.cwd().resolve()
 
     def _run_item(idx: int, item: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -1625,6 +1770,9 @@ def _cmd_resume(args: argparse.Namespace) -> int:
     if not task_record:
         raise ValueError("D06: managed task record required")
     validate_resume_binding(task_record, args)
+    envelope = prepare_resume_envelope(prompt_text,task_record,args.protocol_v2)
+    if envelope is not None:
+        prompt_text = protocol_prompt(envelope)
     backend = args.backend or task_record["backend"]
     session_id = args.session_id or (task_record["session_id"] if task_record else None)
     if not session_id:
@@ -1694,7 +1842,7 @@ def _cmd_resume(args: argparse.Namespace) -> int:
             sandbox=sandbox,
             network=network,
             report_path=report_path,
-            is_git_repo=git_info["is_git_repo"],
+            is_git_repo=git_info["is_git_repo"], protocol_v2=args.protocol_v2,
         )
         print(
             json.dumps(
@@ -1725,6 +1873,10 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         current = state["tasks"].get(resume_tid)
         if not current or current.get("status") in ("reserved", "running", "interrupted"):
             raise StateIntegrityError("Managed task is no longer available for resume")
+        if envelope is not None:
+            if current.get("protocol_rev") != envelope["base_rev"] or current.get("protocol_version") != 2:
+                raise StateIntegrityError("D10: revision changed before reservation")
+            current.update(protocol_meta(envelope))
         current["status"] = "running"
         current["active_turn_id"] = turn_id
         current["updated_at"] = utc_now()
@@ -1736,11 +1888,13 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         sandbox=sandbox,
         network=network,
         report_path=report_path,
-        is_git_repo=git_info["is_git_repo"],
+        is_git_repo=git_info["is_git_repo"], protocol_v2=args.protocol_v2,
     )
+    started = time.monotonic_ns()
     rc, stdout_text, stderr_text, timed_out = run_subprocess_with_timeout(
         cmd, cwd=workdir, stdin_text=worker_prompt, timeout=args.timeout
     )
+    duration_ms = (time.monotonic_ns() - started) // 1000000
     (run_dir / "events.jsonl").write_text(stdout_text, encoding="utf-8")
     (run_dir / "stderr.log").write_text(stderr_text, encoding="utf-8")
     parsed_events = parse_codex_events(stdout_text)
@@ -1749,7 +1903,7 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         parsed_events["last_agent_text"],
         stderr_text,
         rc,
-        event_errors=parsed_events["errors"],
+        event_errors=parsed_events["errors"], protocol_v2=args.protocol_v2,
     )
     new_session_id = parsed_events["session_id"] or session_id
     usage = parsed_events["usage"]
@@ -1776,6 +1930,8 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         "git_truth": git_truth,
         "run_dir": str(run_dir),
     }
+    if envelope is not None:
+        result["protocol_result"] = build_protocol_result(envelope,result,duration_ms)
     result_bytes = (json.dumps(result, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     atomic_write_bytes(run_dir / "result.json", result_bytes)
     with locked_state() as state:
@@ -1787,7 +1943,7 @@ def _cmd_resume(args: argparse.Namespace) -> int:
             "status": "timed_out" if timed_out else outcome["task_status"], **outcome,
             "updated_at": utc_now(), "result_ref": {"turn": turn_id, "sha256": hashlib.sha256(result_bytes).hexdigest()}})
         current.pop("active_turn_id", None)
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print(json.dumps(result.get("protocol_result",result), ensure_ascii=False, separators=(",",":") if envelope else None, indent=None if envelope else 2))
     return task_exit_code(result)
 
 
@@ -2005,6 +2161,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--timeout", type=int, default=600)
     p_run.add_argument("--files", nargs="*", default=None, help="Optional target file hints.")
     p_run.add_argument("--task-id", default=None)
+    p_run.add_argument("--protocol-v2", action="store_true", help="Experimental bounded v2 JSON envelope via --prompt; default remains v1.")
     p_run.add_argument("--dry-run", action="store_true")
 
     p_batch = sub.add_parser("batch", allow_abbrev=False, help="Dispatch parallel independent tasks from a JSON manifest.")
@@ -2018,6 +2175,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_res = sub.add_parser("resume", allow_abbrev=False, help="Continue an existing worker session in its workdir.")
     p_res.add_argument("--task-id", default=None)
+    p_res.add_argument("--protocol-v2", action="store_true", help="Continue an existing v2 task using the next revision envelope.")
     p_res.add_argument("--session-id", default=None)
     p_res.add_argument("--cwd", default=None)
     p_res.add_argument("--backend", choices=VALID_BACKENDS, default=None)
