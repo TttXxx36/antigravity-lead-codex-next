@@ -991,8 +991,8 @@
         "D21"
       ],
       "status": "BLOCKED",
-      "evidence": "BUG-009 CANDIDATE_PASS 8e8608e75fb544e36b93e3934e0db522cbcca7a8 Run 46032252416 four environments; independent RC/audit and derived replay PASS. No formal closure.",
-      "next": "Complete strict final notice/RC/CI recheck, then mark offline candidate ready if passed. Actual Windows/host/authorization/engineering limitations in docs/LOCAL_ACCEPTANCE.md.",
+      "evidence": "Exact 007c01e6edfc30ce7f750717e3e0226d878a8af5 strict Run 46035541198 four PASS; 153/153 canonical RC and independent supply-chain replay PASS; BUG-009 CANDIDATE_PASS. Formal closure not granted.",
+      "next": "Consolidated local acceptance per docs/LOCAL_ACCEPTANCE.md; address independent E capability limitations and A authorization gates; formal D05–D21 dependency acceptance/merge and D22 explicit approval still required. Evidence-only commit is not the tested source SHA.",
       "branch": "dev/d22",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no formal release, merge, permission or real model grant",
       "pr": 24,
@@ -1137,8 +1137,27 @@
         },
         {
           "name": "Tracked UI third-party notices reproducibility, install copy, required RC and exact-head cumulative CI",
-          "status": "NOT_RUN",
-          "ref": "docs/evidence/D22-supply-chain-review.md"
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46035541198",
+          "tested_commit": "007c01e6edfc30ce7f750717e3e0226d878a8af5"
+        },
+        {
+          "name": "Final strict four-platform CI and identical canonical source RC digests",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46035541198",
+          "tested_commit": "007c01e6edfc30ce7f750717e3e0226d878a8af5"
+        },
+        {
+          "name": "Independent RC 153/153 and original/derived SBOM evidence replay",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46035541198",
+          "tested_commit": "007c01e6edfc30ce7f750717e3e0226d878a8af5"
+        },
+        {
+          "name": "Final source-only locked native tarball 3/3, installed member 9/9, UI notice exact bytes and npm zero-vulnerability gates",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46035541198",
+          "tested_commit": "007c01e6edfc30ce7f750717e3e0226d878a8af5"
         }
       ],
       "observations": [
@@ -1189,13 +1208,19 @@
           "status": "FAIL",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46035005863",
           "tested_commit": "1374232ecbc77f110ee96d3f0ca63212dcb0346b"
+        },
+        {
+          "name": "Original generator SBOM uniqueItems FAIL, preserved; derived official schema and replay PASS",
+          "status": "FAIL",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46035541198",
+          "tested_commit": "007c01e6edfc30ce7f750717e3e0226d878a8af5"
         }
       ],
       "candidate": {
-        "ready": false,
-        "tested_commit": "8e8608e75fb544e36b93e3934e0db522cbcca7a8",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46032252416",
-        "limitations": "Last full-matrix PASS; new source-only supply-chain Linux checks PASS on 1374232, exact notice inclusion/strict equality and complete final CI pending; actual host, formal dependency and release gates blocked."
+        "ready": true,
+        "tested_commit": "007c01e6edfc30ce7f750717e3e0226d878a8af5",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46035541198",
+        "limitations": "Offline source-only integrated candidate ready; actual Windows x64 and Antigravity/Codex host, real model and trusted authority, existing E capability gaps, independent card acceptance and formal dependencies/release remain blocked. No standalone native binary distribution or full legal clearance."
       }
     }
   ],
