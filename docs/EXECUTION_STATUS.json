@@ -615,15 +615,43 @@
         "D04",
         "D14"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "插件自有 WAL、迁移/备份/回滚、原生 Codex DB 只读",
+      "status": "BLOCKED",
+      "evidence": "Exact-head four environments PASS; 32/32 migration tests; native DB hash preserved, initial Windows fixture cleanup failure corrected",
+      "next": "D14 updated ancestry integrated; D15 exact-head CI pending; real SQLite host migration/rollback gate remains BLOCKED",
       "branch": "dev/d15",
-      "approval": null,
-      "pr": null,
+      "approval": "2026-11-27 user authorized A candidate development; no production migration or native DB writes",
+      "pr": 17,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D15 migration and cumulative regression",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45974689285",
+          "tested_commit": "de11dc6f48588192c82cfd25172be44cfc5901f1"
+        },
+        {
+          "name": "Actual host migration, quiescence and recovery",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D15-storage.md"
+        },
+        {
+          "name": "BUG-007 cleanup denial and D14 EPERM integration",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D15-safety-integration.md"
+        },
+        {
+          "name": "D14 updated ancestry integration",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D15-ancestry-integration.md"
+        }
+      ],
+      "candidate": {
+        "ready": false,
+        "tested_commit": "de11dc6f48588192c82cfd25172be44cfc5901f1",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45974689285",
+        "limitations": "Disposable fixtures only; actual host migration, manual process quiescence, power-loss and recovery activation not verified; no production migration or native DB writes. Verified D06 cleanup denial and D14 EPERM correction synchronized; current head needs CI."
+      }
     },
     {
       "id": "D16",
