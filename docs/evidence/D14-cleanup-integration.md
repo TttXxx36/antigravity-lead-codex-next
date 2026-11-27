@@ -1,0 +1,4 @@
+# D14 formal acceptance safety integration
+2026-11-27: Synchronize only verified D06 BUG-007 cleanup denial and regression from b9c3fe4df5636aa32bac3ee673e9a0ca5839ddeb / Run 46004369900 (4/4 success). Prior test blob identical to D06 pre-fix. Plain/force/delete-branch denied before state/Git access. Historical evidence retained; current candidate.ready=false until exact-head CI. No formal merge or permission change; reconcile stack ancestry before formal acceptance.
+
+D14 EPERM backport exact head ba9a3b5e4f1625cd1b19fefb6ba469a37aff8346, Run 46004229789 completed/success; direct checkout logs confirmed all 4 jobs (140523228208,140523228551,140523228555,140523228879), 9/9 streaming tests each including owned process exit race, 36/36. No escaped descendants or actual host proof. Historical PASS retained; this new cleanup integration requires fresh CI.
