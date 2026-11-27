@@ -1,0 +1,2 @@
+# D08 candidate ancestry integration
+2026-11-27: Integrate D07 candidate 943f1c0606ad47b9602d49d5ea38765c24ea7639 as second parent of D08 b155c5f2b3d2e0bb08c1bf5cb5d2f341a43db4b6. Preserve D08 history and MCP selection logic; synchronize only D06 corrected metadata and equivalent cleanup denial comment. Carry D06/D07 ledger/evidence and shared notes. Exact-head CI pending; no formal merge or expanded authority.
