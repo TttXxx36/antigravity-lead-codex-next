@@ -50,6 +50,17 @@ try {
     $diag=& $doctor -GeminiConfigDir $config
     Check ($diag.Status -eq 'PASS') 'Reinstall handshake failed'
     foreach($dir in @($data,$state,$codexHome)){Check ((Get-Content -LiteralPath (Join-Path $dir 'sentinel.txt') -Raw) -eq 'keep') 'Persistent data changed'}
+    # Console-only install must not require Python or Git and must not install the skill.
+    $consoleOnlyParams=$params.Clone()
+    $consoleOnlyParams.GeminiConfigDir=Join-Path $root 'console-only config'
+    $consoleOnlyParams.PythonBin=Join-Path $root 'unused-python.exe'
+    $consoleOnlyParams.GitBin=Join-Path $root 'unused-git.exe'
+    $only=& $install @consoleOnlyParams -Mode ConsoleOnly
+    Check (-not (Test-Path -LiteralPath (Join-Path $consoleOnlyParams.GeminiConfigDir 'skills\multi-agent-dispatch'))) 'ConsoleOnly installed skill'
+    $onlyDoctor=& $doctor -GeminiConfigDir $consoleOnlyParams.GeminiConfigDir
+    Check ($onlyDoctor.Status -eq 'PASS') 'ConsoleOnly diagnostic failed'
+    & $install @consoleOnlyParams -Mode Uninstall | Out-Null
+    foreach($dir in @($data,$state,$codexHome)){Check ((Get-Content -LiteralPath (Join-Path $dir 'sentinel.txt') -Raw) -eq 'keep') 'ConsoleOnly changed persistent data'}
     # Fault-inject the second staged move, exercising real first move, backup and rollback.
     $synthetic=Join-Path $root 'rollback-config';$txn=Join-Path $synthetic '.alc-backups\test'
     $one=Join-Path $synthetic 'one';$two=Join-Path $synthetic 'two'
@@ -65,7 +76,7 @@ try {
     Check ((Get-Content -LiteralPath (Join-Path $one 'old.txt') -Raw) -eq 'one') 'First old component not restored'
     Check ((Get-Content -LiteralPath (Join-Path $two 'old.txt') -Raw) -eq 'two') 'Second old component not restored'
     Check ((Get-Content -LiteralPath (Join-Path $txn 'journal.json') -Raw | ConvertFrom-Json).status -eq 'rolled_back') 'Rollback journal incorrect'
-    Write-Host 'PASS: install, upgrade, restore, uninstall, reinstall, native MCP initialize, missing dependency, injected rollback, persistent data, Unicode paths'
+    Write-Host 'PASS: install, upgrade, restore, uninstall, reinstall, native MCP initialize, missing dependency, injected rollback, persistent data, Unicode paths, console-only lifecycle'
 } finally {
     # Disposable test fixture only.
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction Stop

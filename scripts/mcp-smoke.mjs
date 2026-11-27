@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 const entry = path.resolve(process.argv[2] || '');
 if (!fs.statSync(entry).isFile()) throw new Error('MCP entry missing');
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'alc-smoke-'));
-let child;
+let child, closed;
 try {
   const env = {};
   for (const key of ['PATH','Path','SystemRoot','WINDIR','COMSPEC','TEMP','TMP']) {
@@ -17,7 +17,7 @@ try {
     CODEX_BIN:process.execPath,PYTHONUTF8:'1',GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:os.devNull});
   child=spawn(process.execPath,['--no-warnings',entry,'--data-dir',path.join(root,'plugin-data')],{
     cwd:root,env,stdio:['pipe','pipe','pipe']});
-  const closed=new Promise(resolve=>child.once('close',resolve));
+  closed=new Promise(resolve=>child.once('close',resolve));
   child.stderr.resume();
   const pending=new Map();let buffer='';
   child.stdout.setEncoding('utf8');
@@ -33,6 +33,7 @@ try {
       } catch { child.kill(); }
     }
   });
+  child.stdin.on('error',()=>{});
   child.on('error',()=>{for(const fn of pending.values()) fn({error:{message:'spawn failed'}});pending.clear();});
   const rpc=(id,method,params={})=>new Promise((resolve,reject)=>{
     const timer=setTimeout(()=>{pending.delete(id);reject(new Error('RPC timeout: '+method));},5000);
@@ -49,6 +50,7 @@ try {
   console.log(JSON.stringify({status:'PASS',protocolVersion:init.protocolVersion,tools:list.tools.length,real_model_calls:0}));
 } finally {
   if(child&&child.exitCode===null&&!child.killed)child.kill();
+  if(closed) await closed;
   // The only removed directory is this process's newly created synthetic fixture.
   fs.rmSync(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});
 }

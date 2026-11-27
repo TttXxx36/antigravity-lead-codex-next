@@ -12,7 +12,7 @@ $server=(Get-Content -LiteralPath $mcpFile -Raw | ConvertFrom-Json -AsHashtable)
 $entry=Join-Path $console 'server\index.mjs'
 if ($server.args.Count -ne 4 -or $server.args[0] -ne '--no-warnings' -or $server.args[1] -ine $entry -or $server.args[2] -ne '--data-dir') { throw 'Unexpected installed MCP command; refusing to execute' }
 $fullMode=Test-Path -LiteralPath (Join-Path $config 'skills\multi-agent-dispatch\scripts\dispatch.py') -PathType Leaf
-$runtime=Get-AlcRuntime $server.command ($server.env.PYTHON_BIN) ($server.env.GIT_BIN) $server.env.CODEX_BIN (-not $fullMode)
+$runtime=Get-AlcRuntime $server.command ($server.env['PYTHON_BIN']) ($server.env['GIT_BIN']) $server.env.CODEX_BIN (-not $fullMode)
 foreach ($file in @('plugin.json','dist\app.html','node_modules\@modelcontextprotocol\sdk\package.json','server\index.mjs')) {
     if (-not (Test-Path -LiteralPath (Join-Path $console $file) -PathType Leaf)) { throw "Installed component incomplete: $file" }
 }

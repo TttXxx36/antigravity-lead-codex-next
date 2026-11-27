@@ -37,7 +37,10 @@ function Test-AlcWithin([string]$Path, [string]$Root) {
 
 function Resolve-AlcExe([string]$Name, [string]$Override) {
     $candidates = @()
-    if ($Override) { $candidates = @($Override) }
+    if ($Override) {
+        if (-not [IO.Path]::IsPathFullyQualified($Override)) { throw "$Name override must be an absolute native executable path" }
+        $candidates = @($Override)
+    }
     else {
         foreach ($dir in ($env:PATH -split [regex]::Escape([string][IO.Path]::PathSeparator))) {
             $dir = $dir.Trim('"')
@@ -58,6 +61,7 @@ function Invoke-AlcProbe([string]$Exe, [string[]]$Arguments, [string]$Label) {
     $psi.UseShellExecute = $false
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
+    foreach ($key in @('NODE_OPTIONS','NODE_PATH','PYTHONPATH','PYTHONHOME')) { [void]$psi.Environment.Remove($key) }
     foreach ($arg in $Arguments) { [void]$psi.ArgumentList.Add($arg) }
     $p = [Diagnostics.Process]::new()
     $p.StartInfo = $psi
