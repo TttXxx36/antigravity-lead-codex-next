@@ -2494,45 +2494,10 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 
 def cmd_cleanup(args: argparse.Namespace) -> int:
-    if args.force or args.delete_branch:
-        raise ValueError("D06: destructive cleanup requires trusted human authorization")
-    validate_task_id(args.task_id)
-    with locked_state() as state:
-        rec = state["tasks"].get(args.task_id)
-        if not rec:
-            raise ValueError(f"Unknown task_id: {args.task_id}")
+    # A request, including a plain cleanup without force/delete-branch, is
+    # not a trusted grant. Keep the worktree and task state intact.
+    raise ValueError("D06: cleanup requires trusted human authorization")
 
-    if not rec.get("repo_root"):
-        result = {"task_id": args.task_id, "message": "Task was non-Git inplace; nothing to remove."}
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-        return 0
-
-    if rec.get("status") in ("reserved", "running", "interrupted"):
-        raise StateIntegrityError("Reserved/incomplete task requires manual inspection; refusing cleanup")
-    if rec.get("worktree_path"):
-        wp = Path(rec["worktree_path"])
-        try:
-            rel = wp.relative_to(WORKTREES_DIR)
-        except ValueError as exc:
-            raise StateIntegrityError("Worktree outside configured root") from exc
-        if len(rel.parts) != 2 or rel.parts[-1] != args.task_id or bounded_child(WORKTREES_DIR, *rel.parts) != wp:
-            raise StateIntegrityError("Unexpected worktree location")
-    if rec.get("branch") and rec["branch"] != f"agy-worker/{args.task_id}":
-        raise StateIntegrityError("Unexpected worker branch")
-    details = remove_worktree(
-        rec["repo_root"],
-        rec.get("worktree_path"),
-        rec.get("branch"),
-        delete_branch=args.delete_branch,
-        force=args.force,
-    )
-    with locked_state() as state:
-        if args.task_id in state["tasks"]:
-            state["tasks"][args.task_id]["status"] = "cleaned"
-            state["tasks"][args.task_id]["updated_at"] = utc_now()
-
-    print(json.dumps({"task_id": args.task_id, **details}, ensure_ascii=False, indent=2))
-    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -2618,7 +2583,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_st = sub.add_parser("status", help="Inspect tracked task metadata and round-robin state.")
     p_st.add_argument("--task-id", default=None)
 
-    p_cln = sub.add_parser("cleanup", allow_abbrev=False, help="Remove a task's managed Git worktree (and optionally branch).")
+    p_cln = sub.add_parser("cleanup", allow_abbrev=False, help="Cleanup disabled until trusted human authorization is available.")
     p_cln.add_argument("--task-id", required=True)
     p_cln.add_argument("--delete-branch", action="store_true")
     p_cln.add_argument("--force", action="store_true")
