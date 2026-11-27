@@ -1241,6 +1241,133 @@ def extract_session_id_from_obj(obj: Any) -> str | None:
     return None
 
 
+# D12: only terminal CLI usage, one sample per owned invocation.
+# Cache and reasoning counts are subcategories, not additional totals.
+USAGE_FIELDS=("input_tokens","cached_input_tokens","output_tokens","reasoning_output_tokens","total_tokens")
+USAGE_MAX=9007199254740991
+
+
+def usage_int(v):
+    return v if type(v) is int and 0 <= v <= USAGE_MAX else None
+
+
+def invocation_usage(events: str) -> dict[str,Any]:
+    samples=[]
+    invalid=False
+    for line in events.splitlines():
+        try:
+            ev=json.loads(line)
+        except (ValueError,RecursionError):
+            continue
+        if not isinstance(ev,dict) or ev.get("type")!="turn.completed":
+            continue
+        if not isinstance(ev.get("usage"),dict):
+            invalid=True
+            continue
+        counts={k:usage_int(ev["usage"].get(k)) for k in USAGE_FIELDS}
+        model=ev.get("model")
+        model=model if isinstance(model,str) and re.fullmatch(r"[A-Za-z0-9_.:/-]{1,128}",model) else None
+        turn=ev.get("turn_id")
+        turn=turn if isinstance(turn,str) and re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}",turn) else None
+        samples.append((turn,counts,model))
+    # Multiple terminal records with no identity are ambiguous, even identical.
+    # Identical repeated identified events are deduplicated, never summed.
+    unique=[]
+    for sample in samples:
+        if sample not in unique:
+            unique.append(sample)
+    if invalid or len(unique)!=1 or (len(samples)>1 and unique[0][0] is None):
+        return {"source":"unknown","counts":{k:None for k in USAGE_FIELDS},"actual_model":None,"gemini_source":"unknown","gemini_tokens":None}
+    _,counts,model=unique[0]
+    if counts["cached_input_tokens"] is not None and counts["input_tokens"] is not None and counts["cached_input_tokens"]>counts["input_tokens"]:
+        counts["cached_input_tokens"]=None
+    if counts["reasoning_output_tokens"] is not None and counts["output_tokens"] is not None and counts["reasoning_output_tokens"]>counts["output_tokens"]:
+        counts["reasoning_output_tokens"]=None
+    a,b=counts["input_tokens"],counts["output_tokens"]
+    if a is not None and b is not None:
+        derived=usage_int(a+b)
+        if counts["total_tokens"] is not None and counts["total_tokens"]!=derived:
+            counts["total_tokens"]=None
+        else: # derived from observed fields, no estimate
+            counts["total_tokens"]=derived
+    return {"source":"cli_reported" if any(v is not None for v in counts.values()) else "unknown",
+            "counts":counts,"actual_model":model,"gemini_source":"unknown","gemini_tokens":None}
+
+
+def make_budget(max_turns=None,max_tokens=None,max_seconds=None):
+    limits={"turns":max_turns,"tokens":max_tokens,"seconds":max_seconds}
+    for k,v in limits.items():
+        if v is not None and (type(v) is not int or not 1<=v<= (10000 if k=="turns" else 1000000000)):
+            raise ValueError("D12: invalid positive budget limit")
+    return limits
+
+
+def new_usage_store(prior_unknown=False):
+    return {"version":1,"attempts":0,"duration_ms":0,"prior_unknown":prior_unknown,
+            "known_sums":{k:0 for k in USAGE_FIELDS},"unknown_turns":{k:0 for k in USAGE_FIELDS},
+            "last_attempt":None,"last_model":None}
+
+
+def budget_timeout(limits,store,requested):
+    if type(requested) is not int or requested<=0:
+        raise ValueError("D12: timeout must be positive")
+    if limits["turns"] is not None and (store["prior_unknown"] or store["attempts"]>=limits["turns"]):
+        raise ValueError("D12: turn budget exhausted or prior count unknown")
+    if limits["tokens"] is not None:
+        if store["prior_unknown"] or store["unknown_turns"]["total_tokens"]:
+            raise ValueError("D12: token budget cannot be verified; prior usage unknown")
+        if store["known_sums"]["total_tokens"]>=limits["tokens"]:
+            raise ValueError("D12: token budget exhausted; next turn blocked")
+    if limits["seconds"] is not None:
+        remaining=(limits["seconds"]*1000-store["duration_ms"])//1000
+        if store["prior_unknown"] or remaining<1:
+            raise ValueError("D12: execution time budget exhausted or unknown")
+        requested=min(requested,remaining)
+    return requested
+
+
+def finish_usage(store,sample,duration_ms,attempt):
+    if store["last_attempt"]==attempt:
+        raise StateIntegrityError("D12: duplicate usage settlement")
+    out=json.loads(json.dumps(store))
+    out["attempts"]+=1
+    out["duration_ms"]+=duration_ms
+    out["last_attempt"]=attempt
+    out["last_model"]=sample["actual_model"]
+    for k in USAGE_FIELDS:
+        v=sample["counts"][k]
+        if v is None or out["known_sums"][k]+v>USAGE_MAX:
+            out["unknown_turns"][k]+=1
+        else:
+            out["known_sums"][k]+=v
+    return out
+
+
+def usage_summary(store):
+    return {"attempts":store["attempts"],"duration_ms":store["duration_ms"],
+            "counts":{k:None if store["prior_unknown"] or store["unknown_turns"][k] else store["known_sums"][k] for k in USAGE_FIELDS},
+            "actual_model":store["last_model"],"gemini_source":"unknown","gemini_tokens":None}
+
+
+def budget_route(difficulty,prompt,files_hint,model,effort,quality,prefer_wide):
+    # Explicit opt-in, cached capabilities only; do not assume future effort names.
+    level,reason=classify_difficulty(prompt,files_hint) if difficulty=="auto" else (difficulty,"explicit complexity")
+    frontier=discover_frontier_models()
+    selected=next((m for m in frontier["listed_models"] if m["slug"]==model),None) if model else (
+        (frontier["wide_fast"] or frontier["flagship"]) if level=="low" or prefer_wide else (frontier["flagship"] or frontier["wide_fast"]))
+    if model and selected is None:
+        raise ValueError("D12: requested model not present in local capabilities cache")
+    supported=selected["supported_efforts"] if selected else []
+    if effort is not None and effort not in supported:
+        raise ValueError("D12: requested effort not confirmed by local capabilities cache")
+    orders={"low":("low","medium","high"),"medium":("medium","high","low"),"hard":("high","xhigh","medium"),"extreme":("xhigh","high","medium")}
+    order=orders[level] if quality!="max" else ("xhigh","high","medium","low")
+    chosen=effort or next((e for e in order if e in supported),None)
+    return {"model":selected["slug"] if selected else None,"effort":chosen,
+            "effective_difficulty":level,"route_note":"D12 cached capabilities; "+reason,
+            "cache_client_version":frontier["client_version"],"capability_source":"local_cache" if selected else "unknown"}
+
+
 def parse_codex_events(events_text: str) -> dict[str, Any]:
     session_id: str | None = None
     usage: dict[str, Any] | None = None
@@ -1561,7 +1688,12 @@ def execute_single_task(
     dry_run: bool,
     protocol_v2: bool = False,
     blackboard: bool = False,
+    budget: dict[str,Any] | None = None,
+    use_budget_route: bool = False,
 ) -> dict[str, Any]:
+    limits=make_budget(**{}) if budget is None else make_budget(budget['turns'],budget['tokens'],budget['seconds'])
+    store=new_usage_store()
+    timeout=budget_timeout(limits,store,timeout)
     if blackboard and not protocol_v2:
         raise ValueError('D11: blackboard requires protocol v2')
     if blackboard and files_hint:
@@ -1584,7 +1716,7 @@ def execute_single_task(
         codex_bin = get_codex_bin()
         if not codex_bin:
             raise RuntimeError("codex CLI not found")
-        routing = resolve_model_and_effort(
+        routing = budget_route(difficulty,prompt,files_hint,model,effort,quality,prefer_wide) if use_budget_route else resolve_model_and_effort(
             difficulty=difficulty,
             prompt=prompt,
             files_hint=files_hint,
@@ -1638,7 +1770,7 @@ def execute_single_task(
     run_dir = reserve_run_dir(tid, {"backend": backend, "model": model_used, "effort": effort_used,
         "difficulty": routing["effective_difficulty"], "repo_root": git_info["repo_root"],
         "original_cwd": str(cwd), "workdir": str(cwd), "session_id": None, "network": network,
-        "sandbox": sandbox, "isolation": eff_isolation, "created_at": utc_now(), "updated_at": utc_now(), **protocol_meta(envelope), **context_state_fields(board)})
+        "sandbox": sandbox, "isolation": eff_isolation, "created_at": utc_now(), "updated_at": utc_now(), **protocol_meta(envelope), **context_state_fields(board), "budget":limits,"usage_store":store,"budget_route":use_budget_route})
     (run_dir / "prompt.txt").write_text(worker_prompt, encoding="utf-8")
 
     workdir = cwd
@@ -1676,7 +1808,9 @@ def execute_single_task(
         event_errors=parsed_events["errors"], protocol_v2=protocol_v2,
     )
     session_id = context_session(stdout_text,None,False) if board is not None else parsed_events["session_id"]
-    usage = parsed_events["usage"]
+    sample=invocation_usage(stdout_text)
+    usage={k:v for k,v in sample["counts"].items() if v is not None} or None
+    store=finish_usage(store,sample,duration_ms,"initial")
 
     git_truth = collect_git_truth(workdir, git_info["head_sha"])
     now = utc_now()
@@ -1707,6 +1841,7 @@ def execute_single_task(
         "updated_at": now,
         "run_dir": str(run_dir),
         **protocol_meta(envelope),
+        "budget":limits,"usage_store":store,"budget_route":use_budget_route,
     }
 
     result = {
@@ -1726,6 +1861,7 @@ def execute_single_task(
         "exit_code": rc,
         "timed_out": timed_out,
         "usage": usage,
+        "usage_telemetry":sample,"usage_summary":usage_summary(store),
         "report": report,
         "git_truth": git_truth,
         "run_dir": str(run_dir),
@@ -1813,6 +1949,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         task_id=args.task_id,
         dry_run=args.dry_run,
         protocol_v2=args.protocol_v2, blackboard=args.blackboard,
+        budget=make_budget(args.max_turns,args.max_tokens,args.max_seconds),use_budget_route=args.budget_route,
     )
     print(json.dumps(result.get("protocol_result",result), ensure_ascii=False, separators=(",",":") if args.protocol_v2 else None, indent=None if args.protocol_v2 else 2))
     return task_exit_code(result)
@@ -1915,6 +2052,9 @@ def _cmd_resume(args: argparse.Namespace) -> int:
     if not task_record:
         raise ValueError("D06: managed task record required")
     validate_resume_binding(task_record, args)
+    limits=task_record.get("budget",make_budget())
+    store=task_record.get("usage_store",new_usage_store(prior_unknown=True))
+    effective_timeout=budget_timeout(limits,store,args.timeout)
     board = None
     if task_record.get("context_board") is not None:
         if not args.protocol_v2:
@@ -1951,7 +2091,7 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         if not codex_bin:
             raise RuntimeError("codex CLI not found")
         if args.model or args.effort or args.difficulty != "auto" or args.prefer_wide or args.quality != "smart":
-            routing = resolve_model_and_effort(
+            routing = budget_route(args.difficulty,prompt_text,None,args.model,args.effort,args.quality,args.prefer_wide) if task_record.get("budget_route") else resolve_model_and_effort(
                 difficulty=args.difficulty,
                 prompt=prompt_text,
                 explicit_model=args.model,
@@ -1985,6 +2125,14 @@ def _cmd_resume(args: argparse.Namespace) -> int:
     else:
         raise RuntimeError(f"Unsupported backend: {backend}")
 
+    if task_record.get("budget_route"):
+        if (model_used,effort_used)!=(task_record.get("model"),task_record.get("effort")):
+            if not protocol_text(args.route_reason,320):
+                raise ValueError("D12: model/effort change requires explicit route reason")
+            context_check_text(args.route_reason)
+            routing["change_reason"]=args.route_reason
+        elif args.route_reason is not None:
+            raise ValueError("D12: route reason supplied without change")
     resume_tid = validate_task_id(args.task_id or make_task_id("resume"))
     turn_id = make_task_id("turn")
     run_dir = bounded_child(RUNS_DIR, resume_tid, turn_id)
@@ -2027,6 +2175,9 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         current = state["tasks"].get(resume_tid)
         if not current or current.get("status") in ("reserved", "running", "interrupted"):
             raise StateIntegrityError("Managed task is no longer available for resume")
+        if current.get("usage_store",new_usage_store(prior_unknown=True)) != store or current.get("budget",make_budget()) != limits:
+            raise StateIntegrityError("D12: usage or budget changed before reservation")
+        budget_timeout(limits,store,effective_timeout)
         if envelope is not None:
             if current.get("protocol_rev") != envelope["base_rev"] or current.get("protocol_version") != 2:
                 raise StateIntegrityError("D10: revision changed before reservation")
@@ -2044,7 +2195,7 @@ def _cmd_resume(args: argparse.Namespace) -> int:
     cmd = resume_command()
     started = time.monotonic_ns()
     rc, stdout_text, stderr_text, timed_out = run_subprocess_with_timeout(
-        cmd, cwd=workdir, stdin_text=worker_prompt, timeout=args.timeout
+        cmd, cwd=workdir, stdin_text=worker_prompt, timeout=effective_timeout
     )
     duration_ms = (time.monotonic_ns() - started) // 1000000
     (run_dir / "events.jsonl").write_text(stdout_text, encoding="utf-8")
@@ -2058,7 +2209,9 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         event_errors=parsed_events["errors"], protocol_v2=args.protocol_v2,
     )
     new_session_id = context_session(stdout_text,session_id,args.rebuild_context) if board is not None else (parsed_events["session_id"] or session_id)
-    usage = parsed_events["usage"]
+    sample=invocation_usage(stdout_text)
+    usage={k:v for k,v in sample["counts"].items() if v is not None} or None
+    store=finish_usage(store,sample,duration_ms,turn_id)
 
     git_truth = collect_git_truth(workdir, base_sha)
     outcome = outcome_fields(report, rc, timed_out, stderr_text)
@@ -2078,6 +2231,7 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         "exit_code": rc,
         "timed_out": timed_out,
         "usage": usage,
+        "usage_telemetry":sample,"usage_summary":usage_summary(store),
         "report": report,
         "git_truth": git_truth,
         "run_dir": str(run_dir),
@@ -2092,6 +2246,7 @@ def _cmd_resume(args: argparse.Namespace) -> int:
             raise StateIntegrityError("Resume reservation changed")
         current.update({"model": model_used, "effort": effort_used, "sandbox": sandbox,
             "network": False, "session_id": new_session_id, "exit_code": rc,
+            "budget":limits,"usage_store":store,
             "status": "timed_out" if timed_out else outcome["task_status"], **outcome,
             "updated_at": utc_now(), "result_ref": {"turn": turn_id, "sha256": hashlib.sha256(result_bytes).hexdigest()}})
         if board is not None:
@@ -2252,6 +2407,9 @@ def cmd_status(args: argparse.Namespace) -> int:
             if args.task_id not in tasks:
                 raise ValueError(f"Unknown task_id: {args.task_id}")
             rec = dict(tasks[args.task_id])
+            usage_store=rec.pop("usage_store",None)
+            if usage_store is not None:
+                rec["usage_summary"]=usage_summary(usage_store)
             board = rec.pop("context_board",None)
             if board is not None:
                 rec["context"] = {k:board[k] for k in ("rev","generation","turns","prompt_bytes")}
@@ -2357,6 +2515,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--timeout", type=int, default=600)
     p_run.add_argument("--files", nargs="*", default=None, help="Optional target file hints.")
     p_run.add_argument("--task-id", default=None)
+    p_run.add_argument("--max-turns", type=int, default=None)
+    p_run.add_argument("--max-tokens", type=int, default=None)
+    p_run.add_argument("--max-seconds", type=int, default=None)
+    p_run.add_argument("--budget-route", action="store_true", help="Use only cached model/effort capabilities.")
     p_run.add_argument("--blackboard", action="store_true", help="Opt-in task-local context with v2 protocol.")
     p_run.add_argument("--protocol-v2", action="store_true", help="Experimental bounded v2 JSON envelope via --prompt; default remains v1.")
     p_run.add_argument("--dry-run", action="store_true")
@@ -2372,6 +2534,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_res = sub.add_parser("resume", allow_abbrev=False, help="Continue an existing worker session in its workdir.")
     p_res.add_argument("--task-id", default=None)
+    p_res.add_argument("--route-reason", default=None, help="Required for model/effort changes of budget-routed tasks.")
     p_res.add_argument("--rebuild-context", action="store_true", help="Explicit new session with reviewed checkpoint; blackboard only.")
     p_res.add_argument("--protocol-v2", action="store_true", help="Continue an existing v2 task using the next revision envelope.")
     p_res.add_argument("--session-id", default=None)

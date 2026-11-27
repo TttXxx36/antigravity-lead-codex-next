@@ -18,7 +18,7 @@
 | [D09](decisions/D09.md) 模型可见的轻量 MCP 接口 | V1.2 | D08 | BLOCKED | PR #11 两轮四环境 PASS；正向 op 与结果边界补测通过；真实宿主与 Token 待验收；可继续 D10 |
 | [D10](decisions/D10.md) 结构化通信与短报告协议 | V1.2 | D09 | BLOCKED | PR #12 四环境候选 PASS；真实 structured output/宿主待验收；D11 可继续 |
 | [D11](decisions/D11.md) 共享黑板与会话复用 | V1.2 | D10 | BLOCKED | PR #13 四环境 PASS；真实会话与 Token 未验收；D12 可继续 |
-| [D12](decisions/D12.md) Token 遥测、预算与动态模型路由 | V1.2 | D01,D10,D11 | PROPOSED | 未实施；真实/估算/unknown 区分、预算、路由、避免重复累加 |
+| [D12](decisions/D12.md) Token 遥测、预算与动态模型路由 | V1.2 | D01,D10,D11 | IN_PROGRESS | 候选 usage/轮次预算/缓存路由，CI 待测 |
 | [D13](decisions/D13.md) 幂等派发与循环终止 | V1.2 | D10,D12 | PROPOSED | 未实施；持久 request_id、进度指纹、重复错误停止、授权重试 |
 | [D14](decisions/D14.md) 实时流式执行与事件总线 | V1.3 | D07,D13 | PROPOSED | 未实施；流式 JSONL、心跳/seq、内存有界、断线恢复 |
 | [D15](decisions/D15.md) SQLite 任务状态迁移 | V1.3 | D04,D14 | PROPOSED | 未实施；插件自有 WAL、迁移/备份/回滚、原生 Codex DB 只读 |

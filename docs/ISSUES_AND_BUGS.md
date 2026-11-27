@@ -102,3 +102,7 @@ D11 审查补测：黑板约束随 sandbox 收紧保持一致，禁止后续升�
 
 ## 最终候选四环境实测
 [Run 45945706823](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45945706823) completed/success，精确测试提交 `09ff29699f4b459281cce41e60a55c9931d7394e`，Ubuntu、macOS、Windows Server x64、Windows 11 ARM64 四环境通过；每环境7项上下文单元测试及实际三轮 Mock run/resume/rebuild 测试，累计回归及 Windows 安装通过。真实宿主网络断线、会话事件兼容性与 Token 未验收。首轮被补充提交替代，不计最终证据。候选可用于 D12，正式验收 BLOCKED，PR #13 未合并。
+
+
+## 候选实施
+终态 CLI usage 每进程一次；仅唯一 identified 重复事件去重，歧义/缺失 unknown，输入+输出不额外累加缓存/推理。累计已知和与未知轮次分别保存，实际 model 仅 CLI 明确报告，Gemini unknown。run 可显式 --max-turns/--max-tokens/--max-seconds，持久化预算不可经 resume 修改；每轮之前检查，未知 Token 时禁止继续有限 Token 预算任务，时间限制仅累计受管进程耗时及每轮 timeout，不保证精确硬停止。--budget-route 使用本地 cache 支持的 effort，缺能力不猜测，变更必须记录理由；默认旧 smart。测试用合成 usage，不代表真实模型用量。真实 CLI 字段语义、Gemini、实际模型及对照基准未验收。

@@ -326,6 +326,35 @@ with d.locked_state() as state:
             with self.assertRaises(d.StateIntegrityError):resume(delta(4,3))
             self.assertEqual(len(calls),3)
 
+    def test_d12_budget_blocks_next_worker_and_preserves_unknown(self):
+        route={"model":"mock","effort":"low","effective_difficulty":"low"}
+        original=d.run_subprocess_with_timeout
+        calls=[]
+        def boundary(cmd,**kwargs):
+            self.assertEqual(cmd[0],"MOCK_ONLY")
+            calls.append(kwargs["timeout"])
+            kwargs["env"]=dict(self.env,ALC_MOCK_CASE="B01",ALC_MOCK_USAGE="fixture" if len(calls)==1 else "")
+            return original([sys.executable,"-I",str(ROOT/"tests/mock_codex.py"),*cmd[1:]],**kwargs)
+        work=Path(self.tmp.name)/"budget";work.mkdir()
+        with patch.object(d,"get_codex_bin",return_value="MOCK_ONLY"),patch.object(d,"resolve_model_and_effort",return_value=route),patch.object(d,"run_subprocess_with_timeout",side_effect=boundary):
+            result=d.execute_single_task(prompt="synthetic",cwd=work,backend="codex",difficulty="low",
+                model="mock",effort="low",quality="balanced",alternate=False,prefer_wide=False,
+                sandbox="workspace-write",network=False,isolation="inplace",timeout=15,
+                files_hint=None,task_id="budget-test",dry_run=False,budget=d.make_budget(3,30,10))
+            self.assertEqual(result["usage_summary"]["counts"]["total_tokens"],15)
+            self.assertEqual(result["usage_summary"]["actual_model"],"mock-fixture")
+            self.assertEqual(calls,[10])
+            args=d.build_parser().parse_args(["resume","--task-id","budget-test","--prompt","next"])
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(d.cmd_resume(args),0)
+            state=json.loads(d.STATE_FILE.read_bytes())["tasks"]["budget-test"]
+            self.assertEqual(state["usage_store"]["attempts"],2)
+            self.assertIsNone(d.usage_summary(state["usage_store"])["counts"]["total_tokens"])
+            self.assertEqual(state["usage_store"]["known_sums"]["total_tokens"],15)
+            with self.assertRaisesRegex(ValueError,"usage unknown"):
+                d.cmd_resume(args)
+            self.assertEqual(len(calls),2)
+
     def test_resume_lock_refuses_parallel_resume(self):
         d.reserve_run_dir("resume-race", {"backend":"mock"})
         root=d.RUNS_DIR/"resume-race"

@@ -409,15 +409,21 @@
         "D10",
         "D11"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "真实/估算/unknown 区分、预算、路由、避免重复累加",
+      "status": "IN_PROGRESS",
+      "evidence": "D12 terminal usage, persistent boundary budgets and cached routing candidate; CI pending",
+      "next": "CI; real provider telemetry/usage semantics and comparative benchmark pending",
       "branch": "dev/d12",
-      "approval": null,
+      "approval": "2026-11-27 user authorized A candidate development",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D12 budget and cumulative regression",
+          "status": "NOT_RUN",
+          "ref": "pending CI"
+        }
+      ]
     },
     {
       "id": "D13",
