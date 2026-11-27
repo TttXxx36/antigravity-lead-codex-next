@@ -33,7 +33,13 @@ def main():
         print(json.dumps({'type': 'error', 'message': 'synthetic error'}))
     print(json.dumps({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': json.dumps(report)}}))
     # Deliberately omit usage: no real model was called; no fabricated token totals.
-    print(json.dumps({'type': 'turn.failed' if failed else 'turn.completed'}))
+    terminal={'type': 'turn.failed' if failed else 'turn.completed'}
+    # Explicitly synthetic test data only, never measured model usage.
+    if os.environ.get('ALC_MOCK_USAGE')=='fixture' and not failed:
+        terminal.update(turn_id='synthetic-turn',model='mock-fixture',usage=dict(input_tokens=10,output_tokens=5,cached_input_tokens=4,reasoning_output_tokens=2))
+    print(json.dumps(terminal))
+    if os.environ.get('ALC_MOCK_USAGE')=='fixture' and not failed:
+        print(json.dumps(terminal))
     return 7 if failed else 0
 
 

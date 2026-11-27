@@ -1,7 +1,7 @@
 {
   "version": 1,
   "as_of": "2026-11-27",
-  "main_commit": "995db122b2049ca73efd624fd8752813f4e5d975",
+  "main_commit": "114e0c205f326b4af0935656ef482bba8270b284",
   "permissions": {
     "automatic_merge": false,
     "release": false,
@@ -433,13 +433,19 @@
           "name": "BUG-007 cleanup denial synchronization",
           "status": "NOT_RUN",
           "ref": "docs/evidence/D11-cleanup-integration.md"
+        },
+        {
+          "name": "D11 integrated D10 ancestry and BUG-007 regression",
+          "status": "PASS",
+          "tested_commit": "9605ad5263b2ff65e1cc53010dfedbbbe621e3c3",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46010170648"
         }
       ],
       "candidate": {
-        "ready": false,
-        "tested_commit": "09ff29699f4b459281cce41e60a55c9931d7394e",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45945706823",
-        "limitations": "Real host/session continuity, token measurements and formal dependencies pending; opt-in only. Verified D06 cleanup denial synchronized; current head needs CI."
+        "ready": true,
+        "tested_commit": "9605ad5263b2ff65e1cc53010dfedbbbe621e3c3",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46010170648",
+        "limitations": "D10 safety ancestry integrated; exact four-platform CI PASS. Real host/session continuity, actual token semantics and formal dependencies remain BLOCKED."
       }
     },
     {
@@ -451,15 +457,43 @@
         "D10",
         "D11"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "真实/估算/unknown 区分、预算、路由、避免重复累加",
+      "status": "BLOCKED",
+      "evidence": "Exact-head four-environment D12 budget (24/24) and cumulative regression PASS; real provider/host/benchmark NOT_RUN",
+      "next": "D11 integrated ancestry now included; D12 exact-head cumulative CI pending; real provider/host/model gates remain.",
       "branch": "dev/d12",
-      "approval": null,
-      "pr": null,
+      "approval": "2026-11-27 user authorized A candidate development",
+      "pr": 14,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D12 budget and cumulative regression",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45947305027",
+          "tested_commit": "f5b1bf017d1f1c259e1c50f0fd89a85100cf082f"
+        },
+        {
+          "name": "Real provider usage semantics, actual host/model and comparative benchmark",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D12-budget.md"
+        },
+        {
+          "name": "BUG-007 cleanup denial synchronization",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D12-cleanup-integration.md"
+        },
+        {
+          "name": "D11 ancestry integration",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D12-ancestry-integration.md"
+        }
+      ],
+      "candidate": {
+        "ready": false,
+        "tested_commit": "f5b1bf017d1f1c259e1c50f0fd89a85100cf082f",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45947305027",
+        "limitations": "Synthetic usage only; actual provider semantics, Gemini usage, real host/model capabilities, benchmark and formal dependency merges pending; no hard system-wide budget. Verified D06 cleanup denial synchronized; current head needs CI."
+      }
     },
     {
       "id": "D13",
