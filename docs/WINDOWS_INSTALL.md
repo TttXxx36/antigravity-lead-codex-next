@@ -29,3 +29,6 @@ $python = if ($env:PYTHON_BIN) { $env:PYTHON_BIN } else { (Get-Command python.ex
 使用安装时的 CODEX_HOME/AGY_DISPATCH_STATE_DIR/GEMINI_CONFIG_DIR 和 exe 配置，PowerShell 参数数组，不使用 Invoke-Expression。Windows 自动审批 Hook 继续关闭，D06 单独验收。Unix install.sh/doctor.sh 保留原状。
 
 D05 必需真实 Windows 11 安装/升级/卸载/重装和 Antigravity 实际 MCP initialize 握手。当前托管 Windows Server CI 只能验证本地原生安装生命周期及 synthetic MCP；真实桌面、真实 Codex 版本及宿主加载需用户环境，不调用模型。
+
+## 已验证和待验证
+[Run 45935195557](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45935195557) 三平台 success，包含 Windows Server 2025 合成安装全生命周期与 ConsoleOnly。真实 Windows 11/Antigravity 宿主仍 BLOCKED；使用 [实机验收清单](evidence/D05-WINDOWS11-acceptance.md) 提交脱敏证据。不要将本地 doctor 的合成 handshake 当作真实 host 加载。

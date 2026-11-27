@@ -1,6 +1,6 @@
 # 全路线执行总账与剩余步骤
 
-2026-11-27；2026-11-27 用户明确验收 D01、D02 并授权合并 PR #2、#3；批准 D03–D22 推荐 A 按依赖实施及 GitHub Actions 测试。后续 PR 的合并、真实模型测试及正式发布仍遵守独立授权门禁。 D00–D02 DONE，D03–D22 已批准方案 A，等待依赖顺序实施。PR #4 独立候选。
+2026-11-27；当前 dev/d05 跨分支快照：D00–D04 DONE，D05 托管 CI PASS 但真实 Windows 11/Antigravity 验收 BLOCKED；D06–D21 已获方案 A 与条件合并许可，依赖未满足不启动；D22 正式发布另需批准。下文历史记录按时间保留，当前状态以表格及最新检查点为准。
 
 ## 各卡剩余任务
 
@@ -11,7 +11,7 @@
 | [D02](decisions/D02.md) 开发与验收治理 | P0 | D00 | DONE | PR #3 已验收合并；治理三平台通过；远程保护设置另获授权 |
 | [D03](decisions/D03.md) 跨平台路径与运行时发现 | V1.1 | D01,D02 | DONE | PR #5 已合并；三平台实际长路径 I/O 与 MCP smoke PASS；真实客户端/桌面由 D05/D08 验收 |
 | [D04](decisions/D04.md) 跨平台锁与状态完整性 | V1.1 | D03 | DONE | PR #6 已合并；39/39 状态回归通过 |
-| [D05](decisions/D05.md) 安装器和环境诊断 | V1.1 | D03,D04 | PROPOSED | 未实施；PowerShell install/doctor、备份回滚、node.exe stdio、Windows 11 实机 |
+| [D05](decisions/D05.md) 安装器和环境诊断 | V1.1 | D03,D04 | BLOCKED | PR #7；托管三平台/Windows Server 生命周期 PASS；真实 Windows 11 和 Antigravity MCP 宿主验收缺失 |
 | [D06](decisions/D06.md) 审批门禁与执行边界 | V1.1 | D04,D05 | PROPOSED | PR #4 Windows hook 保守转人工；任务绑定可信授权、batch/resume/MCP 防绕过、危险权限拒绝 |
 | [D07](decisions/D07.md) 任务结果与进程生命周期正确性 | V1.1 | D04,D06 | PROPOSED | 已复现 BUG-001/002；独立退出/任务/验证状态，失败/取消/超时、进程树清理 |
 | [D08](decisions/D08.md) 历史任务定位与 Windows 发布门禁 | V1.1 | D05,D06,D07 | PROPOSED | 未实施；按 ID 查询、歧义拒绝、Git -z、DB 错误、三平台与 Windows 实机 |
@@ -65,3 +65,6 @@ D03 已按条件授权合并，D04 依赖满足。
 D04 已实施候选：原子状态写入、损坏副本、全局 ID/目录预留、路径检查、崩溃锁回归。待三平台测试。
 D04 已完成；D05 依赖满足。真实 Windows 11 客户端安装/卸载握手为 D05 验收，不可用托管 Windows Server 替代。
 D05 候选已实现 PowerShell 安装、备份/恢复/卸载、直接 node.exe stdio、隔离 doctor；托管回归待 CI，真实 Windows 11 与 Antigravity 宿主仍为硬门槛。
+## 当前恢复点
+
+D00–D04 正式完成（5/23）；D05 代码及托管 CI 通过，保留 Draft PR #7。必须完成 [真实 Windows 11 验收](evidence/D05-WINDOWS11-acceptance.md)；[CI](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45935195557)。D06–D21 不再需要逐卡合并批准，但当前传递依赖未满足；D22 发布另需许可。

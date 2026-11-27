@@ -158,24 +158,25 @@
         "D03",
         "D04"
       ],
-      "status": "IN_PROGRESS",
-      "evidence": "Native PowerShell installer candidate, synthetic lifecycle CI pending",
-      "next": "Hosted CI and actual Windows 11 desktop acceptance",
+      "status": "BLOCKED",
+      "evidence": "PowerShell installer and all hosted lifecycle/regression tests PASS; actual Windows 11 and Antigravity MCP host evidence missing",
+      "next": "Run real desktop checklist; then verify exact head and conditionally merge. D06 waits.",
       "branch": "dev/d05",
       "approval": "2026-11-27 user approved A and conditional merge",
-      "pr": null,
+      "pr": 7,
       "accepted": false,
       "merged": false,
       "checks": [
         {
-          "name": "D05 hosted lifecycle",
-          "status": "NOT_RUN",
-          "ref": "pending CI"
+          "name": "hosted three-platform regression and Windows Server lifecycle",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45935195557",
+          "tested_commit": "06a06c144b4c238adc56baeebe7f8d5809dbeba2"
         },
         {
-          "name": "actual Windows 11 Antigravity host",
-          "status": "NOT_RUN",
-          "ref": "requires desktop"
+          "name": "actual Windows 11 desktop lifecycle and Antigravity host MCP initialize",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D05-WINDOWS11-acceptance.md"
         }
       ]
     },
