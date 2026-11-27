@@ -49,3 +49,4 @@ RISK-01：已实现明确的运行时解析、统一配置路径、PATH 分隔�
 
 [Run 45933533805](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45933533805) 三平台平台测试、治理检查和原生 Node MCP 通过。RISK-01 候选 PASS，尚未合入 main，真实 Codex exe/Antigravity 及超长实际 I/O 未验证。BUG-004 的基础锁、BUG-005 的测试启动器已在 D03 候选复用；D04 数据完整性/原子预留、D05 实际安装、D06 shell/权限仍待实施。原始 BUG-001/002/003 仍 OPEN。
 D03 最终：RISK-01 路径/原生 exe 解析及长路径 fixture 已通过三平台并合入 main（PR #5）；实际宿主、安装仍待测。BUG-004 基本跨平台锁已合入，D04 完成竞争、损坏和崩溃回归后才关闭。BUG-005 原生 Node MCP smoke 已通过，D05/D08 实际安装及完整回归仍待。
+D04 候选 BUG-003/004、RISK-02：损坏状态拒绝覆盖，基础锁增加限时竞争、原子备份写入、任务 ID/路径校验；待 CI，不标关闭。

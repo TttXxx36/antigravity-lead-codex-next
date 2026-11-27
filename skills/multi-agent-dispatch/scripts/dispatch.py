@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import errno
+import hashlib
 import json
 import os
 import ntpath
@@ -20,6 +21,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -167,8 +169,9 @@ def utc_now() -> str:
 
 def ensure_state_dirs() -> None:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    RUNS_DIR.mkdir(parents=True, exist_ok=True)
-    WORKTREES_DIR.mkdir(parents=True, exist_ok=True)
+    for folder in (RUNS_DIR, WORKTREES_DIR):
+        reject_link(folder)
+        folder.mkdir(parents=True, exist_ok=True)
 
 
 @contextlib.contextmanager
@@ -198,38 +201,156 @@ def exclusive_state_lock(lock_path: Path, timeout: float = 30.0) -> Iterator[Non
                 lock_fh.seek(0)
                 msvcrt.locking(lock_fh.fileno(), msvcrt.LK_UNLCK, 1)
         else:
-            fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX)
+            deadline = time.monotonic() + timeout
+            while True:
+                try:
+                    fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError as exc:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("Timed out acquiring dispatcher state lock") from exc
+                    time.sleep(0.05)
             try:
                 yield
             finally:
                 fcntl.flock(lock_fh.fileno(), fcntl.LOCK_UN)
 
 
+class StateIntegrityError(RuntimeError):
+    """State is unreadable or inconsistent; never replace it implicitly."""
+
+
+def reject_link(p: Path) -> None:
+    if p.is_symlink() or (hasattr(p, "is_junction") and p.is_junction()):
+        raise StateIntegrityError(f"Refusing linked state path: {p}")
+
+
+def atomic_write_bytes(target: Path, payload: bytes) -> None:
+    """Same-directory fsynced temporary file; bounded retry for Windows sharing."""
+    reject_link(target)
+    fd, name = tempfile.mkstemp(prefix=target.name + ".", suffix=".tmp", dir=target.parent)
+    temp = Path(name)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        for attempt in range(10):
+            try:
+                os.replace(temp, target)
+                break
+            except PermissionError:
+                if os.name != "nt" or attempt == 9:
+                    raise
+                time.sleep(0.05)
+        if os.name != "nt":
+            dirfd = os.open(target.parent, os.O_RDONLY)
+            try:
+                os.fsync(dirfd)
+            finally:
+                os.close(dirfd)
+    finally:
+        temp.unlink(missing_ok=True)
+
+
+def decode_state(raw: bytes) -> dict[str, Any]:
+    def unique_keys(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Duplicate state JSON key")
+            result[key] = value
+        return result
+
+    def reject_constant(value):
+        raise ValueError("Non-finite state JSON number")
+
+    data = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_keys, parse_constant=reject_constant)
+    if not isinstance(data, dict) or not isinstance(data.get("tasks"), dict):
+        raise ValueError("state must contain a tasks object")
+    rr = data.get("rr_counter", 0)
+    if type(rr) is not int or rr < 0:
+        raise ValueError("invalid rr_counter")
+    if any(not isinstance(record, dict) for record in data["tasks"].values()):
+        raise ValueError("invalid task record")
+    data.setdefault("rr_counter", 0)
+    return data
+
+
+def preserve_corrupt_state(raw: bytes) -> Path:
+    target = STATE_FILE.with_name("state.corrupt-" + hashlib.sha256(raw).hexdigest() + ".json")
+    reject_link(target)
+    if target.exists():
+        if target.read_bytes() != raw:
+            raise StateIntegrityError("Corrupt backup checksum collision; original untouched")
+    else:
+        atomic_write_bytes(target, raw)
+    return target
+
+
 @contextlib.contextmanager
 def locked_state() -> Iterator[dict[str, Any]]:
-    """Load and persist state.json while holding the cross-platform lock."""
+    """Serialize read/modify/write; never reset malformed existing state."""
     ensure_state_dirs()
+    reject_link(LOCK_FILE)
     with exclusive_state_lock(LOCK_FILE):
-        if STATE_FILE.exists():
-            try:
-                data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
-            except json.JSONDecodeError:
-                data = {}
+        reject_link(STATE_FILE)
+        raw = STATE_FILE.read_bytes() if STATE_FILE.exists() else None
+        if raw is None:
+            data = {"rr_counter": 0, "tasks": {}}
         else:
-            data = {}
-        if not isinstance(data, dict):
-            data = {}
-        data.setdefault("rr_counter", 0)
-        data.setdefault("tasks", {})
+            try:
+                data = decode_state(raw)
+            except (ValueError, UnicodeError) as exc:
+                backup = preserve_corrupt_state(raw)
+                raise StateIntegrityError(f"Invalid dispatcher state; original untouched; copy: {backup}") from exc
         snapshot = json.dumps(data, sort_keys=True)
         yield data
-        if json.dumps(data, sort_keys=True) != snapshot or not STATE_FILE.exists():
-            tmp_path = STATE_FILE.with_suffix(".json.tmp")
-            tmp_path.write_text(
-                json.dumps(data, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
-            tmp_path.replace(STATE_FILE)
+        if json.dumps(data, sort_keys=True) != snapshot or raw is None:
+            payload = (json.dumps(data, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode("utf-8")
+            decode_state(payload)
+            if raw is not None:
+                atomic_write_bytes(STATE_FILE.with_suffix(".json.bak"), raw)
+            atomic_write_bytes(STATE_FILE, payload)
+
+
+def validate_task_id(value: str) -> str:
+    """Portable path and Git ref component; forbid case-ambiguous and reserved forms."""
+    if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", value):
+        raise ValueError("Invalid task_id: expected 1–80 ASCII letters/digits/dot/underscore/hyphen")
+    if ".." in value or value.endswith(".") or value.lower().endswith(".lock"):
+        raise ValueError("Invalid task_id component")
+    validate_windows_path(value)
+    return value
+
+
+def bounded_child(root: Path, *parts: str) -> Path:
+    """Check all components under a trusted configured root, including symlinks/junctions."""
+    reject_link(root)
+    candidate = root.joinpath(*parts)
+    if not candidate.resolve().is_relative_to(root.resolve()) or candidate == root:
+        raise ValueError("Path escapes configured state root")
+    current = root
+    for part in parts:
+        validate_task_id(part)
+        current = current / part
+        reject_link(current)
+    return candidate
+
+
+def reserve_run_dir(task_id: str, record: dict[str, Any] | None = None) -> Path:
+    """Atomically reserve ID under lock; orphaned directories are never reused."""
+    tid = validate_task_id(task_id)
+    with locked_state() as state:
+        run_dir = bounded_child(RUNS_DIR, tid)
+        if any(key.casefold() == tid.casefold() for key in state["tasks"]):
+            raise ValueError("Duplicate task_id")
+        if any(p.name.casefold() == tid.casefold() for p in RUNS_DIR.iterdir()):
+            raise ValueError("Duplicate or orphaned run directory")
+        run_dir.mkdir(exist_ok=False)
+        if record is not None:
+            state["tasks"][tid] = {**record, "task_id": tid, "run_dir": str(run_dir), "status": "reserved"}
+    return run_dir
 
 
 def native_executable(value: str | Path) -> str | None:
@@ -705,8 +826,14 @@ def create_worktree(repo_root: str, task_id: str, base_sha: str) -> tuple[Path, 
     if not git_bin:
         raise RuntimeError("git executable not found")
     repo_slug = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(repo_root).name).strip("-") or "repo"
-    wt_path = WORKTREES_DIR / repo_slug / task_id
+    try:
+        validate_task_id(repo_slug)
+    except ValueError:
+        repo_slug = "repo-" + hashlib.sha256(repo_root.encode("utf-8")).hexdigest()[:12]
+    wt_path = bounded_child(WORKTREES_DIR, repo_slug, validate_task_id(task_id))
     wt_path.parent.mkdir(parents=True, exist_ok=True)
+    if wt_path.exists():
+        raise ValueError("Worktree directory already exists")
     branch_name = f"agy-worker/{task_id}"
     proc = subprocess.run(
         [git_bin, "-C", repo_root, "worktree", "add", "-b", branch_name, str(wt_path), base_sha],
@@ -1097,7 +1224,7 @@ def execute_single_task(
 
     git_info = inspect_git(cwd)
     eff_isolation, isolation_reason = resolve_isolation(isolation, sandbox, git_info)
-    tid = task_id or make_task_id("run")
+    tid = validate_task_id(task_id if task_id is not None else make_task_id("run"))
 
     if backend == "codex":
         codex_bin = get_codex_bin()
@@ -1118,7 +1245,7 @@ def execute_single_task(
     else:
         raise RuntimeError(f"Unsupported backend: {backend}")
 
-    run_dir = RUNS_DIR / tid
+    run_dir = bounded_child(RUNS_DIR, tid)
     report_path = run_dir / "last_message.json"
     worker_prompt = build_worker_prompt(prompt, sandbox=sandbox, network=network, is_resume=False, files_hint=files_hint)
 
@@ -1152,7 +1279,10 @@ def execute_single_task(
             "command": preview_cmd,
         }
 
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = reserve_run_dir(tid, {"backend": backend, "model": model_used, "effort": effort_used,
+        "difficulty": routing["effective_difficulty"], "repo_root": git_info["repo_root"],
+        "original_cwd": str(cwd), "workdir": str(cwd), "session_id": None, "network": network,
+        "sandbox": sandbox, "isolation": eff_isolation, "created_at": utc_now(), "updated_at": utc_now()})
     (run_dir / "prompt.txt").write_text(worker_prompt, encoding="utf-8")
 
     workdir = cwd
@@ -1219,6 +1349,8 @@ def execute_single_task(
     }
 
     with locked_state() as state:
+        if state["tasks"].get(tid, {}).get("status") != "reserved":
+            raise StateIntegrityError("Task reservation missing or changed")
         state["tasks"][tid] = task_record
 
     result = {
@@ -1375,6 +1507,21 @@ def cmd_batch(args: argparse.Namespace) -> int:
 
 
 def cmd_resume(args: argparse.Namespace) -> int:
+    if not args.task_id:
+        return _cmd_resume(args)
+    validate_task_id(args.task_id)
+    if args.dry_run:
+        return _cmd_resume(args)
+    root = bounded_child(RUNS_DIR, args.task_id)
+    if not root.is_dir():
+        raise ValueError("Original task run directory missing")
+    lock = root / "resume.lock"
+    reject_link(lock)
+    with exclusive_state_lock(lock, timeout=0):
+        return _cmd_resume(args)
+
+
+def _cmd_resume(args: argparse.Namespace) -> int:
     prompt_text = sys.stdin.read() if args.prompt == "-" else args.prompt
     task_record: dict[str, Any] | None = None
     if args.task_id:
@@ -1438,9 +1585,9 @@ def cmd_resume(args: argparse.Namespace) -> int:
     else:
         raise RuntimeError(f"Unsupported backend: {backend}")
 
-    resume_tid = args.task_id or make_task_id("resume")
+    resume_tid = validate_task_id(args.task_id or make_task_id("resume"))
     turn_id = make_task_id("turn")
-    run_dir = RUNS_DIR / resume_tid / turn_id
+    run_dir = bounded_child(RUNS_DIR, resume_tid, turn_id)
     report_path = run_dir / "last_message.json"
     worker_prompt = build_worker_prompt(prompt_text, sandbox=sandbox, network=network, is_resume=True)
 
@@ -1473,7 +1620,11 @@ def cmd_resume(args: argparse.Namespace) -> int:
         )
         return 0
 
-    run_dir.mkdir(parents=True, exist_ok=True)
+    if not task_record:
+        reserve_run_dir(resume_tid)
+    elif not bounded_child(RUNS_DIR, resume_tid).is_dir():
+        raise StateIntegrityError("Original task run directory missing")
+    run_dir.mkdir(exist_ok=False)
     (run_dir / "prompt.txt").write_text(worker_prompt, encoding="utf-8")
 
     cmd = build_codex_resume_cmd(
@@ -1542,6 +1693,8 @@ def cmd_resume(args: argparse.Namespace) -> int:
 
 
 def cmd_review(args: argparse.Namespace) -> int:
+    if args.task_id:
+        validate_task_id(args.task_id)
     task_record: dict[str, Any] | None = None
     if args.task_id:
         with locked_state() as state:
@@ -1588,7 +1741,7 @@ def cmd_review(args: argparse.Namespace) -> int:
         raise RuntimeError(f"Unsupported backend: {backend}")
 
     review_id = make_task_id("review")
-    run_dir = RUNS_DIR / review_id
+    run_dir = bounded_child(RUNS_DIR, review_id)
     review_out = run_dir / "review_output.txt"
 
     cmd = [
@@ -1639,7 +1792,7 @@ def cmd_review(args: argparse.Namespace) -> int:
         )
         return 0
 
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = reserve_run_dir(review_id)
     rc, stdout_text, stderr_text, timed_out = run_subprocess_with_timeout(
         cmd, cwd=workdir, stdin_text=stdin_prompt, timeout=args.timeout
     )
@@ -1675,6 +1828,8 @@ def cmd_review(args: argparse.Namespace) -> int:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
+    if args.task_id:
+        validate_task_id(args.task_id)
     with locked_state() as state:
         tasks = state.get("tasks", {})
         if args.task_id:
@@ -1714,6 +1869,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 
 def cmd_cleanup(args: argparse.Namespace) -> int:
+    validate_task_id(args.task_id)
     with locked_state() as state:
         rec = state["tasks"].get(args.task_id)
         if not rec:
@@ -1724,6 +1880,18 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
 
+    if rec.get("status") == "reserved":
+        raise StateIntegrityError("Reserved/incomplete task requires manual inspection; refusing cleanup")
+    if rec.get("worktree_path"):
+        wp = Path(rec["worktree_path"])
+        try:
+            rel = wp.relative_to(WORKTREES_DIR)
+        except ValueError as exc:
+            raise StateIntegrityError("Worktree outside configured root") from exc
+        if len(rel.parts) != 2 or rel.parts[-1] != args.task_id or bounded_child(WORKTREES_DIR, *rel.parts) != wp:
+            raise StateIntegrityError("Unexpected worktree location")
+    if rec.get("branch") and rec["branch"] != f"agy-worker/{args.task_id}":
+        raise StateIntegrityError("Unexpected worker branch")
     details = remove_worktree(
         rec["repo_root"],
         rec.get("worktree_path"),
