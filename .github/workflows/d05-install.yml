@@ -1,18 +1,16 @@
 name: D05 native installation
 on:
-  push:
-    branches: [dev/d05]
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
 permissions:
   contents: read
 concurrency:
-  group: d05-install-${{ github.head_ref || github.ref_name }}
+  group: d05-pr-acceptance-${{ github.head_ref }}
   cancel-in-progress: true
 jobs:
   install:
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/dev/d05') || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'dev/d05')
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'dev/d05'
     strategy:
       fail-fast: false
       matrix:
