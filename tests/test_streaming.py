@@ -94,8 +94,16 @@ class StreamTests(unittest.TestCase):
     def test_existing_segment_refused_without_overwrite(self):
         target=self.root/"events.jsonl.part-0001"
         target.write_bytes(b"existing evidence")
-        with self.assertRaises(FileExistsError):
-            self.invoke("print('{\"type\":\"event\"}',flush=True)")
+        import subprocess
+        real_popen=subprocess.Popen
+        children=[]
+        def launch(*args,**kwargs):
+            p=real_popen(*args,**kwargs);children.append(p);return p
+        with patch.object(d.subprocess,"Popen",side_effect=launch):
+            with self.assertRaises(FileExistsError):
+                self.invoke("print('{\"type\":\"event\"}',flush=True)")
+        self.assertEqual(len(children),1)
+        self.assertIsNotNone(children[0].returncode,"owned process must be reaped on segment conflict")
         self.assertEqual(target.read_bytes(),b"existing evidence")
         self.assertFalse((self.root/"stream-segments.json").exists())
 

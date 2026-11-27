@@ -2085,19 +2085,29 @@ def streamed_subprocess(cmd, *, cwd, stdin_text, timeout, run_dir, task_id, turn
             journal.emit("timed_out" if timed_out else "stream_failed" if failure else "process_exit",
                          counts["stdout"], counts["stderr"], lines)
         except BaseException:
-            terminate_owned_process_tree(proc)
             try:
-                journal.emit("interrupted", counts["stdout"], counts["stderr"], lines)
-            except (OSError, StateIntegrityError):
-                pass
+                terminate_owned_process_tree(proc)
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    if proc.poll() is None:
+                        proc.kill()
+                    proc.wait(timeout=5)
+            finally:
+                try:
+                    journal.emit("interrupted", counts["stdout"], counts["stderr"], lines)
+                except (OSError, StateIntegrityError):
+                    pass
             raise
         finally:
             stop.set()
             # Do not close a pipe from another thread while a read is blocked.
             # Daemon readers cannot block CLI shutdown if an escaped child holds it.
-            for thread in threads:
+            for thread, pipe in zip(threads, (proc.stdout, proc.stderr, proc.stdin)):
                 if thread.ident is not None:
                     thread.join(timeout=.2)
+                else:
+                    pipe.close()
         if failure:
             # Incomplete streams cannot be used for session/usage inference.
             return (124 if timed_out else 125), "", "[dispatcher] D14 " + failure, timed_out
