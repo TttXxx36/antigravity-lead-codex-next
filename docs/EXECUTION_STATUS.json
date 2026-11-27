@@ -202,7 +202,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Four-environment CI PASS; fail-closed candidate ready, trusted host authorization and actual sandbox NOT_RUN",
-      "next": "Continue D07 candidate; trusted host grants and real sandbox acceptance remain blocked",
+      "next": "Complete actual card-specific host/authorization/independent acceptance; formal dependency gate unchanged. Latest ancestor CI PASS.",
       "branch": "dev/d06",
       "approval": "2026-11-27 用户批准分离候选开发与正式验收/合并。D06–D22 可基于经 CI 验证的前置候选分支依赖顺序开发、独立 stacked Draft PR；实际验收门槛、DONE、main 合并条件不变。前置候选有未解决的 CI FAIL/安全缺陷时先修复；缺真实宿主等环境证据可在不启用受阻能力的前提下继续候选开发。禁止真实模型测试、权限扩张、发布。",
       "pr": 8,
@@ -228,8 +228,9 @@
         },
         {
           "name": "Offline Ed25519 receipt binding/expiry/replay checks, no authority provision",
-          "status": "NOT_RUN",
-          "ref": "docs/decisions/D06.md"
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080783711",
+          "tested_commit": "28069d1ca572f3567fb5697dc86eb62102407eae"
         },
         {
           "name": "Signed receipt validation standalone four-platform",
@@ -239,15 +240,22 @@
         },
         {
           "name": "Dedicated bounded transactional offline receipt ledger and replay contention",
-          "status": "NOT_RUN",
-          "ref": "docs/decisions/D06.md"
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080783711",
+          "tested_commit": "28069d1ca572f3567fb5697dc86eb62102407eae"
+        },
+        {
+          "name": "Latest non-rewriting ancestor integration four-platform CI",
+          "status": "PASS",
+          "tested_commit": "28069d1ca572f3567fb5697dc86eb62102407eae",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080783711"
         }
       ],
       "candidate": {
-        "ready": false,
-        "tested_commit": "234c8388b093b5dedf1d7c0cc65e42e7d1d1a710",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004837384",
-        "limitations": "No positive trusted grant issuance or real OS sandbox proof; network, unmanaged queue/resume, live quota disabled; no production merge. Offline capability follow-up pending CI, no live trust root/route or production permission. Durable replay ledger CI pending; no production trusted signer or executor."
+        "ready": true,
+        "tested_commit": "28069d1ca572f3567fb5697dc86eb62102407eae",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080783711",
+        "limitations": "Signed receipt and dedicated bounded transactional replay ledger tested with fixtures; real trusted host signer/clock/directory, consumption with actual execution and OS sandbox remain blocked."
       }
     },
     {
@@ -260,7 +268,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Four environments outcome and cumulative regressions PASS; actual host process-tree acceptance pending",
-      "next": "D08 candidate development; actual host and formal merge gates remain",
+      "next": "Complete actual card-specific host/authorization/independent acceptance; formal dependency gate unchanged. Latest ancestor CI PASS.",
       "branch": "dev/d07",
       "approval": "2026-11-27 user approved A and verified candidate development",
       "pr": 9,
@@ -283,13 +291,19 @@
           "status": "PASS",
           "tested_commit": "943f1c0606ad47b9602d49d5ea38765c24ea7639",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006007007"
+        },
+        {
+          "name": "Latest non-rewriting ancestor integration four-platform CI",
+          "status": "PASS",
+          "tested_commit": "d52cfd0bf48f948632dcc353f42c9c62242d7789",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080852351"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "943f1c0606ad47b9602d49d5ea38765c24ea7639",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006007007",
-        "limitations": "Real Codex/Antigravity worker tree, escaped descendants and real power-loss not verified; no formal merge."
+        "tested_commit": "d52cfd0bf48f948632dcc353f42c9c62242d7789",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080852351",
+        "limitations": "Real Codex/Antigravity worker tree, escaped descendants and real power-loss not verified; no formal merge. Latest ancestor integration tested; actual formal gate unchanged."
       }
     },
     {
@@ -303,7 +317,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Four-environment D08 query/Git and cumulative regression PASS; real host NOT_RUN",
-      "next": "D09 candidate development; real Antigravity/Codex host acceptance and formal dependency merges remain blocked",
+      "next": "Complete actual card-specific host/authorization/independent acceptance; formal dependency gate unchanged. Latest ancestor CI PASS.",
       "branch": "dev/d08",
       "approval": "2026-11-27 user approved A and verified candidate development",
       "pr": 10,
@@ -326,13 +340,19 @@
           "status": "PASS",
           "tested_commit": "c4d75a778c0c70f80a2b3ea2afdb1bd04cfb4e87",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006085006"
+        },
+        {
+          "name": "Latest non-rewriting ancestor integration four-platform CI",
+          "status": "PASS",
+          "tested_commit": "d1e901ffd7bc831b43f6d543c852a81a9788ae40",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080887077"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "c4d75a778c0c70f80a2b3ea2afdb1bd04cfb4e87",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006085006",
-        "limitations": "Actual Antigravity/Codex end-to-end and Windows x64 desktop unverified; no formal merge."
+        "tested_commit": "d1e901ffd7bc831b43f6d543c852a81a9788ae40",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080887077",
+        "limitations": "Actual Antigravity/Codex end-to-end and Windows x64 desktop unverified; no formal merge. Latest ancestor integration tested; actual formal gate unchanged."
       }
     },
     {
@@ -344,7 +364,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Initial and follow-up four environments PASS; current artifact and op boundaries exercised",
-      "next": "D10 versioned protocol candidate; actual host/token and formal acceptance remain",
+      "next": "Complete actual card-specific host/authorization/independent acceptance; formal dependency gate unchanged. Latest ancestor CI PASS.",
       "branch": "dev/d09",
       "approval": "2026-11-27 user approved A and verified candidate development",
       "pr": 11,
@@ -367,13 +387,19 @@
           "status": "PASS",
           "tested_commit": "61ed00c712fc0d5bf9a7f24eb5e4aed7f98fbb78",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006153189"
+        },
+        {
+          "name": "Latest non-rewriting ancestor integration four-platform CI",
+          "status": "PASS",
+          "tested_commit": "87aaf75c3c4fbcd74da7ebd57aed28973978a882",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080916575"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "61ed00c712fc0d5bf9a7f24eb5e4aed7f98fbb78",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006153189",
-        "limitations": "Actual host and token tests NOT_RUN; old records without result_ref unavailable; metadata-only log cursor and nonpersistent hash; not merged."
+        "tested_commit": "87aaf75c3c4fbcd74da7ebd57aed28973978a882",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080916575",
+        "limitations": "Actual host and token tests NOT_RUN; old records without result_ref unavailable; metadata-only log cursor and nonpersistent hash; not merged. Latest ancestor integration tested; actual formal gate unchanged."
       }
     },
     {
@@ -385,7 +411,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Four environments protocol and mock run/resume PASS",
-      "next": "D11 candidate; actual structured output and host compatibility remain",
+      "next": "Complete actual card-specific host/authorization/independent acceptance; formal dependency gate unchanged. Latest ancestor CI PASS.",
       "branch": "dev/d10",
       "approval": "2026-11-27 user authorized A candidate development",
       "pr": 12,
@@ -408,13 +434,19 @@
           "status": "PASS",
           "tested_commit": "f8f3f9c245daba9688221c2aa1f004434fa55223",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006790409"
+        },
+        {
+          "name": "Latest non-rewriting ancestor integration four-platform CI",
+          "status": "PASS",
+          "tested_commit": "af6a85b05a02aa88c40cf74d1d7c9652a8172060",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080965617"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "f8f3f9c245daba9688221c2aa1f004434fa55223",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006790409",
-        "limitations": "Actual model and host unverified; v2 opt-in; batch/MCP v1; no formal merge."
+        "tested_commit": "af6a85b05a02aa88c40cf74d1d7c9652a8172060",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080965617",
+        "limitations": "Actual model and host unverified; v2 opt-in; batch/MCP v1; no formal merge. Latest ancestor integration tested; actual formal gate unchanged."
       }
     },
     {
@@ -426,7 +458,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Four environment context and mock session regression PASS",
-      "next": "Candidate CI passed on exact integrated head; formal host/model/independent-acceptance gates remain BLOCKED.",
+      "next": "Complete actual card-specific host/authorization/independent acceptance; formal dependency gate unchanged. Latest ancestor CI PASS.",
       "branch": "dev/d11",
       "approval": "2026-11-27 user authorized A candidate development",
       "pr": 13,
@@ -449,13 +481,19 @@
           "status": "PASS",
           "tested_commit": "9605ad5263b2ff65e1cc53010dfedbbbe621e3c3",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46010170648"
+        },
+        {
+          "name": "Latest non-rewriting ancestor integration four-platform CI",
+          "status": "PASS",
+          "tested_commit": "ca4116a50fdb5e9502bfba1479c1dab7ebc8bd04",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081000353"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "9605ad5263b2ff65e1cc53010dfedbbbe621e3c3",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46010170648",
-        "limitations": "Real host/session continuity, token measurements and formal dependencies pending; opt-in only."
+        "tested_commit": "ca4116a50fdb5e9502bfba1479c1dab7ebc8bd04",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081000353",
+        "limitations": "Real host/session continuity, token measurements and formal dependencies pending; opt-in only. Latest ancestor integration tested; actual formal gate unchanged."
       }
     },
     {
@@ -469,7 +507,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Exact-head four-environment D12 budget (24/24) and cumulative regression PASS; real provider/host/benchmark NOT_RUN",
-      "next": "Candidate CI passed on exact integrated head; formal host/model/independent-acceptance gates remain BLOCKED.",
+      "next": "Complete actual card-specific host/authorization/independent acceptance; formal dependency gate unchanged. Latest ancestor CI PASS.",
       "branch": "dev/d12",
       "approval": "2026-11-27 user authorized A candidate development",
       "pr": 14,
@@ -492,13 +530,19 @@
           "status": "PASS",
           "tested_commit": "906968dca6d930027985b4f9af1039af0227b8c2",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46010810757"
+        },
+        {
+          "name": "Latest non-rewriting ancestor integration four-platform CI",
+          "status": "PASS",
+          "tested_commit": "6e662005e0d95e876633ca7dc17a465eb1d9dcd6",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081031774"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "906968dca6d930027985b4f9af1039af0227b8c2",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46010810757",
-        "limitations": "Synthetic usage only; actual provider semantics, Gemini usage, real host/model capabilities, benchmark and formal dependency merges pending; no hard system-wide budget."
+        "tested_commit": "6e662005e0d95e876633ca7dc17a465eb1d9dcd6",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081031774",
+        "limitations": "Synthetic usage only; actual provider semantics, Gemini usage, real host/model capabilities, benchmark and formal dependency merges pending; no hard system-wide budget. Latest ancestor integration tested; actual formal gate unchanged."
       }
     },
     {
@@ -511,7 +555,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Exact-head four-environment cumulative CI PASS; D13 Python 24/24 and Node 16/16; prior SQLite BUSY regression corrected",
-      "next": "Candidate CI passed on exact integrated head; formal host/model/independent-acceptance gates remain BLOCKED.",
+      "next": "Complete actual card-specific host/authorization/independent acceptance; formal dependency gate unchanged. Latest ancestor CI PASS.",
       "branch": "dev/d13",
       "approval": "2026-11-27 user approved A and verified candidate development; no real model or expanded authority",
       "pr": 15,
@@ -534,13 +578,19 @@
           "status": "PASS",
           "tested_commit": "6e2ab4e0673bb9246aa549d93a08488bb365c1d4",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46011167570"
+        },
+        {
+          "name": "Latest non-rewriting ancestor integration four-platform CI",
+          "status": "PASS",
+          "tested_commit": "ebcef29870a2808f7b1f3b90a70e94313faf80d9",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081065621"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "6e2ab4e0673bb9246aa549d93a08488bb365c1d4",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46011167570",
-        "limitations": "Opt-in keyed CLI/MCP only; legacy callers excluded; conservative Git metadata; real host and power loss, cross-store reconciliation and trusted retry approval not independently accepted; no merge."
+        "tested_commit": "ebcef29870a2808f7b1f3b90a70e94313faf80d9",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081065621",
+        "limitations": "Opt-in keyed CLI/MCP only; legacy callers excluded; conservative Git metadata; real host and power loss, cross-store reconciliation and trusted retry approval not independently accepted; no merge. Latest ancestor integration tested; actual formal gate unchanged."
       },
       "observations": [
         {
@@ -561,7 +611,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "D14 EPERM standalone backport PASS 4/4, 36/36 streaming tests; cleanup sync pending",
-      "next": "Validate D14 cumulative follow-up and backport to standalone D14 before formal dependency merge; real host tests deferred.",
+      "next": "Complete actual card-specific host/authorization/independent acceptance; formal dependency gate unchanged. Latest ancestor CI PASS.",
       "branch": "dev/d14",
       "approval": "2026-11-27 user authorized A candidate development; no real model or expanded authority",
       "pr": 16,
@@ -598,21 +648,28 @@
         },
         {
           "name": "D14 append-only raw segment rotation and cross-turn task sequence",
-          "status": "NOT_RUN",
-          "ref": "docs/decisions/D14.md"
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081095418",
+          "tested_commit": "398bddd747686efb2974a39b91d2cd3934b1892c"
         },
         {
           "name": "Corrected worker/helper identity and reaping regression (independent four-platform)",
           "status": "PASS",
           "tested_commit": "4663839632acca8ca226a6d9d2cd929670f535c2",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080043391"
+        },
+        {
+          "name": "Latest non-rewriting ancestor integration four-platform CI",
+          "status": "PASS",
+          "tested_commit": "398bddd747686efb2974a39b91d2cd3934b1892c",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081095418"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "4663839632acca8ca226a6d9d2cd929670f535c2",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080043391",
-        "limitations": "Independent segment/checkpoint/reap regression four PASS; actual host/UI/cancel/escaped descendant evidence remains NOT_RUN; new ancestor integration not yet done."
+        "tested_commit": "398bddd747686efb2974a39b91d2cd3934b1892c",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081095418",
+        "limitations": "256 KiB append-only segments, original total cap, per-task sequence/digest and child reap verified; actual host/UI/cancel/escaped descendants remain NOT_RUN."
       },
       "observations": [
         {
@@ -633,7 +690,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Exact-head four environments PASS; 32/32 migration tests; native DB hash preserved, initial Windows fixture cleanup failure corrected",
-      "next": "Candidate CI passed on exact integrated head; formal host/model/independent-acceptance gates remain BLOCKED.",
+      "next": "Complete actual card-specific host/authorization/independent acceptance; formal dependency gate unchanged. Latest ancestor CI PASS.",
       "branch": "dev/d15",
       "approval": "2026-11-27 user authorized A candidate development; no production migration or native DB writes",
       "pr": 17,
@@ -672,13 +729,19 @@
           "status": "PASS",
           "tested_commit": "cd140bf583c0023d1d2be1970eb3eb248cabf120",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46011814445"
+        },
+        {
+          "name": "Latest non-rewriting ancestor integration four-platform CI",
+          "status": "PASS",
+          "tested_commit": "ca802f6ce0713c166d7a6b78670668bfb9af565b",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081180540"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "cd140bf583c0023d1d2be1970eb3eb248cabf120",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46011814445",
-        "limitations": "D14 ancestry integrated; exact four-platform CI still running; real SQLite host migration/rollback and formal gates remain BLOCKED."
+        "tested_commit": "ca802f6ce0713c166d7a6b78670668bfb9af565b",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081180540",
+        "limitations": "D14 ancestry integrated; exact four-platform CI still running; real SQLite host migration/rollback and formal gates remain BLOCKED. Latest ancestor integration tested; actual formal gate unchanged."
       }
     },
     {
@@ -691,7 +754,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Corrected exact-head four-environment CI PASS; EPERM regression 36/36 streaming, 32/32 cache; benchmark query reduction stable, macOS rerun p95 slight increase",
-      "next": "Candidate CI passed on exact integrated head; formal host/model/independent-acceptance gates remain BLOCKED.",
+      "next": "Complete actual card-specific host/authorization/independent acceptance; formal dependency gate unchanged. Latest ancestor CI PASS.",
       "branch": "dev/d16",
       "approval": "2026-11-27 user authorized A candidate development; display-only, no real model or production data writes",
       "pr": 18,
@@ -730,13 +793,19 @@
           "status": "PASS",
           "tested_commit": "835999d29e106d56ea4b9ee8c35e64c22fcdce60",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46012155925"
+        },
+        {
+          "name": "Latest non-rewriting ancestor integration four-platform CI",
+          "status": "PASS",
+          "tested_commit": "0c9295c515f9d6429da70f195d248887955cc924",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081289893"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "835999d29e106d56ea4b9ee8c35e64c22fcdce60",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46012155925",
-        "limitations": "D15 updated ancestry integrated; exact four-platform CI pending. Actual host display/cache and formal gates remain BLOCKED."
+        "tested_commit": "0c9295c515f9d6429da70f195d248887955cc924",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081289893",
+        "limitations": "D15 updated ancestry integrated; exact four-platform CI pending. Actual host display/cache and formal gates remain BLOCKED. Latest ancestor integration tested; actual formal gate unchanged."
       },
       "observations": [
         {
@@ -758,7 +827,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Integrated exact-head 4-platform cumulative PASS; 44/44 scheduler tests incl abrupt owner death, native MCP bypass denial",
-      "next": "Verify cumulative follow-up; preserve trusted authority/real host gate and backport standalone changes before formal merge.",
+      "next": "Complete actual card-specific host/authorization/independent acceptance; formal dependency gate unchanged. Latest ancestor CI PASS.",
       "branch": "dev/d17",
       "approval": "2026-11-27 user authorized A candidate development; no production worker/model or cleanup authorization",
       "pr": 19,
@@ -794,8 +863,15 @@
         },
         {
           "name": "Unresolved scheduler ticket evidence and hardened offline cleanup preview",
-          "status": "NOT_RUN",
-          "ref": "docs/decisions/D17.md"
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081364385",
+          "tested_commit": "6eccbab87c3ab8e72e4fca132aa22b7c03d9bebf"
+        },
+        {
+          "name": "Latest non-rewriting ancestor integration four-platform CI",
+          "status": "PASS",
+          "tested_commit": "6eccbab87c3ab8e72e4fca132aa22b7c03d9bebf",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081364385"
         }
       ],
       "observations": [
@@ -807,10 +883,10 @@
         }
       ],
       "candidate": {
-        "ready": false,
-        "tested_commit": "5dc22853841b9d8b1df61661962e5f97dcc64bd9",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46012973770",
-        "limitations": "D16 ancestry integrated; D17 ancestry evidence restored; new exact-head CI pending. Real host cancellation/cleanup approval remains BLOCKED. New cumulative read-only evidence follow-up pending CI; no positive authority added."
+        "ready": true,
+        "tested_commit": "6eccbab87c3ab8e72e4fca132aa22b7c03d9bebf",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081364385",
+        "limitations": "Read-only reconciliation packet and hardened bounded cleanup preflight verified; no uncertain slot release or deletion; actual owned exit, quota and trusted authority blocked."
       }
     },
     {
@@ -824,7 +900,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Exact-head 4-platform cumulative PASS; 36/36 state-machine tests and native MCP receipts",
-      "next": "Verify cumulative follow-up; preserve trusted authority/real host gate and backport standalone changes before formal merge.",
+      "next": "Complete actual card-specific host/authorization/independent acceptance; formal dependency gate unchanged. Latest ancestor CI PASS.",
       "branch": "dev/d18",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no real model, permission or merge grant",
       "pr": 20,
@@ -867,15 +943,22 @@
         },
         {
           "name": "Revision-bound independent acceptance preview and tamper refusal",
-          "status": "NOT_RUN",
-          "ref": "docs/decisions/D18.md"
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081453364",
+          "tested_commit": "32b725332c8a163a10f24630d2cc7f61d975c156"
+        },
+        {
+          "name": "Latest non-rewriting ancestor integration four-platform CI",
+          "status": "PASS",
+          "tested_commit": "32b725332c8a163a10f24630d2cc7f61d975c156",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081453364"
         }
       ],
       "candidate": {
-        "ready": false,
-        "tested_commit": "b2eabc3a24c1cb8fae06b249c1c8ed8961f44c7b",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46013467970",
-        "limitations": "Mock subprocesses, real local Git/SQLite and MCP; trusted host acceptance/completed, actual host crash recovery and active cancellation unverified. No automatic merge. New cumulative read-only evidence follow-up pending CI; no positive authority added."
+        "ready": true,
+        "tested_commit": "32b725332c8a163a10f24630d2cc7f61d975c156",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081453364",
+        "limitations": "Revision-bound acceptance preview verified; no positive completed bridge; actual trusted independent review and recovery blocked."
       }
     },
     {
@@ -887,7 +970,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Exact-head four-platform cumulative PASS; 40/40 risk tests incl CRLF and real Git/mock worker integration",
-      "next": "Candidate CI passed on exact integrated head; formal host/model/independent-acceptance gates remain BLOCKED.",
+      "next": "Complete actual card-specific host/authorization/independent acceptance; formal dependency gate unchanged. Latest ancestor CI PASS.",
       "branch": "dev/d19",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no model/permission/merge grant",
       "pr": 21,
@@ -915,6 +998,12 @@
           "status": "PASS",
           "tested_commit": "db7720dbded79acabaf26703e5b92d4eaa1c36a1",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46013882116"
+        },
+        {
+          "name": "Latest non-rewriting ancestor integration four-platform CI",
+          "status": "PASS",
+          "tested_commit": "e691f85b973b8966007111566bc44ac04ae59925",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081540265"
         }
       ],
       "observations": [
@@ -927,9 +1016,9 @@
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "db7720dbded79acabaf26703e5b92d4eaa1c36a1",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46013882116",
-        "limitations": "Actual Git pinned committed pair plus D18 mock worker fixtures; worktree, arbitrary project checks, trusted independent approval and scope compliance not verified. No automatic acceptance/merge."
+        "tested_commit": "e691f85b973b8966007111566bc44ac04ae59925",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081540265",
+        "limitations": "Actual Git pinned committed pair plus D18 mock worker fixtures; worktree, arbitrary project checks, trusted independent approval and scope compliance not verified. No automatic acceptance/merge. Latest ancestor integration tested; actual formal gate unchanged."
       }
     },
     {
@@ -942,7 +1031,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Exact-head four-platform cumulative PASS; 40/40 offline protocol tests; six-read mock reuse benchmark on all four",
-      "next": "Candidate CI passed on exact integrated head; formal host/model/independent-acceptance gates remain BLOCKED.",
+      "next": "Complete actual card-specific host/authorization/independent acceptance; formal dependency gate unchanged. Latest ancestor CI PASS.",
       "branch": "dev/d20",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no real model, permission or merge grant",
       "pr": 22,
@@ -973,15 +1062,22 @@
         },
         {
           "name": "Exact metadata-only outbound RPC envelope regression",
-          "status": "NOT_RUN",
-          "ref": "docs/decisions/D20.md"
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081605196",
+          "tested_commit": "1cdc6431fd839cca7453643b084f76c8a308e2b3"
+        },
+        {
+          "name": "Latest non-rewriting ancestor integration four-platform CI",
+          "status": "PASS",
+          "tested_commit": "1cdc6431fd839cca7453643b084f76c8a308e2b3",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081605196"
         }
       ],
       "candidate": {
-        "ready": false,
-        "tested_commit": "cbbed8ac862546470d0cacc78a282a9ae760141d",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46014172198",
-        "limitations": "Actual mock subprocess transport/reconnect, strict metadata parser, fixture timings only; no native App Server startup, production task routing, actual task/permission/usage parity or native performance verified. CLI stays default; real model and release need separate authorization. Offline capability follow-up pending CI, no live trust root/route or production permission."
+        "ready": true,
+        "tested_commit": "1cdc6431fd839cca7453643b084f76c8a308e2b3",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081605196",
+        "limitations": "Metadata-only App Server RPC verified with mock process; CLI remains default; actual native task/policy/usage parity and routing blocked."
       }
     },
     {
@@ -996,7 +1092,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Exact-head four-platform cumulative PASS; 24/24 summary tests, 48/48 paired batches and 240/240 polls; communication and latency measured, real tokens unknown",
-      "next": "Candidate CI passed on exact integrated head; formal host/model/independent-acceptance gates remain BLOCKED.",
+      "next": "Actual D21 independent paired benchmark and formal dependency acceptance; no real model call until separately authorized.",
       "branch": "dev/d21",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no real model, permission or release grant",
       "pr": 23,
@@ -1024,13 +1120,19 @@
           "status": "PASS",
           "tested_commit": "44b0fbe98dd2470f7095576757d1cbc96f89f947",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46014451284"
+        },
+        {
+          "name": "Latest ancestor integration exact-head CI",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081670903",
+          "tested_commit": "964be9442a9df94e048125bf1903fda44a82517a"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "44b0fbe98dd2470f7095576757d1cbc96f89f947",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46014451284",
-        "limitations": "Same-checkout native MCP synthetic polling comparison only; no historical model workload, actual Codex/Gemini usage, real task quality or production P0 verification. No model calls or release."
+        "tested_commit": "964be9442a9df94e048125bf1903fda44a82517a",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46081670903",
+        "limitations": "Latest four-platform integrated ancestor CI PASS; fixture paired benchmark only, real model/provider usage, quality, workload, successful task, native host and independent review remain NOT_RUN. No production Token or performance claim."
       }
     },
     {
@@ -1041,8 +1143,8 @@
         "D21"
       ],
       "status": "BLOCKED",
-      "evidence": "Exact 007c01e6edfc30ce7f750717e3e0226d878a8af5 strict Run 46035541198 four PASS; 153/153 canonical RC and independent supply-chain replay PASS; BUG-009 CANDIDATE_PASS. Formal closure not granted.",
-      "next": "Finish durable replay evidence CI; reconcile independent backports and actual host blockers; preserve formal gate.",
+      "evidence": "Run 46080539170 exact 8e8a1fc0a7f4fd91efdb413d92b732c58588b8e5 4/4 PASS, 157/157 RC verified, full ancestor chain reconciled. Actual host and formal gates still blocked.",
+      "next": "Final ancestor exact CI, then concentrated local acceptance and independent authority/host gates; no formal merge or release.",
       "branch": "dev/d22",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no formal release, merge, permission or real model grant",
       "pr": 24,
@@ -1214,6 +1316,18 @@
           "status": "PASS",
           "tested_commit": "8dd156c23e8a610e286aacd4f6347ddad61726f5",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080058752"
+        },
+        {
+          "name": "Full cumulative authority replay and 157-file source RC verified",
+          "status": "PASS",
+          "tested_commit": "8e8a1fc0a7f4fd91efdb413d92b732c58588b8e5",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080539170"
+        },
+        {
+          "name": "Independent 157-file RC, local authority 13/13, SBOM replay and supply-chain recheck",
+          "status": "PASS",
+          "tested_commit": "8e8a1fc0a7f4fd91efdb413d92b732c58588b8e5",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080539170"
         }
       ],
       "observations": [
@@ -1279,10 +1393,10 @@
         }
       ],
       "candidate": {
-        "ready": false,
-        "tested_commit": "8dd156c23e8a610e286aacd4f6347ddad61726f5",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080058752",
-        "limitations": "Prior cumulative four PASS, new isolated durable authority receipt replay ledger awaiting exact CI. Actual trusted host and positive authority, host/model, formal dependency acceptance remain blocked."
+        "ready": true,
+        "tested_commit": "8e8a1fc0a7f4fd91efdb413d92b732c58588b8e5",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080539170",
+        "limitations": "Exact source-only 157-file cumulative candidate four PASS and independent RC/audit/replay PASS. Final ancestor integration changes earlier workflows/governance only, exact recheck pending. Actual host/authority/model/positive transitions/formal dependencies/release blocked."
       }
     }
   ],

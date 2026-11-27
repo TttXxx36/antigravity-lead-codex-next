@@ -25,7 +25,7 @@ W=真实 Windows x64/桌面；H=实际宿主/系统边界；A=另行授权（真
 | D11 | H/A | 真实会话连续性、断线重连、checkpoint 完整性及实际 Token |
 | D12 | H/A | provider usage 字段语义、模型/effort/cache、预算与真实基准；未知用量不得伪造 |
 | D13 | H/A | 跨 store reconciliation、实际掉电、可信新请求授权、Git 指纹限制 |
-| D14 | W/H/E | UI push/reconnect、活动取消、逃逸后代；新增 append-only 256 KiB 原始日志分段及 taskSeq 跨轮序号候选待 CI；旧版升级 epoch 单独标识，仍有总字节上限，真实 UI/重连须实测 |
+| D14 | W/H/E | UI push/reconnect、活动取消、逃逸后代；append-only 256 KiB 原始日志分段及 taskSeq 跨轮序号累计和独立 CI PASS；旧版升级 epoch 单独标识，仍有总字节上限，真实 UI/重连须实测 |
 | D15 | W/H | 仅插件自有 SQLite，宿主停止后的迁移/恢复激活、掉电、旧版兼容；禁止生产库试验 |
 | D16 | W/H | 真实浏览器及旧宿主 UI、物理 I/O、可比较 p95 |
 | D17 | W/H/A/E | 实际调度/活动取消/逃逸后代和可信 quota；不自动回收不确定 slot；scheduler-reconcile-preview 导出绑定票据证据，cleanup 使用有界离线 Git 检查，可信回收/删除仍待宿主授权 |
@@ -41,7 +41,7 @@ W=真实 Windows x64/桌面；H=实际宿主/系统边界；A=另行授权（真
 2. 运行 pwsh -NoProfile -File tests/test-install-windows.ps1（已准备依赖，native mock，合成状态）。按 D05 清单在隔离 profile 做真实 install All、doctor、upgrade/restore、uninstall/reinstall、Unicode/缺依赖/故障回滚，验证合成 sentinel 及恢复。实际 MCP 握手只 initialize/list/read-only smoke，不调用真实 worker、quota 或用户数据。
 3. 在累计候选运行只读 UI、状态、缓存、协议及插件自有 SQLite 隔离 fixture 场景。故障、取消、掉电仅隔离测试任务；未取得真实模型/可信权限许可的项目保持 NOT_RUN/BLOCKED。不执行实际 worktree cleanup。
 4. 汇总证据：卡 ID / 精确 commit / 环境 / 命令和退出码 / 测试数据类型 / 脱敏结果 / 备份恢复 / 观察限制。不上传数据库、私人路径或凭据。
-5. 正式合并依赖顺序不变。每个实际待合并 head 重核前置 DONE、必要 checks、真实证据、权限和回滚，D05→D21 受控合并后才 DONE。D22 保持 Draft，正式合并及发布需明确批准。最新 D05 文档祖先变更须在正式依赖阶段按非重写方式协调，不重复整栈开发。
+5. 正式合并依赖顺序不变。每个实际待合并 head 重核前置 DONE、必要 checks、真实证据、权限和回滚，D05→D21 受控合并后才 DONE。D22 保持 Draft，正式合并及发布需明确批准。D05–D21 新祖先链已按非重写方式协调；D22 最终祖先提交仅改两项早期工作流和治理证据，需精确 head 复核。正式依赖门槛不变。
 
 | 卡/门槛 | 精确 SHA / 环境 | 状态 | 命令 / 退出码 / 脱敏证据 | 恢复结果 |
 |---|---|---|---|---|
@@ -53,3 +53,7 @@ W=真实 Windows x64/桌面；H=实际宿主/系统边界；A=另行授权（真
 
 ### D06 durable replay evidence (offline candidate)
 专用隔离 SQLite receipt ledger：签名、范围、时效与 nonce 唯一性在事务内核验，持久拒绝重放；未接入任何生产权限动作。真实可信签发密钥、受保护目录及可信时钟、执行状态事务/回滚边界必须由宿主独立证明。禁止用模拟凭证替代授权。
+
+
+## 2026-11-28 已验证的累计测试源
+`8e8a1fc0a7f4fd91efdb413d92b732c58588b8e5`，Run 46080539170 四环境 PASS，源码 RC 157 文件完整性独立 PASS。D06 防重放 ledger 实际跨进程测试通过，但真实可信宿主签发与执行事务未配置。D14/17/18/20 的离线证据与边界修复已回移独立卡；当前仍有 W/H/A/E/F 项，不能把全部方案标 DONE。若仅执行安全隔离的实机预检/握手，使用精确已验证源；真实模型及生产授权动作保持 NOT_RUN。
