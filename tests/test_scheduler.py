@@ -153,4 +153,64 @@ class SchedulerTests(unittest.TestCase):
         self.assertIn("unmerged_or_unknown_commits",result["blockers"])
         self.assertTrue((wt/"dirty.txt").is_file());self.assertTrue((wt/"new.txt").is_file())
         self.assertEqual(self.git(wt,"symbolic-ref","--short","HEAD"),"agy-worker/task-1")
+
+    def test_real_keyed_run_resume_sqlite_and_duplicate_slot(self):
+        # Migrate an empty disposable legacy store before enabling scheduler.
+        with d.locked_state() as state:state["rr_counter"]=0
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(d.cmd_state_storage(d.build_parser().parse_args(["state-migrate","--confirm-quiescent"])),0)
+        original=d.streamed_subprocess
+        launched=[]
+        def boundary(cmd,**kw):
+            with d.locked_state() as state:
+                active=[x for x in d.scheduler_registry(state)["tickets"].values() if x["status"]=="active"]
+                self.assertEqual(len(active),1)
+                self.assertEqual(active[0]["task_id"],"task-x")
+            launched.append(kw["turn_id"])
+            return original([sys.executable,"-I",str(ROOT/"tests/mock_codex.py"),*cmd[1:]],**kw,
+                env=dict(os.environ,ALC_MOCK_USAGE="fixture",ALC_MOCK_CASE="B01"))
+        def envelope(rev):
+            return json.dumps(dict(version=2,task_id="task-x",rev=rev,base_rev=rev-1,goal="fix",
+                scope=["answer.txt"],accept=["test"],delta="" if rev==1 else "next"))
+        run=["run","--task-id","task-x","--request-id","req-x1","--protocol-v2","--stream-events",
+             "--cwd",str(self.work),"--isolation","inplace","--model","mock-model","--effort","low","--max-tokens","100","--prompt",envelope(1)]
+        resume=["resume","--task-id","task-x","--request-id","req-x2","--protocol-v2",
+                "--model","mock-model","--effort","low","--prompt",envelope(2)]
+        with patch.object(d,"get_codex_bin",return_value="D17_MOCK_ONLY"), \
+             patch.object(d,"resolve_model_and_effort",return_value=dict(model="mock-model",effort="low",effective_difficulty="low")), \
+             patch.object(d,"streamed_subprocess",side_effect=boundary):
+            for args,handler in ((run,d.cmd_run),(run,d.cmd_run),(resume,d.cmd_resume),(resume,d.cmd_resume)):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(d.guarded_dispatch(d.build_parser().parse_args(args),handler),0)
+        self.assertEqual(len(launched),2)
+        with d.locked_state() as state:
+            tickets=list(d.scheduler_registry(state)["tickets"].values())
+            self.assertEqual([(x["kind"],x["status"]) for x in sorted(tickets,key=lambda x:x["seq"])],[("run","released"),("resume","released")])
+            self.assertEqual(state["tasks"]["task-x"]["usage_store"]["known_sums"]["total_tokens"],30)
+            self.assertEqual(state["tasks"]["task-x"]["protocol_rev"],2)
+    def test_clean_merged_worktree_still_needs_trusted_approval(self):
+        self.init_repo(self.work)
+        d.ensure_state_dirs()
+        wt=d.WORKTREES_DIR/"repo"/"task-1";wt.parent.mkdir()
+        self.git(self.work,"worktree","add","-b","agy-worker/task-1",str(wt))
+        with d.locked_state() as state:
+            state["tasks"]["task-1"]={"task_id":"task-1","status":"completed","repo_root":str(self.work),
+                "worktree_path":str(wt),"branch":"agy-worker/task-1","verification_status":"passed","verification_passed":True}
+        args=d.build_parser().parse_args(["cleanup","--task-id","task-1"])
+        with patch.object(d,"remove_worktree") as remove,contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(d.cmd_cleanup(args),0)
+        remove.assert_not_called();result=json.loads(out.getvalue())
+        self.assertEqual(result["blockers"],["trusted_human_cleanup_approval_required"])
+        self.assertTrue(wt.is_dir());self.assertTrue((wt/"a.txt").is_file())
+    def test_stale_quota_and_untracked_activation_fail_closed(self):
+        cfg=json.loads((self.root/"scheduler.json").read_text())
+        cfg["quota"]["observed_at"]=int(time.time())-301
+        d.atomic_write_bytes(self.root/"scheduler.json",json.dumps(cfg).encode())
+        scope=d.scheduler_scope(self.work)
+        self.assertEqual(d.scheduler_capacity(d.scheduler_config(),scope)[:2],(1,"unknown"))
+        with d.locked_state() as state:state["tasks"]["legacy"]={"task_id":"legacy","status":"running"}
+        with self.assertRaisesRegex(d.StateIntegrityError,"legacy work"):
+            with d.scheduler_admission("run","a",self.work):self.fail("admitted")
+        self.assertFalse((self.root/"scheduler.ever").exists())
+
 if __name__=="__main__":unittest.main()

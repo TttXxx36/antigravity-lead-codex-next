@@ -599,18 +599,26 @@
         "D16"
       ],
       "status": "IN_PROGRESS",
-      "evidence": "Persistent FIFO scheduler candidate with local quota/disk gating, same-repo conflicts, batch dependency validation and read-only cleanup preview; CI pending",
-      "next": "Verify actual cross-process scheduler regressions, four-environment cumulative CI; actual host/active cancel and trusted cleanup remain blocked",
+      "evidence": "Initial Run 45982548344 macOS/Windows path alias cleanup regression FAIL; corrected configured-root canonicalization, scope recheck, actual keyed streaming SQLite run/resume test; latest CI pending",
+      "next": "Verify corrected exact-head cumulative CI, native direct fork denial, cleanup preservation and slot lifecycle; actual host/active cancellation remain blocked",
       "branch": "dev/d17",
       "approval": "2026-11-27 user authorized A candidate development; no production worker/model or cleanup authorization",
-      "pr": null,
+      "pr": 19,
       "accepted": false,
       "merged": false,
       "checks": [
         {
-          "name": "D17 scheduler and cumulative regression",
+          "name": "D17 corrected scheduler and cumulative regression",
           "status": "NOT_RUN",
-          "ref": "pending CI"
+          "ref": "latest head CI pending"
+        }
+      ],
+      "observations": [
+        {
+          "name": "Cleanup canonical path alias rejected legitimate managed fixture",
+          "status": "FAIL",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45982548344",
+          "tested_commit": "0e3d61d5813b203e0cb7473304f98c9b2bad5afb"
         }
       ]
     },

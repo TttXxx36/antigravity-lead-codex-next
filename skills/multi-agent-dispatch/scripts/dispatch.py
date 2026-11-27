@@ -2258,7 +2258,7 @@ def scheduler_config():
     if len(raw)>4096:
         raise StateIntegrityError("D17: scheduler config too large")
     value = strict_state_json(raw)
-    if not isinstance(value,dict) or set(value)!={"version","max_slots","max_wait_seconds","min_free_bytes","quota"} or value["version"]!=1:
+    if not isinstance(value,dict) or set(value)!={"version","max_slots","max_wait_seconds","min_free_bytes","quota"} or type(value["version"]) is not int or value["version"]!=1:
         raise StateIntegrityError("D17: incompatible scheduler config")
     if (type(value["max_slots"]) is not int or not 1<=value["max_slots"]<=4
         or type(value["max_wait_seconds"]) is not int or not 1<=value["max_wait_seconds"]<=300
@@ -2334,7 +2334,7 @@ def scheduler_conflict(a,b):
     x,y=a["scope"],b["scope"]
     if x["unknown"] or y["unknown"]:
         return True
-    norm=lambda p:os.path.normcase(os.path.normpath(p))
+    norm=lambda p:os.path.normcase(os.path.normpath(p)).casefold()
     if x["common"] and y["common"] and norm(x["common"])==norm(y["common"]):
         return True
     try:
@@ -2457,7 +2457,7 @@ def scheduler_admission(kind,task_id,cwd):
                         decision="active"
                     if decision=="wait" and rec.get("reason")!=reason:
                         rec.update(reason=reason,updated_at=utc_now())
-                    telemetry={"quota":quota,"free_bytes":free,"effective_cap":cap}
+                    telemetry={"quota":quota,"free_bytes_floor_mib":None if free is None else free//1048576*1048576,"effective_cap":cap}
                     if rec.get("resources")!=telemetry:
                         rec["resources"]=telemetry
             if decision=="cancelled":
@@ -2465,6 +2465,10 @@ def scheduler_admission(kind,task_id,cwd):
             if decision=="active":
                 break
             time.sleep(.15)
+        if scheduler_scope(cwd)!=scope:
+            # No child launched; this ticket can safely release its slot.
+            lease["settled"]=True
+            raise StateIntegrityError("D17: queued workspace identity changed")
         yield lease
     finally:
         scheduler_settle(ticket,lease["settled"])
@@ -2509,7 +2513,7 @@ def execute_single_task(**kwargs):
     with scheduler_admission("run",tid,kwargs["cwd"]) as lease:
         result=_execute_single_task(**kwargs)
         if lease is not None:
-            lease["settled"]=scheduler_known_terminal(result)
+            lease["settled"]=scheduler_known_terminal(result) and not (kwargs.get("stream_events") and result.get("exit_code") in (124,125,127))
         return result
 
 
@@ -3627,7 +3631,11 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
             rel=path.relative_to(WORKTREES_DIR)
             if len(rel.parts)!=2 or rel.parts[-1]!=args.task_id or bounded_child(WORKTREES_DIR,*rel.parts)!=path or branch!=f"agy-worker/{args.task_id}":
                 raise ValueError("unexpected path")
-            if not path.is_dir() or path.resolve()!=path:
+            # Canonical configured root may have an OS-provided alias (macOS
+            # /var -> /private/var, Windows short names). bounded_child above
+            # still rejects every linked component under that configured root.
+            expected=WORKTREES_DIR.resolve().joinpath(*rel.parts)
+            if not path.is_dir() or path.resolve(strict=True)!=expected:
                 raise ValueError("invalid worktree")
             git=get_git_bin()
             if not git:raise ValueError("git missing")
@@ -3636,7 +3644,7 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
                                       env={**os.environ,"GIT_OPTIONAL_LOCKS":"0","LC_ALL":"C"})
             current=probe(path,"symbolic-ref","--short","HEAD")
             top=probe(path,"rev-parse","--show-toplevel")
-            if current.returncode or current.stdout.decode("utf-8").strip()!=branch or top.returncode or Path(top.stdout.decode("utf-8").strip()).resolve()!=path:
+            if current.returncode or current.stdout.decode("utf-8").strip()!=branch or top.returncode or Path(top.stdout.decode("utf-8").strip()).resolve()!=expected:
                 reasons.append("worktree_identity_mismatch")
             dirty=probe(path,"status","--porcelain=v1","-z","--untracked-files=all","--ignored=matching")
             if dirty.returncode or dirty.stdout:
