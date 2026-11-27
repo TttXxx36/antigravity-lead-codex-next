@@ -22,7 +22,8 @@ from unittest.mock import patch
 import uuid
 from run_benchmark import DISPATCH, MOCK, SUITE, isolated_env, init_git, summarize
 
-SOURCE = '2057553f544c0ef605eb2c9ad8ae0f8fb59df84a'
+BASELINE_SOURCE = '2057553f544c0ef605eb2c9ad8ae0f8fb59df84a'
+SOURCE = '512528b48df454313abec9ee422a21c4bd8ca8e8'
 PARTS = ('71ceae90ea5a4b5df6079813533ae123eba7f7d3', '954c03bf4c26766cd5fde98df0985b5e70b4778c', 'd3cd17225d860441aa1b8ac10b021b699e9d1808')
 
 
@@ -34,7 +35,7 @@ def load(home, excerpts):
     if excerpts is None:
         raw = DISPATCH.read_bytes()
         if SOURCE not in (blob(raw), blob(raw.replace(b'\r\n', b'\n'))):
-            raise ValueError('dispatcher differs from pinned baseline')
+            raise ValueError('dispatcher differs from pinned repair candidate')
         spec = importlib.util.spec_from_file_location('d01_contract', DISPATCH)
         d = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(d)
@@ -155,7 +156,7 @@ def main():
         obs = observations(args.excerpt_dir)
     except (FileNotFoundError, ImportError, ValueError) as exc:
         obs = dict(status='NOT_RUN', detail=type(exc).__name__)
-    result = dict(mode='verified-excerpts' if args.excerpt_dir else 'full-module-fixed-routing', baseline_commit=SUITE['baseline_commit'], upstream_source_blob=SOURCE, excerpt_blobs=list(PARTS) if args.excerpt_dir else [], platform=platform.system(), python=platform.python_version(), repeat=args.repeat, samples=rows, groups=groups, baseline_observations=obs, mock_processes=sum(r.get('mock_processes', 0) for r in rows), real_model_calls=0)
+    result = dict(mode='verified-excerpts' if args.excerpt_dir else 'candidate-full-module-fixed-routing', baseline_commit=SUITE['baseline_commit'], upstream_source_blob=BASELINE_SOURCE, tested_source_blob=BASELINE_SOURCE if args.excerpt_dir else SOURCE, excerpt_blobs=list(PARTS) if args.excerpt_dir else [], platform=platform.system(), python=platform.python_version(), repeat=args.repeat, samples=rows, groups=groups, baseline_observations=obs, mock_processes=sum(r.get('mock_processes', 0) for r in rows), real_model_calls=0)
     args.output.parent.mkdir(parents=True, exist_ok=True); args.output.write_text(json.dumps(result, indent=2)+'\n', encoding='utf-8')
     print(json.dumps({k:result[k] for k in ('mode','groups','baseline_observations','mock_processes','real_model_calls')}, indent=2))
     return 1 if any(r['status']!='PASS' for r in rows) else 0

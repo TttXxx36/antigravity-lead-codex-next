@@ -74,7 +74,7 @@ export function buildExecEnv() {
   const curPath = process.env.PATH || '';
   return {
     ...process.env,
-    PATH: `${extraPaths.join(':')}:${curPath}`,
+    PATH: [...extraPaths, curPath].filter(Boolean).join(path.delimiter),
   };
 }
 

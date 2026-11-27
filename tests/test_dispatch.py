@@ -1,4 +1,6 @@
 import importlib.util
+import os
+import shlex
 import pathlib
 import unittest
 
@@ -102,7 +104,9 @@ class DispatchAndHookTests(unittest.TestCase):
             )
 
     def test_hook_gates_network_dispatch_and_forbids_danger_mode(self):
-        script = self.hook.DISPATCH_SCRIPT
+        script = shlex.quote(self.hook.DISPATCH_SCRIPT)
+        offline_expected = "ask" if os.name == "nt" else "allow"
+        network_expected = "ask" if os.name == "nt" else "force_ask"
 
         offline = self.hook.evaluate_hook(
             {
@@ -112,7 +116,7 @@ class DispatchAndHookTests(unittest.TestCase):
                 }
             }
         )
-        self.assertEqual(offline["decision"], "allow")
+        self.assertEqual(offline["decision"], offline_expected)
 
         networked = self.hook.evaluate_hook(
             {
@@ -122,7 +126,7 @@ class DispatchAndHookTests(unittest.TestCase):
                 }
             }
         )
-        self.assertEqual(networked["decision"], "force_ask")
+        self.assertEqual(networked["decision"], network_expected)
         self.assertFalse(self.hook.is_pure_dispatch_command(f'python3 {script} run --network --prompt "x"'))
 
         danger = self.hook.evaluate_hook(

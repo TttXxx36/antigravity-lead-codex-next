@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, '..');
-const LAUNCHER = path.join(ROOT, 'plugins', 'codex-console', 'bin', 'run-server.sh');
+const SERVER = path.join(ROOT, 'plugins', 'codex-console', 'server', 'index.mjs');
 
 function createSyntheticCodexHome(codexHome, dispatchDir) {
   fs.mkdirSync(codexHome, { recursive: true });
@@ -229,17 +229,28 @@ async function runTests() {
   const dispatchDir = path.join(tmpRoot, 'dispatch-state');
   const pluginData = path.join(tmpRoot, 'plugin-data');
 
+  let child;
+  let closed;
   try {
     createSyntheticCodexHome(codexHome, dispatchDir);
-
-    const child = spawn('bash', [LAUNCHER, '--data-dir', pluginData], {
+    const allowed = ['PATH', 'Path', 'SystemRoot', 'WINDIR', 'COMSPEC', 'PATHEXT', 'TEMP', 'TMP'];
+    const env = Object.fromEntries(allowed.filter(k => process.env[k] !== undefined).map(k => [k, process.env[k]]));
+    // Use a native Node executable, not Bash, on all platforms. Quota probes
+    // target Node in the empty synthetic directory, never a real Codex CLI.
+    child = spawn(process.execPath, ['--no-warnings', SERVER, '--data-dir', pluginData], {
+      cwd: tmpRoot,
       env: {
-        ...process.env,
+        ...env, HOME: tmpRoot, USERPROFILE: tmpRoot,
+        CODEX_BIN: process.execPath,
         CODEX_HOME: codexHome,
         AGY_DISPATCH_STATE_DIR: dispatchDir,
+        GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: os.devNull, GIT_TERMINAL_PROMPT: '0',
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
+    closed = new Promise(resolve => child.once('close', resolve));
+    child.on('error', () => {});
+    child.stdout.setEncoding('utf8');
 
     let buf = '';
     const pending = new Map();
@@ -366,10 +377,16 @@ async function runTests() {
     assert.equal(listBindings.length, 1);
     await rpc('tools/call', { name: 'manage_collab_binding', arguments: { action: 'delete', id: bindingId } });
 
-    child.kill();
     console.log('[PASS] All MCP Codex Console integration tests passed.');
   } finally {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    if (child) {
+      child.kill();
+      let timer;
+      try {
+        await Promise.race([closed, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('MCP shutdown timeout')), 5000); })]);
+      } finally { clearTimeout(timer); }
+    }
+    fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 }
 

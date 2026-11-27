@@ -12,18 +12,24 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import fcntl
+import errno
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 SCHEMA_PATH = SKILL_DIR / "resources" / "report_schema.json"
@@ -136,34 +142,64 @@ def ensure_state_dirs() -> None:
 
 
 @contextlib.contextmanager
-def locked_state() -> Iterator[dict[str, Any]]:
-    """Load state.json under an exclusive flock and persist any mutations on exit."""
-    ensure_state_dirs()
-    with open(LOCK_FILE, "a+", encoding="utf-8") as lock_fh:
-        fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX)
-        try:
-            if STATE_FILE.exists():
+def exclusive_state_lock(lock_path: Path, timeout: float = 30.0) -> Iterator[None]:
+    """Hold an OS-backed interprocess lock on a persistent lock file.
+
+    Windows locks byte zero (a range may extend beyond EOF). Never truncate or
+    replace the lock file, and release only a lock that was acquired.
+    """
+    with lock_path.open("a+b") as lock_fh:
+        if os.name == "nt":
+            deadline = time.monotonic() + timeout
+            while True:
+                lock_fh.seek(0)
                 try:
-                    data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
-                except json.JSONDecodeError:
-                    data = {}
-            else:
+                    msvcrt.locking(lock_fh.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError as exc:
+                    if exc.errno not in (errno.EACCES, errno.EAGAIN, errno.EDEADLK) and getattr(exc, "winerror", None) not in (33, 36):
+                        raise
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("Timed out acquiring dispatcher state lock") from exc
+                    time.sleep(0.05)
+            try:
+                yield
+            finally:
+                lock_fh.seek(0)
+                msvcrt.locking(lock_fh.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_fh.fileno(), fcntl.LOCK_UN)
+
+
+@contextlib.contextmanager
+def locked_state() -> Iterator[dict[str, Any]]:
+    """Load and persist state.json while holding the cross-platform lock."""
+    ensure_state_dirs()
+    with exclusive_state_lock(LOCK_FILE):
+        if STATE_FILE.exists():
+            try:
+                data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
                 data = {}
-            if not isinstance(data, dict):
-                data = {}
-            data.setdefault("rr_counter", 0)
-            data.setdefault("tasks", {})
-            snapshot = json.dumps(data, sort_keys=True)
-            yield data
-            if json.dumps(data, sort_keys=True) != snapshot or not STATE_FILE.exists():
-                tmp_path = STATE_FILE.with_suffix(".json.tmp")
-                tmp_path.write_text(
-                    json.dumps(data, ensure_ascii=False, indent=2) + "\n",
-                    encoding="utf-8",
-                )
-                tmp_path.replace(STATE_FILE)
-        finally:
-            fcntl.flock(lock_fh.fileno(), fcntl.LOCK_UN)
+        else:
+            data = {}
+        if not isinstance(data, dict):
+            data = {}
+        data.setdefault("rr_counter", 0)
+        data.setdefault("tasks", {})
+        snapshot = json.dumps(data, sort_keys=True)
+        yield data
+        if json.dumps(data, sort_keys=True) != snapshot or not STATE_FILE.exists():
+            tmp_path = STATE_FILE.with_suffix(".json.tmp")
+            tmp_path.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            tmp_path.replace(STATE_FILE)
 
 
 def find_binary(name: str, fallbacks: tuple[str, ...] = ()) -> str | None:
@@ -250,7 +286,7 @@ def get_git_bin() -> str | None:
 
 def probe_version(cmd: list[str]) -> str | None:
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=10)
     except (OSError, subprocess.SubprocessError):
         return None
     output = (proc.stdout or proc.stderr or "").strip()
@@ -585,7 +621,7 @@ def inspect_git(workdir: Path) -> dict[str, Any]:
     top = subprocess.run(
         [git_bin, "-C", str(workdir), "rev-parse", "--show-toplevel"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     if top.returncode != 0:
         return {"is_git_repo": False, "repo_root": None, "head_sha": None, "branch": None}
@@ -594,14 +630,14 @@ def inspect_git(workdir: Path) -> dict[str, Any]:
     head = subprocess.run(
         [git_bin, "-C", str(repo_root), "rev-parse", "--verify", "HEAD"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     head_sha = head.stdout.strip() if head.returncode == 0 else None
 
     branch_proc = subprocess.run(
         [git_bin, "-C", str(repo_root), "rev-parse", "--abbrev-ref", "HEAD"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     branch = branch_proc.stdout.strip() if branch_proc.returncode == 0 else None
     return {
@@ -649,7 +685,7 @@ def create_worktree(repo_root: str, task_id: str, base_sha: str) -> tuple[Path, 
     proc = subprocess.run(
         [git_bin, "-C", repo_root, "worktree", "add", "-b", branch_name, str(wt_path), base_sha],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     if proc.returncode != 0:
         raise RuntimeError(
@@ -676,7 +712,7 @@ def remove_worktree(
         if force:
             cmd.append("--force")
         cmd.append(worktree_path)
-        proc = subprocess.run(cmd, capture_output=True, text=True)
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
         if proc.returncode != 0:
             raise RuntimeError(
                 f"git worktree remove failed: {(proc.stderr or proc.stdout).strip()}"
@@ -684,7 +720,7 @@ def remove_worktree(
         details["worktree_removed"] = True
         details["messages"].append(f"Removed worktree {worktree_path}")
     else:
-        subprocess.run([git_bin, "-C", repo_root, "worktree", "prune"], capture_output=True, text=True)
+        subprocess.run([git_bin, "-C", repo_root, "worktree", "prune"], capture_output=True, text=True, encoding="utf-8")
         details["messages"].append("Worktree directory already absent; ran git worktree prune")
 
     if delete_branch and branch_name:
@@ -692,7 +728,7 @@ def remove_worktree(
         proc = subprocess.run(
             [git_bin, "-C", repo_root, "branch", flag, branch_name],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         if proc.returncode != 0:
             details["messages"].append(
@@ -722,7 +758,7 @@ def collect_git_truth(workdir: Path, base_sha: str | None) -> dict[str, Any]:
     check = subprocess.run(
         [git_bin, "-C", str(workdir), "rev-parse", "--is-inside-work-tree"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     if check.returncode != 0:
         return {"is_git": False}
@@ -730,19 +766,19 @@ def collect_git_truth(workdir: Path, base_sha: str | None) -> dict[str, Any]:
     status_proc = subprocess.run(
         [git_bin, "-C", str(workdir), "status", "--short"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     head_proc = subprocess.run(
         [git_bin, "-C", str(workdir), "rev-parse", "HEAD"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     current_sha = head_proc.stdout.strip() if head_proc.returncode == 0 else None
 
     diff_cmd = [git_bin, "-C", str(workdir), "diff", "--stat"]
     if base_sha:
         diff_cmd.append(base_sha)
-    diff_proc = subprocess.run(diff_cmd, capture_output=True, text=True)
+    diff_proc = subprocess.run(diff_cmd, capture_output=True, text=True, encoding="utf-8")
 
     return {
         "is_git": True,
@@ -998,7 +1034,7 @@ def run_subprocess_with_timeout(
             input=stdin_text,
             env=env,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=timeout,
         )
         return proc.returncode, proc.stdout, proc.stderr, False
