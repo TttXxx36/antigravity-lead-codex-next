@@ -606,9 +606,9 @@
         "D15",
         "D16"
       ],
-      "status": "IN_PROGRESS",
-      "evidence": "D17 pre-integration exact-head Run 45982783750 all 4 PASS, 40/40; integrate corrected D16 and abrupt-owner-death regression; latest exact-head CI pending",
-      "next": "Verify integrated head cumulative CI; actual host/active cancellation/cleanup approval remain blocked",
+      "status": "BLOCKED",
+      "evidence": "Integrated exact-head 4-platform cumulative PASS; 44/44 scheduler tests incl abrupt owner death, native MCP bypass denial",
+      "next": "D18 candidate permitted; real host, live cancellation, trusted cleanup and dependency formal acceptance blocked",
       "branch": "dev/d17",
       "approval": "2026-11-27 user authorized A candidate development; no production worker/model or cleanup authorization",
       "pr": 19,
@@ -616,15 +616,15 @@
       "merged": false,
       "checks": [
         {
-          "name": "D17 pre-integration scheduler and cumulative CI",
+          "name": "D17 integrated scheduler and cumulative CI",
           "status": "PASS",
-          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45982783750",
-          "tested_commit": "09b16b6803e58eb8275c22ad1b9a6b31d1c03fdf"
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45983586382",
+          "tested_commit": "838787ad94f2cbadb00cb222a21aa1b5a720b9e5"
         },
         {
-          "name": "D17 integrated corrected base cumulative regression",
-          "status": "NOT_RUN",
-          "ref": "Latest integrated CI pending"
+          "name": "Actual host scheduler, cancellation and trusted cleanup",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D17-scheduler.md"
         }
       ],
       "observations": [
@@ -634,7 +634,13 @@
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45982548344",
           "tested_commit": "0e3d61d5813b203e0cb7473304f98c9b2bad5afb"
         }
-      ]
+      ],
+      "candidate": {
+        "ready": true,
+        "tested_commit": "838787ad94f2cbadb00cb222a21aa1b5a720b9e5",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45983586382",
+        "limitations": "Real subprocess/Git/SQLite mock fixtures; actual Antigravity host, live cancellation/escaped descendant reconciliation, trusted quota/cleanup approval and dependencies unverified; cleanup preview only."
+      }
     },
     {
       "id": "D18",

@@ -23,7 +23,7 @@
 | [D14](decisions/D14.md) 实时流式执行与事件总线 | V1.3 | D07,D13 | BLOCKED | PR #16 四环境 PASS；真实宿主/完整日志轮换未验收；D15 可继续 |
 | [D15](decisions/D15.md) SQLite 任务状态迁移 | V1.3 | D04,D14 | BLOCKED | PR #17 四环境 PASS；真实宿主迁移/恢复及依赖验收阻塞；D16 可继续 |
 | [D16](decisions/D16.md) MCP 查询缓存与 UI 增量刷新 | V1.3 | D14,D15 | BLOCKED | PR #18 四环境 PASS；UI 构建/性能证据已补齐；真实宿主及物理 I/O 未验收；D17 可继续 |
-| [D17](decisions/D17.md) 动态并发与 Worktree 资源治理 | V1.3 | D14,D15,D16 | IN_PROGRESS | D17 持久队列/依赖/清理预检候选；CI 待验证 |
+| [D17](decisions/D17.md) 动态并发与 Worktree 资源治理 | V1.3 | D14,D15,D16 | BLOCKED | PR #19 集成四环境 PASS；真实宿主、取消及可信清理未验收；D18 可继续 |
 | [D18](decisions/D18.md) 确定性编排状态机 | V2.0 | D13,D15,D17 | PROPOSED | 未实施；显式状态机、lease/revision、审计、恢复防重复 |
 | [D19](decisions/D19.md) 风险驱动审查与验收 | V2.0 | D18 | PROPOSED | 未实施；风险分级、确定性检查、安全/并发/迁移必审 |
 | [D20](decisions/D20.md) 常驻 Codex App Server 可选适配 | V2.0 | D18,D19 | PROPOSED | 未实施；官方能力协商、CLI 兜底、权限对等、复用/断线测试 |
@@ -181,3 +181,7 @@ Run 45982938825 (https://github.com/TttXxx36/antigravity-lead-codex-next/actions
 
 ## D17 corrected-base integration
 Pre-integration Run 45982783750 completed/success exact head 09b16b6803e58eb8275c22ad1b9a6b31d1c03fdf; 10/10 D17 tests each (40/40), native MCP direct fork blocked, all four environments cumulative and governance PASS (jobs 140450659395 Ubuntu, 140450659817 Windows 11 ARM64, 140450659900 Windows Server x64, 140450662889 macOS). D16 corrected exact-head Run 45982938825 completed/success, candidate restored; synchronize base ffa9c4e6312d3b034d306ec3a4907cf0f1fdc870 via two-parent candidate integration commit only, not formal merge or main change. Include D16 owned-process exit-race fix/test, latest ledger and evidence; add actual abrupt owner process death test (no automatic slot reclamation, queue cancellation without launch). D17 remains IN_PROGRESS until integrated exact-head recheck. Scope only managed local processes; real host/active cancel reconciliation, actual quota source and trusted cleanup approval unverified; scheduler config is advisory and sticky offline rollback, cleanup preview only. No real models or production mutations.
+
+
+## D17 integrated candidate verification
+Run 45983586382 completed/success, exact source 838787ad94f2cbadb00cb222a21aa1b5a720b9e5, four actual runner logs verified (Windows 11 ARM64 140453373472, Ubuntu 140453373960, macOS ARM64 140453373967, Windows Server x64 140453374144). 11/11 scheduler tests each (44/44), abrupt owner death retains slot, FIFO, low/unknown quota, disk pressure, dependency blocking, canonical same-repo conflicts, clean/dirty worktree no-delete, D13/D14/D15 actual mock run/resume and MCP direct fork denial all PASS. D16 process exit regression and cumulative governance PASS. D16 evidence head ffa9c4e6312d3b034d306ec3a4907cf0f1fdc870 Run 45983418330 all four PASS. Historical D17 alias failure 45982548344 retained. Formal BLOCKED: actual host scheduler, live cancellation and escaped-child reconciliation, advisory quota provenance, trusted cleanup approval and predecessor acceptance unverified. Cleanup preview only; no automatic slot reclamation. Candidate ready for D18 under existing development authorization, no formal merge. Evidence-only head recheck required.
