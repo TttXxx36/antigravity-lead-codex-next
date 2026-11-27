@@ -3248,6 +3248,13 @@ def orchestrator_command(args):
                     or task.get("status")!="failed" or task.get("process_status")!="failed"
                     or task.get("protocol_rev")!=e["protocol_rev"] or task.get("result_ref")!=e["result_ref"]):
                     raise StateIntegrityError("D18: failed request receipt not current")
+                # Do not queue a retry that D13 would already refuse. The
+                # authoritative launch gate still repeats these checks.
+                workers=sorted((op for op in request_records(state).values()
+                    if op["task_id"]==tid and op["kind"] in ("run","resume")),key=lambda op:op["ordinal"])
+                if (not workers or workers[-1] is not old or old.get("stagnant",0)>=2
+                    or (len(workers)>=2 and old.get("failure") is not None and workers[-2].get("failure")==old["failure"])):
+                    raise ValueError("D18: repeated failure or no progress; independent review required")
                 key=validate_task_id(args.request_id).casefold()
                 if key in request_records(state) or orchestrator_request_owner(state,key):
                     raise ValueError("D18: request ID already in use")

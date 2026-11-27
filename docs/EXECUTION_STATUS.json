@@ -652,11 +652,11 @@
         "D17"
       ],
       "status": "IN_PROGRESS",
-      "evidence": "D18 persistent explicit state machine integrated with D13/D15/D17; revision CAS, hash-linked bounded audit, durable lease, verification fail-closed; CI pending",
-      "next": "Verify actual mock dispatch, restart/no replay, terminal/audit/CAS, native MCP read-only and cumulative CI",
+      "evidence": "Initial D18 nine-test orchestration step passed on all four platforms; added native MCP read-only receipt integration and early repeated-failure retry rejection; latest CI pending",
+      "next": "Verify exact updated head, including real Python CLI status through native MCP and all cumulative jobs",
       "branch": "dev/d18",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no real model, permission or merge grant",
-      "pr": null,
+      "pr": 20,
       "accepted": false,
       "merged": false,
       "checks": [

@@ -142,8 +142,9 @@ class OrchestratorTests(unittest.TestCase):
         self.assertEqual(self.finish(self.start(self.runargs(key="req-2",rev=2)))[0],2)
         a=self.finish(self.start(self.runargs(key="req-2",rev=2,retry="req-1"),case="B04"));self.assertEqual(a[0],1,a)
         s=self.status();self.assertEqual(s["status"],"failed")
-        q=self.cmd("orchestrator-retry","--request-id","req-3","--prompt",envelope(rev=3),"--expected-revision",str(s["revision"]))
-        self.assertEqual(q["attempt"],2)
+        with self.assertRaisesRegex(ValueError,"repeated failure"):
+            self.cmd("orchestrator-retry","--request-id","req-3","--prompt",envelope(rev=3),"--expected-revision",str(s["revision"]))
+        self.assertEqual(self.status()["revision"],s["revision"])
         self.assertEqual(self.finish(self.start(self.runargs(key="req-3",rev=3,retry="req-2"),case="B04"))[0],2)
         self.assertEqual(self.calls(),2)
     def test_real_timeout_retains_uncertain_lease(self):
