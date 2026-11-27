@@ -29,12 +29,12 @@ MOCK = ROOT / 'tests/mock_codex.py'
 DISPATCH = ROOT / 'skills/multi-agent-dispatch/scripts/dispatch.py'
 SERVER = ROOT / 'plugins/codex-console/server/index.mjs'
 DISPATCH_FILES = {
-    'skills/multi-agent-dispatch/scripts/dispatch.py': '2057553f544c0ef605eb2c9ad8ae0f8fb59df84a',
+    'skills/multi-agent-dispatch/scripts/dispatch.py': '512528b48df454313abec9ee422a21c4bd8ca8e8',
     'skills/multi-agent-dispatch/resources/report_schema.json': '36d5a817785eeaf04a972c5c363ab04beb5c482e',
 }
 MCP_FILES = {
     'plugins/codex-console/server/index.mjs': '4eadeaa1c669162f3727d1498fa5f7bca90763d5',
-    'plugins/codex-console/server/runner.mjs': '30d32e12771391c19523a8a726cf43d4083d72b0',
+    'plugins/codex-console/server/runner.mjs': '40ea4cecd5eb36d0005678ae001476dd9817276f',
     'plugins/codex-console/server/codex-store.mjs': '25b9a0a0fdb766805a7686fa5144cea0a4243b80',
     'plugins/codex-console/server/console-db.mjs': 'bdbd08cf975ff8f2ba51a8241613750607f0ff4f',
     'plugins/codex-console/server/quota.mjs': '2c8b6302fb6607d94c3c3d0a6b607e2b4b24b409',
@@ -271,7 +271,7 @@ def main():
         for state in sorted({r['cache_state'] for r in rows if r['case']==c['id']}):
             group=[r for r in rows if r['case']==c['id'] and r['cache_state']==state]
             groups.append(dict(case=c['id'], cache_state=state, counts={s:sum(r['status']==s for r in group) for s in ('PASS','FAIL','NOT_RUN')}, latency=summarize([r['latency_ms'] for r in group if r['status']=='PASS'])))
-    result=dict(schema_version=1, mode='harness-only' if args.harness_only else 'upstream-mock', upstream_commit=SUITE['upstream_commit'], baseline_commit=SUITE['baseline_commit'], checkout_commit=checkout_sha(), environment=dict(os=platform.system(), python=platform.python_version(), node='not probed', codex='mock only', antigravity='NOT_RUN'), repeat=args.repeat, samples=rows, groups=groups)
+    result=dict(schema_version=1, mode='harness-only' if args.harness_only else 'candidate-mock', upstream_commit=SUITE['upstream_commit'], baseline_commit=SUITE['baseline_commit'], checkout_commit=checkout_sha(), source_pins={**DISPATCH_FILES, **MCP_FILES}, reference_run=45915363640, environment=dict(os=platform.system(), python=platform.python_version(), node='not probed', codex='mock only', antigravity='NOT_RUN'), repeat=args.repeat, samples=rows, groups=groups)
     args.output.parent.mkdir(parents=True,exist_ok=True); args.output.write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
     print(json.dumps(groups,indent=2))
     return 1 if any(r['status']!='PASS' for r in rows) else 0

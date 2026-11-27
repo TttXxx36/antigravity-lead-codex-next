@@ -83,6 +83,10 @@ def has_unsafe_shell_syntax(cmd: str) -> bool:
 
 
 def _parse_pure_dispatch_argv(cmd: str) -> list[str] | None:
+    # The parser below implements POSIX quoting, not cmd.exe/PowerShell.
+    # Fail closed on Windows until shell-specific approval parsing is implemented.
+    if os.name == "nt":
+        return None
     if not cmd or has_unsafe_shell_syntax(cmd):
         return None
     try:

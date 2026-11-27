@@ -18,7 +18,8 @@
     "mode": {
       "enum": [
         "harness-only",
-        "upstream-mock"
+        "upstream-mock",
+        "candidate-mock"
       ]
     },
     "baseline_commit": {

@@ -57,6 +57,9 @@ def main():
                     # Only synthetic outputs; raw diagnostics are not archived.
                     if p.returncode:
                         row['detail'] = 'nonzero exit; inspect structured result when available'
+                        # Only synthetic fixtures, versioned source, and isolated env are used here.
+                        # Emit the tail of diagnostics to Actions, not to persistent artifacts.
+                        print((p.stderr or p.stdout)[-6000:], flush=True)
                     print(name, row['status'], p.returncode, flush=True)
                 except subprocess.TimeoutExpired:
                     row.update(status='FAIL', detail='timeout')
@@ -66,23 +69,21 @@ def main():
             records.append(row)
         try:
             verify_sources({**DISPATCH_FILES, **MCP_FILES})
-            records.append(dict(name='fixed-source-hashes',status='PASS',exit_code=0))
+            records.append(dict(name='candidate-source-hashes',status='PASS',exit_code=0))
         except (OSError, ValueError) as exc:
-            records.append(dict(name='fixed-source-hashes',status='FAIL',exit_code=None,detail=type(exc).__name__))
+            records.append(dict(name='candidate-source-hashes',status='FAIL',exit_code=None,detail=type(exc).__name__))
             (out/'summary.json').write_text(json.dumps(dict(environment=versions, tests=records),indent=2),encoding='utf-8')
             return 1
         py = sys.executable
         execute('harness', [py,'benchmarks/run_benchmark.py','--harness-only','--repeat',str(args.repeat),'--output',str(out/'harness.json')])
         execute('full-dispatch-contract', [py,'benchmarks/dispatch_contract.py','--repeat',str(args.repeat),'--output',str(out/'dispatch-contract.json')])
-        execute('upstream-mock', [py,'benchmarks/run_benchmark.py','--repeat',str(args.repeat),'--output',str(out/'baseline.json')], timeout=480)
-        execute('original-python-tests',[py,'-m','unittest','discover','-s','tests','-p','test_dispatch.py','-v'])
-        # Original MCP test launches Bash: don't misrepresent it as native Windows.
-        # It may probe quota; explicit executable above cannot run Codex.
+        execute('candidate-mock', [py,'benchmarks/run_benchmark.py','--repeat',str(args.repeat),'--output',str(out/'baseline.json')], timeout=480)
+        execute('original-python-tests',[py,'-m','unittest','discover','-s','tests','-p','test_*.py','-v'])
+        # Native Node integration runs on all platforms, including Windows.
         missing = not (ROOT/'plugins/codex-console/node_modules/@modelcontextprotocol/sdk').is_dir()
-        skip = 'original Bash launcher not native Windows' if os.name == 'nt' else ('runtime dependencies missing' if missing else ('bash missing' if not shutil.which('bash') else None))
-        execute('original-mcp-integration',['node','--no-warnings','tests/test-mcp-console.mjs'],timeout=120,skip=skip)
+        execute('native-mcp-integration',['node','--no-warnings','tests/test-mcp-console.mjs'],timeout=120,skip='runtime dependencies missing' if missing else None)
     result = dict(environment=versions, repeat=args.repeat, tests=records, real_model_calls=0,
-                  note='Non-PASS is an unresolved baseline result; no production fixes attempted.')
+                  reference_run=45915363640, mode='windows-repair-candidate', note='Non-PASS is an unresolved candidate result; original baseline is preserved.')
     (out/'summary.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
     print(json.dumps(result,indent=2))
     return 1 if any(r['status']!='PASS' for r in records) else 0
