@@ -107,19 +107,20 @@
         "D01",
         "D02"
       ],
-      "status": "IN_PROGRESS",
-      "evidence": "D03 platform adapters and native smoke; CI pending",
-      "next": "Three-platform smoke and human acceptance",
+      "status": "REVIEW",
+      "evidence": "原生路径适配及三平台 smoke PASS；候选锁与 Node 测试启动复用；非真实客户端测试",
+      "next": "人工验收、合并后进入 D04；超长实际 I/O、真实客户端和安装仍待后续验证",
       "branch": "dev/d03",
       "approval": "2026-11-27 user approved A for D03–D22, dependency order and Actions",
-      "pr": null,
+      "pr": 5,
       "accepted": false,
       "merged": false,
       "checks": [
         {
-          "name": "D03 platform smoke",
-          "status": "NOT_RUN",
-          "ref": "pending Actions"
+          "name": "three-platform Python/Node platform smoke + native synthetic MCP",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45933533805",
+          "tested_commit": "b37f1dd0d3d1fb2e0c10d2729def979b1d0660fb"
         }
       ]
     },
