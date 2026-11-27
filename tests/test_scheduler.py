@@ -213,4 +213,20 @@ class SchedulerTests(unittest.TestCase):
             with d.scheduler_admission("run","a",self.work):self.fail("admitted")
         self.assertFalse((self.root/"scheduler.ever").exists())
 
+
+    def test_abrupt_owner_death_does_not_reclaim_active_slot(self):
+        self.config(slots=1,wait=8)
+        a=self.worker("a",self.work);self.wait_for(a[1].exists)
+        a[0].kill();a[0].communicate(timeout=10)
+        self.assertEqual(self.ticket("a")[1]["status"],"active")
+        b=self.worker("b",self.other);key,_=self.wait_for(lambda:self.ticket("b","queued"))
+        self.wait_for(lambda:self.ticket("b")[1]["reason"]=="capacity")
+        self.assertFalse(b[1].exists())
+        with contextlib.redirect_stdout(io.StringIO()):
+            d.scheduler_status_cmd(d.build_parser().parse_args(["scheduler-cancel","--ticket",key]))
+        b[0].communicate(timeout=10)
+        self.assertNotEqual(b[0].returncode,0)
+        self.assertEqual(self.ticket("a")[1]["status"],"active")
+        self.assertEqual(self.ticket("b")[1]["status"],"cancelled")
+
 if __name__=="__main__":unittest.main()
