@@ -6,3 +6,5 @@ Base 1226e5d27db5737cc843145a956c980790b6aac5; D21 exact source c1bff45 Run 4599
 
 
 Initial Run 46000304667 all four FAIL at package preflight: existing D11 tests/test_context.py includes literal PEM header only as a synthetic rejection test (no actual key body); scanner correctly refused it. Construct identical runtime negative-test string by concatenation instead of embedding contiguous marker in source. No scan exemption, pattern removal or credential disclosure; add immutable blob SHA to diagnostic (never matched contents/filename). Original failure preserved. Reverify all four.
+
+Run 46000617038: archive identity/reproducibility/secret/tamper tests passed; Windows D22 steps passed, Ubuntu/macOS rollback test failed because local install returned nonzero. Independently reproduced legacy cleanup_tmp short-circuit returning 1 from EXIT trap under set -e when TMP_DIR empty. Fix only cleanup guard to if block, no deletion of any additional path; test requires actual completion marker and exit 0, without raw captured paths. Prior failure retained. D21 evidence head 1226e5d Run 46000026000 all four PASS. New exact-head CI pending.

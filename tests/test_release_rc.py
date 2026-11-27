@@ -95,7 +95,10 @@ class RCTests(unittest.TestCase):
                  "PYTHONUTF8":"1","LC_ALL":"C"}
             result=subprocess.run(["bash",str(package/"scripts/install.sh"),"--all","--no-build","--yes"],
                 cwd=package,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=30)
-            self.assertEqual(result.returncode,0,"offline Unix mock install failed")
+            # Emit only a fixed completion indicator and numeric exit status,
+            # never the captured output (which includes local paths).
+            self.assertIn(b"Installation complete!",result.stdout,"Unix installer did not reach completion")
+            self.assertEqual(result.returncode,0,"offline Unix mock install completed but returned nonzero")
             mode="actual_unix_installer_mock_dependencies"
         else:
             # Actual native Windows installer upgrade/restore/doctor is

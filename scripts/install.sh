@@ -117,7 +117,13 @@ fi
 
 # Resolve source directory: local repo or remote GitHub tarball
 TMP_DIR=""
-cleanup_tmp() { [[ -n "$TMP_DIR" && -d "$TMP_DIR" ]] && rm -rf "$TMP_DIR"; }
+cleanup_tmp() {
+  # Local installs have no download directory. An EXIT trap must not turn
+  # successful installation into status 1 under set -e.
+  if [[ -n "$TMP_DIR" && -d "$TMP_DIR" ]]; then
+    rm -rf -- "$TMP_DIR"
+  fi
+}
 trap cleanup_tmp EXIT
 
 SCRIPT_PATH="${BASH_SOURCE[0]:-}"

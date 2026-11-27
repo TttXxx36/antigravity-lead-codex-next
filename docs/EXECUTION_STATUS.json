@@ -804,7 +804,7 @@
         "D21"
       ],
       "status": "IN_PROGRESS",
-      "evidence": "Initial candidate blocked by literal synthetic PEM marker in D11 negative test; preserve exact runtime negative fixture by string concatenation, no scan bypass; rerun pending",
+      "evidence": "Source scanner corrected; deterministic archive tests PASS; Unix rollback exposed old installer EXIT trap defect, corrected and recheck pending",
       "next": "Verify exact-head four-platform RC builds, archive integrity, rollback and cumulative CI; no formal release",
       "branch": "dev/d22",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no formal release, merge, permission or real model grant",
@@ -824,6 +824,12 @@
           "status": "FAIL",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46000304667",
           "tested_commit": "027821e581addbe87c7ff691cdc3b239c5058140"
+        },
+        {
+          "name": "Unix installer local successful completion returned 1 through empty cleanup EXIT trap; Ubuntu and macOS rollback regression FAIL",
+          "status": "FAIL",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46000617038",
+          "tested_commit": "f38e8498acea39ca7d09e94582974ef656f879f2"
         }
       ]
     }
