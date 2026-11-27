@@ -92,12 +92,25 @@ jobs:
       - name: Prepare locked runtime dependencies
         working-directory: plugins/codex-console
         run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+      - name: Audit installed locked runtime dependency notices (offline)
+        run: python scripts/audit_dependency_notices.py --root plugins/codex-console --phase runtime --out dependency-audit/runtime.json
       - name: Build updated UI source (Linux, no publish)
         if: runner.os == 'Linux'
         working-directory: plugins/codex-console
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm run build:ui
+      - name: Audit installed build dependency notices (offline)
+        if: runner.os == 'Linux'
+        run: python scripts/audit_dependency_notices.py --root plugins/codex-console --phase build --out dependency-audit/build.json
+      - name: Retain dependency audit metadata
+        if: always() && github.event_name == 'pull_request' && github.head_ref == 'dev/d22'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-${{ matrix.os }}-${{ github.event.pull_request.head.sha }}
+          path: dependency-audit/
+          retention-days: 7
+          if-no-files-found: warn
       - name: Verify tracked UI bundle matches reproducible build
         if: runner.os == 'Linux'
         working-directory: plugins/codex-console

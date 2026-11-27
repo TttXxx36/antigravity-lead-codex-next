@@ -213,13 +213,19 @@
           "name": "trusted host scoped grants and real OS execution boundary",
           "status": "BLOCKED",
           "ref": "docs/evidence/D06-policy.md"
+        },
+        {
+          "name": "Plain cleanup denial correction",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004369900",
+          "tested_commit": "b9c3fe4df5636aa32bac3ee673e9a0ca5839ddeb"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "b652c5877df2e5a91d5191e1f21fab8c208b3015",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937059171",
-        "limitations": "No positive trusted grant issuance or real OS sandbox proof; network, unmanaged queue/resume, live quota disabled; no production merge."
+        "tested_commit": "b9c3fe4df5636aa32bac3ee673e9a0ca5839ddeb",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004369900",
+        "limitations": "Verified fail-closed cleanup; trusted host grants and actual sandbox remain unverified."
       }
     },
     {
@@ -249,13 +255,18 @@
           "name": "actual host process-tree and crash acceptance",
           "status": "BLOCKED",
           "ref": "docs/evidence/D07-outcomes.md"
+        },
+        {
+          "name": "Standalone safety synchronization exact head",
+          "status": "NOT_RUN",
+          "ref": "docs/CURRENT_CHECKPOINT.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "8e472999c84f1a41dd188a5766d6bd4de7bd02a5",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937506260",
-        "limitations": "Real Codex/Antigravity worker tree, escaped descendants and real power-loss not verified; no formal merge."
+        "limitations": "Real Codex/Antigravity worker tree, escaped descendants and real power-loss not verified; no formal merge. Standalone synchronized head 8736befbf2d54503ae3e951f74175a3a75ea15d1 needs exact CI confirmation; historical cumulative PASS retained."
       }
     },
     {
@@ -286,13 +297,18 @@
           "name": "Real host end-to-end",
           "status": "BLOCKED",
           "ref": "docs/evidence/D08-history.md"
+        },
+        {
+          "name": "Standalone safety synchronization exact head",
+          "status": "NOT_RUN",
+          "ref": "docs/CURRENT_CHECKPOINT.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "5ab0c7db084b87701bb3d5d5f60fc512f833dc7f",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45938086882",
-        "limitations": "Actual Antigravity/Codex end-to-end and Windows x64 desktop unverified; no formal merge."
+        "limitations": "Actual Antigravity/Codex end-to-end and Windows x64 desktop unverified; no formal merge. Standalone synchronized head b155c5f2b3d2e0bb08c1bf5cb5d2f341a43db4b6 needs exact CI confirmation; historical cumulative PASS retained."
       }
     },
     {
@@ -321,13 +337,18 @@
           "name": "Actual host visibility/UI and real token acceptance",
           "status": "BLOCKED",
           "ref": "docs/evidence/D09-compact.md"
+        },
+        {
+          "name": "Standalone safety synchronization exact head",
+          "status": "NOT_RUN",
+          "ref": "docs/CURRENT_CHECKPOINT.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "99c0e5544bf03c1702fee7b7deb1a196b9fba502",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45940757723",
-        "limitations": "Actual host and token tests NOT_RUN; old records without result_ref unavailable; metadata-only log cursor and nonpersistent hash; not merged."
+        "limitations": "Actual host and token tests NOT_RUN; old records without result_ref unavailable; metadata-only log cursor and nonpersistent hash; not merged. Standalone synchronized head 2e00dc70211988554e654d9c10fc448c5d884a77 needs exact CI confirmation; historical cumulative PASS retained."
       }
     },
     {
@@ -356,13 +377,18 @@
           "name": "Actual model structured output and host compatibility",
           "status": "BLOCKED",
           "ref": "docs/evidence/D10-protocol.md"
+        },
+        {
+          "name": "Standalone safety synchronization exact head",
+          "status": "NOT_RUN",
+          "ref": "docs/CURRENT_CHECKPOINT.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "5e937fcb4de98d0df60cef144b81e8f619f9e550",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45941283814",
-        "limitations": "Actual model and host unverified; v2 opt-in; batch/MCP v1; no formal merge."
+        "limitations": "Actual model and host unverified; v2 opt-in; batch/MCP v1; no formal merge. Standalone synchronized head 529b55538e0aa51a2b5db4d65167ada2eeb0ca11 needs exact CI confirmation; historical cumulative PASS retained."
       }
     },
     {
@@ -391,13 +417,18 @@
           "name": "Actual session continuity and token acceptance",
           "status": "BLOCKED",
           "ref": "docs/evidence/D11-context.md"
+        },
+        {
+          "name": "Standalone safety synchronization exact head",
+          "status": "NOT_RUN",
+          "ref": "docs/CURRENT_CHECKPOINT.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "09ff29699f4b459281cce41e60a55c9931d7394e",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45945706823",
-        "limitations": "Real host/session continuity, token measurements and formal dependencies pending; opt-in only."
+        "limitations": "Real host/session continuity, token measurements and formal dependencies pending; opt-in only. Standalone synchronized head 2849bbd82952f7f0c33914e47df92ad4e6f87c81 needs exact CI confirmation; historical cumulative PASS retained."
       }
     },
     {
@@ -428,13 +459,18 @@
           "name": "Real provider usage semantics, actual host/model and comparative benchmark",
           "status": "BLOCKED",
           "ref": "docs/evidence/D12-budget.md"
+        },
+        {
+          "name": "Standalone safety synchronization exact head",
+          "status": "NOT_RUN",
+          "ref": "docs/CURRENT_CHECKPOINT.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "f5b1bf017d1f1c259e1c50f0fd89a85100cf082f",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45947305027",
-        "limitations": "Synthetic usage only; actual provider semantics, Gemini usage, real host/model capabilities, benchmark and formal dependency merges pending; no hard system-wide budget."
+        "limitations": "Synthetic usage only; actual provider semantics, Gemini usage, real host/model capabilities, benchmark and formal dependency merges pending; no hard system-wide budget. Standalone synchronized head 46994031fde3203ee64713721d3d655231a4750d needs exact CI confirmation; historical cumulative PASS retained."
       }
     },
     {
@@ -464,13 +500,18 @@
           "name": "Actual host, risk review and crash/power-loss recovery",
           "status": "BLOCKED",
           "ref": "docs/evidence/D13-requests.md"
+        },
+        {
+          "name": "Standalone safety synchronization exact head",
+          "status": "NOT_RUN",
+          "ref": "docs/CURRENT_CHECKPOINT.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "b61c1cddb9c1b67b3ebd1bfe7b7b1548b0729081",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45971644956",
-        "limitations": "Opt-in keyed CLI/MCP only; legacy callers excluded; conservative Git metadata; real host and power loss, cross-store reconciliation and trusted retry approval not independently accepted; no merge."
+        "limitations": "Opt-in keyed CLI/MCP only; legacy callers excluded; conservative Git metadata; real host and power loss, cross-store reconciliation and trusted retry approval not independently accepted; no merge. Standalone synchronized head 75fba01e9b6f5d1e1a6ddc51392db195aea3524d needs exact CI confirmation; historical cumulative PASS retained."
       },
       "observations": [
         {
@@ -508,13 +549,24 @@
           "name": "Actual host/UI, full raw rotation and cancellation",
           "status": "BLOCKED",
           "ref": "docs/evidence/D14-streaming.md"
+        },
+        {
+          "name": "Standalone safety synchronization exact head",
+          "status": "NOT_RUN",
+          "ref": "docs/CURRENT_CHECKPOINT.md"
+        },
+        {
+          "name": "Standalone EPERM backport",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004229789",
+          "tested_commit": "ba9a3b5e4f1625cd1b19fefb6ba469a37aff8346"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "b7bc081c680e94f87a3012d5fa1f0f54d93116b5",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45973849986",
-        "limitations": "Opt-in v2; bounded raw log cap stops rather than rotates; metadata rolling window and per-turn cursors only; real host push/cancel/reconnect and escaped descendants remain unverified; no merge."
+        "limitations": "Opt-in v2; bounded raw log cap stops rather than rotates; metadata rolling window and per-turn cursors only; real host push/cancel/reconnect and escaped descendants remain unverified; no merge. Standalone synchronized head e493d582bf05facc9f9f29c71bf20c92b694f24f needs exact CI confirmation; historical cumulative PASS retained."
       }
     },
     {
@@ -544,13 +596,18 @@
           "name": "Actual host migration, quiescence and recovery",
           "status": "BLOCKED",
           "ref": "docs/evidence/D15-storage.md"
+        },
+        {
+          "name": "Standalone safety synchronization exact head",
+          "status": "NOT_RUN",
+          "ref": "docs/CURRENT_CHECKPOINT.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "de11dc6f48588192c82cfd25172be44cfc5901f1",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45974689285",
-        "limitations": "Disposable fixtures only; actual host migration, manual process quiescence, power-loss and recovery activation not verified; no production migration or native DB writes."
+        "limitations": "Disposable fixtures only; actual host migration, manual process quiescence, power-loss and recovery activation not verified; no production migration or native DB writes. Standalone synchronized head 9be1c0e8ea43551b36ba12fb2fb7c7079b222f9f needs exact CI confirmation; historical cumulative PASS retained."
       }
     },
     {
@@ -580,13 +637,18 @@
           "name": "Actual host UI, repeated p95 and physical I/O",
           "status": "BLOCKED",
           "ref": "docs/evidence/D16-cache.md"
+        },
+        {
+          "name": "Standalone safety synchronization exact head",
+          "status": "NOT_RUN",
+          "ref": "docs/CURRENT_CHECKPOINT.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "6db070f17039338762e03a375c911873302fa32b",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45982938825",
-        "limitations": "Synthetic fixtures; original paired p95 improvement in four environments but macOS rerun slight increase; actual host and physical I/O unverified; EPERM fallback only owned child, escaped descendants not confirmed; no merge."
+        "limitations": "Synthetic fixtures; original paired p95 improvement in four environments but macOS rerun slight increase; actual host and physical I/O unverified; EPERM fallback only owned child, escaped descendants not confirmed; no merge. Standalone synchronized head 77a9060b0df4bccbdd2e65a6006273c1ba42aab1 needs exact CI confirmation; historical cumulative PASS retained."
       },
       "observations": [
         {
@@ -805,7 +867,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Exact code head 6f2d23b PASS four environments; 34 passed / 6 platform skips in D22 test module; privacy remediation candidate verified; four identical inner RC hashes",
-      "next": "Formal acceptance remains blocked by D05 real host and remaining dependencies; standalone D06/D14 correction and evidence-only head recheck pending; no release",
+      "next": "Installed dependency inventory CI, standalone safety synchronization, formal host and dependencies remain blocked.",
       "branch": "dev/d22",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no formal release, merge, permission or real model grant",
       "pr": 24,
@@ -828,6 +890,17 @@
           "status": "PASS",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46003742874",
           "tested_commit": "6f2d23bfb8b7bf56cdaed20239e049af1571de11"
+        },
+        {
+          "name": "Privacy evidence-only exact head",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004434638",
+          "tested_commit": "c1066765390cd60d479c6170ab9b875d05cd2442"
+        },
+        {
+          "name": "Installed dependency offline notice inventory",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D22-dependency-audit.md"
         }
       ],
       "observations": [
@@ -845,10 +918,10 @@
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "6f2d23bfb8b7bf56cdaed20239e049af1571de11",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46003742874",
-        "limitations": "Four-platform cumulative regression and source-only RC; Bash privacy scanner 6/6 Unix cases, 6 Windows platform skips, package/rollback 28/28; no actual host, production rollback, full privacy/license audit, model parity or release authorization. D06/D14 standalone remediation needs integration verification. Historical PASS applies to exact code head."
+        "limitations": "Four-platform cumulative regression and source-only RC; Bash privacy scanner 6/6 Unix cases, 6 Windows platform skips, package/rollback 28/28; no actual host, production rollback, full privacy/license audit, model parity or release authorization. D06/D14 standalone remediation needs integration verification. Historical PASS applies to exact code head. New offline dependency inventory workflow pending exact head CI."
       }
     }
   ],
