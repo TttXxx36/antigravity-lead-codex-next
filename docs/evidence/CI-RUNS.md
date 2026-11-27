@@ -92,3 +92,17 @@ Initial ledger head 34046f42ee0393b1bbfa6186ab866f626886d3aa / Run 45975558725 f
 
 
 D16 verified build transfer: Ubuntu job 140446248179, Run 45981495894, exact source d4c06f7f41ddd17c149661c2f41fd9d679853777 built dist/app.html; 132 ordered base64 chunks reconstructed via Git blob API; runner git hash-object and API blob SHA both 255b42124451a7aac844c0226bd5d419c67119b2. No workflow write permission or real credentials used. Track exact bundle and remove export step; Linux CI now requires byte-identical rebuilt bundle. Initial Ubuntu fixture p95 3.502→1.493ms, queries 270→9, baseline logical content bytes 38670→1096 excluding marker-read overhead; NOT final I/O evidence. Revised marker memo counts its actual content reads/bytes and invalidates on metadata changes; include them in paired benchmark. Report cache includes current state identity in cache stamp, prevents reuse with stale session/exit/status. Final four-environment exact head CI pending; metadata stat syscalls and physical disk bytes remain unmeasured. No production changes.
+
+## 2026-11-27 D16 final candidate evidence
+[Run 45981702422](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45981702422) completed/success, exact code head `d70653cacd24c9cc448db4519a3f87deffd7bbfc`, PR #18 Draft. Four environments actual checkout logs verified, 8/8 Node cache tests per job (32/32), native MCP delta and all cumulative tests/governance PASS. Linux rebuilt dist/app.html byte-identically (git blob 255b42124451a7aac844c0226bd5d419c67119b2). Windows used tracked rebuilt bundle. D15 evidence head recheck 45975155258 PASS. Initial D16 Run 45975558725 PASS, 45981495894 superseded; Ubuntu source build was verified before supersession. No real model, deployment, permission expansion or merge.
+
+Paired same-fixture actual 30 calls each, alternating order; p95 ms measured locally, counts actual native SQLite read opens/queries (excludes console preference DB operations), logical file reads/bytes include state marker and report reads; excludes metadata stat syscalls, DB page cache and physical disk bytes. Wire bytes are serialized payload bytes, not measured network transfer.
+
+| Environment / job | p95 ms baseline → candidate | native DB opens | native queries | logical file reads | logical content bytes | JSON payload bytes |
+|---|---:|---:|---:|---:|---:|---:|
+| Windows Server x64 / 140447071189 | 12.654 → 4.34 | 120 → 4 | 270 → 9 | 60 → 2 | 41130 → 2356 | 4616100 → 156695 |
+| Windows 11 ARM64 / 140447071531 | 11.263 → 3.744 | 120 → 4 | 270 → 9 | 60 → 2 | 41130 → 2356 | 4616100 → 156695 |
+| macOS ARM64 / 140447071591 | 3.51 → 1.065 | 120 → 4 | 270 → 9 | 60 → 2 | 41310 → 2368 | 4648110 → 157762 |
+| Ubuntu / 140447071593 | 4.049 → 1.591 | 120 → 4 | 270 → 9 | 60 → 2 | 38670 → 2192 | 4413150 → 149930 |
+
+Candidate ready under existing authorization; formal BLOCKED: actual Antigravity browser/old-host compatibility, live DOM interaction, physical I/O, real host state changes and dependency acceptance remain unverified. Report-only mutation may lag snapshot TTL (5s); per-report identity/mtime checked when refreshed; local quota 15s TTL. No model/authority checks use display cache. D17 may continue. Evidence-only head requires recheck.

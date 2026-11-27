@@ -561,9 +561,9 @@
         "D14",
         "D15"
       ],
-      "status": "IN_PROGRESS",
-      "evidence": "Source Run 45981495894 Ubuntu PASS; exact CI-produced UI blob verified and tracked; marker I/O included and report identity hardened; final four-platform recheck pending",
-      "next": "Verify latest exact head and reproducible UI build plus paired benchmark; host/physical I/O remain blocked",
+      "status": "BLOCKED",
+      "evidence": "Exact-head 4-environment CI PASS; 32/32 cache tests, byte-identical UI build; paired same-fixture measured query/p95/logical bytes improvements",
+      "next": "D17 candidate permitted; actual host/old host UI/physical I/O/dependency gates remain blocked",
       "branch": "dev/d16",
       "approval": "2026-11-27 user authorized A candidate development; display-only, no real model or production data writes",
       "pr": 18,
@@ -571,23 +571,23 @@
       "merged": false,
       "checks": [
         {
-          "name": "Initial display cache and cumulative CI",
+          "name": "D16 cache, UI reproducible build and paired benchmark",
           "status": "PASS",
-          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45975558725",
-          "tested_commit": "34046f42ee0393b1bbfa6186ab866f626886d3aa"
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45981702422",
+          "tested_commit": "d70653cacd24c9cc448db4519a3f87deffd7bbfc"
         },
         {
-          "name": "D16 corrected source and paired benchmark",
-          "status": "NOT_RUN",
-          "ref": "Latest head pending"
-        },
-        {
-          "name": "D16 source build and paired Ubuntu benchmark",
-          "status": "PASS",
-          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45981495894/job/140446248179",
-          "tested_commit": "d4c06f7f41ddd17c149661c2f41fd9d679853777"
+          "name": "Actual host UI, old host and physical I/O",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D16-cache.md"
         }
-      ]
+      ],
+      "candidate": {
+        "ready": true,
+        "tested_commit": "d70653cacd24c9cc448db4519a3f87deffd7bbfc",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45981702422",
+        "limitations": "Synthetic paired fixture, logical file bytes/native DB query counts not physical I/O; UI source/build verified but actual host interaction and old host compatibility not accepted; TTL-bounded display lag; no model calls or merge."
+      }
     },
     {
       "id": "D17",

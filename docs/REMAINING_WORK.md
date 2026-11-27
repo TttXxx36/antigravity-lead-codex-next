@@ -22,7 +22,7 @@
 | [D13](decisions/D13.md) 幂等派发与循环终止 | V1.2 | D10,D12 | BLOCKED | PR #15 四环境 PASS；真实宿主/恢复未验收；D14 可继续 |
 | [D14](decisions/D14.md) 实时流式执行与事件总线 | V1.3 | D07,D13 | BLOCKED | PR #16 四环境 PASS；真实宿主/完整日志轮换未验收；D15 可继续 |
 | [D15](decisions/D15.md) SQLite 任务状态迁移 | V1.3 | D04,D14 | BLOCKED | PR #17 四环境 PASS；真实宿主迁移/恢复及依赖验收阻塞；D16 可继续 |
-| [D16](decisions/D16.md) MCP 查询缓存与 UI 增量刷新 | V1.3 | D14,D15 | IN_PROGRESS | D16 展示缓存/差量接口及 UI 源码候选；待构建、性能及 CI |
+| [D16](decisions/D16.md) MCP 查询缓存与 UI 增量刷新 | V1.3 | D14,D15 | BLOCKED | PR #18 四环境 PASS；UI 构建/性能证据已补齐；真实宿主及物理 I/O 未验收；D17 可继续 |
 | [D17](decisions/D17.md) 动态并发与 Worktree 资源治理 | V1.3 | D14,D15,D16 | PROPOSED | 未实施；公平队列、冲突范围、取消释放、保留未提交数据 |
 | [D18](decisions/D18.md) 确定性编排状态机 | V2.0 | D13,D15,D17 | PROPOSED | 未实施；显式状态机、lease/revision、审计、恢复防重复 |
 | [D19](decisions/D19.md) 风险驱动审查与验收 | V2.0 | D18 | PROPOSED | 未实施；风险分级、确定性检查、安全/并发/迁移必审 |
@@ -151,3 +151,17 @@ Base 07ce2d89eeee61dcd4eafa8111e88f260d3b39a1 (D15 tested de11dc6f / Run 4597468
 
 ## 2026-11-27 D16 follow-up
 Initial ledger head 34046f42ee0393b1bbfa6186ab866f626886d3aa / Run 45975558725 four-environment PASS, 20/20 cache tests, Linux Vite build and MCP delta passed. D15 evidence recheck 45975155258 PASS. Added bounded per-report mtime/digest-aware display cache, large legacy JSON metadata stamping, exact/prefix selector cache only for display, partial panel replacement for silent refresh, stale selection/failure and refresh coalescing safeguards. Added real SQLite query/open and logical content/wire byte benchmark on paired 30-call synthetic fixture; p95 is measured, not estimated; metadata stat syscalls/physical storage I/O not counted. Temporary Linux build transfer emits only generated public-to-repo static bundle chunks and git blob SHA, no token, no write permission; remove transfer step after importing exact verified blob. Dist not updated yet. Formal host, actual browser interaction and physical I/O remain unverified. No D17 start until candidate gate.
+
+## 2026-11-27 D16 final candidate evidence
+[Run 45981702422](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45981702422) completed/success, exact code head `d70653cacd24c9cc448db4519a3f87deffd7bbfc`, PR #18 Draft. Four environments actual checkout logs verified, 8/8 Node cache tests per job (32/32), native MCP delta and all cumulative tests/governance PASS. Linux rebuilt dist/app.html byte-identically (git blob 255b42124451a7aac844c0226bd5d419c67119b2). Windows used tracked rebuilt bundle. D15 evidence head recheck 45975155258 PASS. Initial D16 Run 45975558725 PASS, 45981495894 superseded; Ubuntu source build was verified before supersession. No real model, deployment, permission expansion or merge.
+
+Paired same-fixture actual 30 calls each, alternating order; p95 ms measured locally, counts actual native SQLite read opens/queries (excludes console preference DB operations), logical file reads/bytes include state marker and report reads; excludes metadata stat syscalls, DB page cache and physical disk bytes. Wire bytes are serialized payload bytes, not measured network transfer.
+
+| Environment / job | p95 ms baseline → candidate | native DB opens | native queries | logical file reads | logical content bytes | JSON payload bytes |
+|---|---:|---:|---:|---:|---:|---:|
+| Windows Server x64 / 140447071189 | 12.654 → 4.34 | 120 → 4 | 270 → 9 | 60 → 2 | 41130 → 2356 | 4616100 → 156695 |
+| Windows 11 ARM64 / 140447071531 | 11.263 → 3.744 | 120 → 4 | 270 → 9 | 60 → 2 | 41130 → 2356 | 4616100 → 156695 |
+| macOS ARM64 / 140447071591 | 3.51 → 1.065 | 120 → 4 | 270 → 9 | 60 → 2 | 41310 → 2368 | 4648110 → 157762 |
+| Ubuntu / 140447071593 | 4.049 → 1.591 | 120 → 4 | 270 → 9 | 60 → 2 | 38670 → 2192 | 4413150 → 149930 |
+
+Candidate ready under existing authorization; formal BLOCKED: actual Antigravity browser/old-host compatibility, live DOM interaction, physical I/O, real host state changes and dependency acceptance remain unverified. Report-only mutation may lag snapshot TTL (5s); per-report identity/mtime checked when refreshed; local quota 15s TTL. No model/authority checks use display cache. D17 may continue. Evidence-only head requires recheck.
