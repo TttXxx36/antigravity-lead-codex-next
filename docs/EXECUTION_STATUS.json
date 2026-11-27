@@ -230,13 +230,24 @@
           "name": "Offline Ed25519 receipt binding/expiry/replay checks, no authority provision",
           "status": "NOT_RUN",
           "ref": "docs/decisions/D06.md"
+        },
+        {
+          "name": "Signed receipt validation standalone four-platform",
+          "status": "PASS",
+          "tested_commit": "7d4cbd322bd4e06e2cfb96f656ffe00c12bb29bb",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080122911"
+        },
+        {
+          "name": "Dedicated bounded transactional offline receipt ledger and replay contention",
+          "status": "NOT_RUN",
+          "ref": "docs/decisions/D06.md"
         }
       ],
       "candidate": {
         "ready": false,
         "tested_commit": "234c8388b093b5dedf1d7c0cc65e42e7d1d1a710",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004837384",
-        "limitations": "No positive trusted grant issuance or real OS sandbox proof; network, unmanaged queue/resume, live quota disabled; no production merge. Offline capability follow-up pending CI, no live trust root/route or production permission."
+        "limitations": "No positive trusted grant issuance or real OS sandbox proof; network, unmanaged queue/resume, live quota disabled; no production merge. Offline capability follow-up pending CI, no live trust root/route or production permission. Durable replay ledger CI pending; no production trusted signer or executor."
       }
     },
     {
@@ -589,13 +600,19 @@
           "name": "D14 append-only raw segment rotation and cross-turn task sequence",
           "status": "NOT_RUN",
           "ref": "docs/decisions/D14.md"
+        },
+        {
+          "name": "Corrected worker/helper identity and reaping regression (independent four-platform)",
+          "status": "PASS",
+          "tested_commit": "4663839632acca8ca226a6d9d2cd929670f535c2",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080043391"
         }
       ],
       "candidate": {
-        "ready": false,
-        "tested_commit": "78dddef0ff98e575a4f9f938df3580e1a451dad2",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46011543805",
-        "limitations": "Cumulative D22 follow-up implements bounded append-only raw log segments and task-global sequence with digest-bound prior checkpoint; CI pending. Legacy upgrade epoch explicitly scoped, per-turn cursor retained. Actual host/UI/escaped descendants and independent D14 branch backport/validation remain blocked."
+        "ready": true,
+        "tested_commit": "4663839632acca8ca226a6d9d2cd929670f535c2",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080043391",
+        "limitations": "Independent segment/checkpoint/reap regression four PASS; actual host/UI/cancel/escaped descendant evidence remains NOT_RUN; new ancestor integration not yet done."
       },
       "observations": [
         {
@@ -1025,7 +1042,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Exact 007c01e6edfc30ce7f750717e3e0226d878a8af5 strict Run 46035541198 four PASS; 153/153 canonical RC and independent supply-chain replay PASS; BUG-009 CANDIDATE_PASS. Formal closure not granted.",
-      "next": "Recheck new D14 cumulative changes before local candidate readiness; continue remaining offline gaps.",
+      "next": "Finish durable replay evidence CI; reconcile independent backports and actual host blockers; preserve formal gate.",
       "branch": "dev/d22",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no formal release, merge, permission or real model grant",
       "pr": 24,
@@ -1191,6 +1208,12 @@
           "status": "PASS",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46035541198",
           "tested_commit": "007c01e6edfc30ce7f750717e3e0226d878a8af5"
+        },
+        {
+          "name": "Corrected cumulative streaming, signed receipt, scheduler and orchestration regressions; four-platform CI",
+          "status": "PASS",
+          "tested_commit": "8dd156c23e8a610e286aacd4f6347ddad61726f5",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080058752"
         }
       ],
       "observations": [
@@ -1257,9 +1280,9 @@
       ],
       "candidate": {
         "ready": false,
-        "tested_commit": "007c01e6edfc30ce7f750717e3e0226d878a8af5",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46035541198",
-        "limitations": "Offline source-only integrated candidate ready; actual Windows x64 and Antigravity/Codex host, real model and trusted authority, existing E capability gaps, independent card acceptance and formal dependencies/release remain blocked. No standalone native binary distribution or full legal clearance. New D14 cumulative code revision requires exact-head CI."
+        "tested_commit": "8dd156c23e8a610e286aacd4f6347ddad61726f5",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46080058752",
+        "limitations": "Prior cumulative four PASS, new isolated durable authority receipt replay ledger awaiting exact CI. Actual trusted host and positive authority, host/model, formal dependency acceptance remain blocked."
       }
     }
   ],

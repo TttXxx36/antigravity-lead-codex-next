@@ -49,3 +49,7 @@ W=真实 Windows x64/桌面；H=实际宿主/系统边界；A=另行授权（真
 | D06–D22 依上表逐项增行 | | NOT_RUN | | |
 
 没有实机或授权的项明确留下 NOT_RUN；现有工程限制 E 必须单独解决，不能因为 Windows 测试成功自动关闭。
+
+
+### D06 durable replay evidence (offline candidate)
+专用隔离 SQLite receipt ledger：签名、范围、时效与 nonce 唯一性在事务内核验，持久拒绝重放；未接入任何生产权限动作。真实可信签发密钥、受保护目录及可信时钟、执行状态事务/回滚边界必须由宿主独立证明。禁止用模拟凭证替代授权。
