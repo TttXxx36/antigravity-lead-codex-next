@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import contextlib
 import io
 import os
@@ -61,6 +62,81 @@ class StreamTests(unittest.TestCase):
         self.assertEqual((self.root/"events.jsonl").stat().st_size,1024)
         self.assertEqual(self.snapshot()["entries"][-1]["kind"],"stream_failed")
         self.assertIsNone(d.invocation_usage(out)["counts"]["total_tokens"])
+    def test_segment_rotation_exact_and_manifest(self):
+        script="import sys; sys.stdout.write('{\"type\":\"event\"}\\n'*100); sys.stderr.write('x'*500)"
+        with patch.object(d,"STREAM_SEGMENT_BYTES",128):
+            rc,out,err,timed=self.invoke(script)
+        self.assertEqual(rc,0);self.assertFalse(timed)
+        meta=json.loads((self.root/"stream-segments.json").read_text("utf-8"))
+        for key,expected,mirror in (("stdout",out,"events.jsonl"),("stderr",err,"stderr.log")):
+            parts=meta[key]
+            self.assertGreater(len(parts),1)
+            bodies=[]
+            for index,part in enumerate(parts,1):
+                self.assertEqual(part["name"],mirror+".part-%04d"%index)
+                body=(self.root/part["name"]).read_bytes()
+                self.assertEqual(part["sha256"],hashlib.sha256(body).hexdigest())
+                self.assertEqual(part["bytes"],len(body))
+                self.assertLessEqual(len(body),128)
+                bodies.append(body)
+            self.assertEqual(b"".join(bodies),expected.encode())
+            self.assertEqual((self.root/mirror).read_bytes(),expected.encode())
+
+    def test_segment_cap_retains_evidence_and_no_success(self):
+        with patch.multiple(d,STREAM_SEGMENT_BYTES=128,STREAM_STDOUT_LIMIT=300):
+            rc,out,_,_=self.invoke("print('{\"type\":\"event\"}\\n'*100,flush=True)")
+        self.assertEqual((rc,out),(125,""))
+        meta=json.loads((self.root/"stream-segments.json").read_text("utf-8"))
+        self.assertEqual([x["bytes"] for x in meta["stdout"]],[128,128,44])
+        self.assertEqual(sum(x["bytes"] for x in meta["stdout"]),300)
+        self.assertEqual(self.snapshot()["entries"][-1]["kind"],"stream_failed")
+
+    def test_existing_segment_refused_without_overwrite(self):
+        target=self.root/"events.jsonl.part-0001"
+        target.write_bytes(b"existing evidence")
+        import subprocess
+        real_popen=subprocess.Popen
+        children=[]
+        def launch(*args,**kwargs):
+            p=real_popen(*args,**kwargs);children.append(p);return p
+        with patch.object(d.subprocess,"Popen",side_effect=launch):
+            with self.assertRaises(FileExistsError):
+                self.invoke("print('{\"type\":\"event\"}',flush=True)")
+        # Windows terminate_owned_process_tree invokes taskkill through
+        # subprocess.run, which also passes the patched Popen boundary.
+        workers=[p for p in children if isinstance(p.args,(tuple,list))
+                 and p.args[0]==sys.executable and p.args[1:3]==["-u","-c"]]
+        helpers=[p for p in children if p not in workers]
+        self.assertEqual(len(workers),1)
+        if os.name=="nt":
+            self.assertLessEqual(len(helpers),1)
+            for p in helpers:
+                self.assertEqual(pathlib.Path(p.args[0]).name.lower(),"taskkill.exe")
+                self.assertEqual(p.args[1:],["/PID",str(workers[0].pid),"/T","/F"])
+        else:
+            self.assertEqual(helpers,[])
+        for p in children:
+            self.assertIsNotNone(p.returncode,"owned worker and any termination helper must be reaped")
+        self.assertEqual(target.read_bytes(),b"existing evidence")
+        self.assertFalse((self.root/"stream-segments.json").exists())
+
+    def test_legacy_checkpoint_epoch_and_tamper(self):
+        root=self.root/"runs";task=root/"task-1";task.mkdir(parents=True)
+        path=task/"stream-state.json"
+        v={"version":1,"taskId":"task-1","turnId":"initial","entries":[{"seq":3,"kind":"process_exit"}]}
+        path.write_text(json.dumps(v),"utf-8")
+        record={"result_ref":{"turn":None}}
+        with patch.object(d,"RUNS_DIR",root):
+            self.assertEqual(d.prior_stream_sequence(record,"task-1"),(0,"since_upgrade"))
+            v.update(version=2,sequenceBase=0,sequenceScope="task")
+            v["entries"][0]["taskSeq"]=3
+            path.write_text(json.dumps(v),"utf-8")
+            record["stream_checkpoint"]=d.stream_checkpoint(task,"task-1",None)
+            self.assertEqual(d.prior_stream_sequence(record,"task-1"),(3,"task"))
+            path.write_text(json.dumps(v)+"\n","utf-8")
+            with self.assertRaisesRegex(d.StateIntegrityError,"checkpoint changed"):
+                d.prior_stream_sequence(record,"task-1")
+
     def test_bad_jsonl_and_oversized_line(self):
         with patch.object(d,"STREAM_LINE_LIMIT",64):
             rc,out,err,timed=self.invoke("import sys; sys.stdout.write('x'*1000); sys.stdout.flush()")
@@ -130,6 +206,11 @@ class StreamTests(unittest.TestCase):
             self.assertNotEqual(turn,None)
             journal=json.loads((state/"runs"/"task-1"/turn/"stream-state.json").read_text("utf-8"))
             self.assertEqual(journal["turnId"],turn);self.assertEqual(journal["entries"][-1]["kind"],"process_exit")
+            initial=json.loads((state/"runs"/"task-1"/"stream-state.json").read_text("utf-8"))
+            self.assertEqual(journal["sequenceScope"],"task")
+            self.assertEqual(journal["sequenceBase"],initial["entries"][-1]["taskSeq"])
+            self.assertEqual(journal["entries"][0]["taskSeq"],initial["entries"][-1]["taskSeq"]+1)
+            self.assertEqual(record["stream_checkpoint"]["lastTaskSeq"],journal["entries"][-1]["taskSeq"])
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(d.cmd_resume(resume(3)),1)
             with d.locked_state() as state_data:

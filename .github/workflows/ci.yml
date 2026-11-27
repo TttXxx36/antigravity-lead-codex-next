@@ -72,6 +72,8 @@ jobs:
         run: python -m unittest discover -s tests -p test_platform.py -v
       - name: Platform Node regression
         run: node --test tests/test-platform.mjs
+      - name: Offline signed authority receipt regression (no production grant)
+        run: node --test tests/test-authority-receipt.mjs tests/test-authority-receipt-ledger.mjs
       - name: Governance ledger
         run: python scripts/check_governance.py docs/EXECUTION_STATUS.json
       - name: Prepare locked runtime dependencies
