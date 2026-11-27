@@ -491,7 +491,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Exact-head four-environment cumulative CI PASS; 32/32 D14 streaming tests plus MCP cursor regression",
-      "next": "D15 candidate permitted; real host/UI push, actual cancel/reconnect and full raw-log rotation remain blocked",
+      "next": "D16 verified EPERM/reaped leader correction backported; exact-head regression pending; actual host gates unchanged.",
       "branch": "dev/d14",
       "approval": "2026-11-27 user authorized A candidate development; no real model or expanded authority",
       "pr": 16,
@@ -508,13 +508,18 @@
           "name": "Actual host/UI, full raw rotation and cancellation",
           "status": "BLOCKED",
           "ref": "docs/evidence/D14-streaming.md"
+        },
+        {
+          "name": "D14 EPERM backport exact-head regression",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D14-streaming.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "b7bc081c680e94f87a3012d5fa1f0f54d93116b5",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45973849986",
-        "limitations": "Opt-in v2; bounded raw log cap stops rather than rotates; metadata rolling window and per-turn cursors only; real host push/cancel/reconnect and escaped descendants remain unverified; no merge."
+        "limitations": "Opt-in v2; bounded raw log cap stops rather than rotates; metadata rolling window and per-turn cursors only; real host push/cancel/reconnect and escaped descendants remain unverified; no merge. Historical PASS applies to old head; EPERM backport requires fresh CI."
       }
     },
     {

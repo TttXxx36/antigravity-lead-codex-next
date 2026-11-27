@@ -1672,10 +1672,23 @@ def terminate_owned_process_tree(proc: subprocess.Popen) -> None:
             if proc.poll() is None:
                 proc.kill()
     else:
+        # Never signal a numeric process group after Popen has reaped its
+        # leader: the ID could be reused. A short-lived zombie on macOS may
+        # also cause killpg to return EPERM during the exit race.
+        if proc.returncode is not None:
+            return
         try:
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
+        except PermissionError:
+            # Reap an exiting owned child. If still alive, only target that
+            # Popen child; descendants are unverified. All callers are on
+            # failure/interruption paths, never infer success from this.
+            try:
+                proc.wait(timeout=.2)
+            except subprocess.TimeoutExpired:
+                proc.kill()
 
 
 def run_subprocess_with_timeout(
