@@ -209,10 +209,8 @@ server.registerTool(
     _meta: BOTH_META,
   },
   async ({ threadId }) => {
-    const snap = store.getSnapshot({ limit: 250 });
-    const match = snap.tasks.find((t) => t.id === threadId || t.id.startsWith(threadId));
-    const resolvedId = match ? match.id : threadId;
-    const detail = store.getThreadDetail(resolvedId);
+    let detail;
+    try { detail = store.getThreadDetail(threadId); } catch (err) { return fail(err.message); }
     if (!detail.task) {
       return fail(`未找到 Codex 会话: ${threadId}`);
     }
@@ -241,8 +239,8 @@ server.registerTool(
     _meta: BOTH_META,
   },
   async ({ threadId, prompt, preset }) => {
-    const snap = store.getSnapshot({ limit: 250 });
-    const match = snap.tasks.find((t) => t.id === threadId || t.id.startsWith(threadId));
+    let match;
+    try { match = store.getThread(threadId); } catch (err) { return fail(err.message); }
     if (!match) return fail(`未找到目标 Codex 会话: ${threadId}`);
 
     const isDiagnose = preset === 'diagnose_blocker' || !prompt?.trim();
@@ -275,8 +273,8 @@ server.registerTool(
     _meta: BOTH_META,
   },
   async ({ threadId, message, mode = 'dispatch_resume', allowDuplicate = false }) => {
-    const snap = store.getSnapshot({ limit: 250 });
-    const match = snap.tasks.find((t) => t.id === threadId || t.id.startsWith(threadId));
+    let match;
+    try { match = store.getThread(threadId); } catch (err) { return fail(err.message); }
     if (!match) return fail(`未找到目标 Codex 会话: ${threadId}`);
 
     try {

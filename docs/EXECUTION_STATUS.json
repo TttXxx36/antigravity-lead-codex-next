@@ -278,15 +278,38 @@
         "D06",
         "D07"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "按 ID 查询、歧义拒绝、Git -z、DB 错误、三平台与 Windows 实机",
+      "status": "BLOCKED",
+      "evidence": "Four-environment D08 query/Git and cumulative regression PASS; real host NOT_RUN",
+      "next": "D07 updated candidate ancestry integrated; exact-head regression and formal gates pending.",
       "branch": "dev/d08",
-      "approval": null,
-      "pr": null,
+      "approval": "2026-11-27 user approved A and verified candidate development",
+      "pr": 10,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D08 query/Git and cumulative regression",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45938086882",
+          "tested_commit": "5ab0c7db084b87701bb3d5d5f60fc512f833dc7f"
+        },
+        {
+          "name": "Real host end-to-end",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D08-history.md"
+        },
+        {
+          "name": "BUG-007 cleanup denial synchronization",
+          "status": "NOT_RUN",
+          "ref": "docs/decisions/D08.md"
+        }
+      ],
+      "candidate": {
+        "ready": false,
+        "tested_commit": "5ab0c7db084b87701bb3d5d5f60fc512f833dc7f",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45938086882",
+        "limitations": "Actual Antigravity/Codex end-to-end and Windows x64 desktop unverified; no formal merge. Verified D06 cleanup denial synchronized; current head needs CI."
+      }
     },
     {
       "id": "D09",

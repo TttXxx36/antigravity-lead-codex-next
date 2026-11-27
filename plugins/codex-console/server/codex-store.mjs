@@ -7,14 +7,15 @@ import { runtimePaths } from './platform.mjs';
 
 const { codexHome: CODEX_HOME, dispatchStateDir: DISPATCH_STATE_DIR } = runtimePaths();
 
-function withReadOnlyDb(dbFile, fn, fallback) {
-  if (!fs.existsSync(dbFile)) return fallback;
+function withReadOnlyDb(dbFile, fn, fallback, errors = []) {
+  if (!fs.existsSync(dbFile)) { errors.push({source:path.basename(dbFile),code:'MISSING'}); return fallback; }
   let db = null;
   try {
     db = new DatabaseSync(dbFile, { readOnly: true });
     db.exec('PRAGMA busy_timeout = 2000;');
     return fn(db);
-  } catch {
+  } catch (err) {
+    errors.push({source:path.basename(dbFile),code:err?.code || 'READ_ERROR',message:'SQLite read/schema incompatible'});
     return fallback;
   } finally {
     if (db) {
@@ -27,13 +28,15 @@ function withReadOnlyDb(dbFile, fn, fallback) {
   }
 }
 
-function readDispatchState() {
+function readDispatchState(errors = []) {
   const statePath = path.join(DISPATCH_STATE_DIR, 'state.json');
   if (!fs.existsSync(statePath)) return { tasks: {} };
   try {
     const raw = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-    return raw && typeof raw === 'object' ? raw : { tasks: {} };
+    if (!raw || typeof raw !== 'object' || !raw.tasks || Array.isArray(raw.tasks) || typeof raw.tasks !== 'object') throw new Error('Invalid state');
+    return raw;
   } catch {
+    errors.push({source:'state.json',code:'INVALID_STATE',message:'Dispatcher state unreadable; not reset'});
     return { tasks: {} };
   }
 }
@@ -271,9 +274,31 @@ export class CodexStore {
     };
   }
 
-  getSnapshot({ limit = 160 } = {}) {
+  resolveThreadId(input) {
+    if (typeof input !== 'string' || input.length < 4 || input.length > 256 || input.includes('\0')) throw new Error('Invalid thread ID');
+    const errors = [];
+    const matches = withReadOnlyDb(this.stateDbPath, db => {
+      const exact = db.prepare('SELECT id FROM threads WHERE id = ?').get(input);
+      if (exact) return [exact];
+      return db.prepare('SELECT id FROM threads WHERE substr(id,1,length(?)) = ? ORDER BY id LIMIT 2').all(input,input);
+    }, [], errors);
+    if (errors.length) throw new Error('State database unavailable: '+errors[0].code);
+    if (matches.length > 1) throw new Error('Ambiguous thread ID prefix; use full ID');
+    return matches[0]?.id || null;
+  }
+
+  getThread(input) {
+    const id = this.resolveThreadId(input);
+    if (!id) return null;
+    const snap = this.getSnapshot({ threadId:id, limit:1 });
+    if (!snap.connected) throw new Error('State database unavailable');
+    return snap.tasks.find(t => t.id === id) || null;
+  }
+
+  getSnapshot({ limit = 160, threadId = null, includeChildren = false } = {}) {
+    const errors = [];
     const prefsMap = this.consoleDb.getAllPrefs();
-    const dispatchState = readDispatchState();
+    const dispatchState = readDispatchState(errors);
     const dispatchTasksList = Object.values(dispatchState.tasks || {});
     const dispatchBySession = new Map();
     for (const t of dispatchTasksList) {
@@ -290,23 +315,25 @@ export class CodexStore {
           FROM project_roots pr
           JOIN projects p ON p.id = pr.project_id
         `).all();
-        const threads = db.prepare(`
+        const threadSelect = `
           SELECT id, rollout_path, created_at, updated_at, created_at_ms, updated_at_ms,
                  source, thread_source, originator, cwd, title, name, preview,
                  tokens_used, archived, is_pinned, git_branch, git_sha,
                  model, reasoning_effort, agent_nickname, agent_role, agent_path,
                  project_id, history_mode
-          FROM threads
-          ORDER BY updated_at DESC
-          LIMIT ?
-        `).all(limit);
+          FROM threads`;
+        const threads = threadId === null
+          ? db.prepare(threadSelect+' ORDER BY updated_at DESC LIMIT ?').all(limit)
+          : includeChildren
+            ? db.prepare(threadSelect+' WHERE id = ? OR id IN (SELECT child_thread_id FROM thread_spawn_edges WHERE parent_thread_id = ?) ORDER BY CASE WHEN id = ? THEN 0 ELSE 1 END, updated_at DESC LIMIT ?').all(threadId,threadId,threadId,limit)
+            : db.prepare(threadSelect+' WHERE id = ?').all(threadId);
         const totalRow = db.prepare('SELECT COUNT(*) AS c FROM threads').get();
         const spawnEdges = db.prepare(
           'SELECT parent_thread_id, child_thread_id, status FROM thread_spawn_edges'
         ).all();
         return { projects, roots, threads, totalThreads: totalRow?.c || threads.length, spawnEdges };
       },
-      { projects: [], roots: [], threads: [], totalThreads: 0, spawnEdges: [] }
+      { projects: [], roots: [], threads: [], totalThreads: 0, spawnEdges: [] }, errors
     );
 
     const projectsById = new Map(stateData.projects.map((p) => [p.id, p.name]));
@@ -330,7 +357,7 @@ export class CodexStore {
         const rows = db.prepare('SELECT * FROM thread_goals').all();
         return new Map(rows.map((r) => [r.thread_id, r]));
       },
-      new Map()
+      new Map(), errors
     );
 
     // 3. Read queue_1.sqlite
@@ -342,12 +369,12 @@ export class CodexStore {
         ).all();
         return new Map(rows.map((r) => [r.thread_id, r.cnt]));
       },
-      new Map()
+      new Map(), errors
     );
 
     // 4. Read latest turn + latest agent reply in thread_history_1.sqlite for loaded threads
     const threadIds = stateData.threads.map((t) => t.id);
-    const { latestTurnMap, durationMap, latestReplyMap } = this._fetchThreadActivityBatch(threadIds);
+    const { latestTurnMap, durationMap, latestReplyMap } = this._fetchThreadActivityBatch(threadIds, errors);
 
     // 5. Read console ops & collab bindings
     const recentOps = this.consoleDb.listOps({ limit: 80 });
@@ -506,7 +533,8 @@ export class CodexStore {
             linkedThread?.latestReply ||
             '',
           changedFiles: result?.report?.files_modified || result?.changed_files || [],
-          verificationPassed: Boolean(result?.report?.verification_passed),
+          verificationPassed: result?.verification_status === 'passed' && result?.verification_passed === true,
+          verificationStatus: result?.verification_status || 'unknown',
           risks: result?.report?.risks_or_followups || [],
           worktreeExists: t.worktree_path ? fs.existsSync(t.worktree_path) : false,
         };
@@ -534,8 +562,8 @@ export class CodexStore {
     const worktrees = [...new Set(tasks.map((t) => t.worktreeLabel).filter(Boolean))].sort();
 
     return {
-      connected: this.getHealth().stateDbExists,
-      health: this.getHealth(),
+      connected: !errors.some(e=>e.source==='state_5.sqlite'),
+      health: { ...this.getHealth(), errors },
       stats,
       filters: { projects, worktrees },
       tasks,
@@ -546,7 +574,7 @@ export class CodexStore {
     };
   }
 
-  _fetchThreadActivityBatch(threadIds) {
+  _fetchThreadActivityBatch(threadIds, errors = []) {
     const latestTurnMap = new Map();
     const durationMap = new Map();
     const latestReplyMap = new Map();
@@ -592,14 +620,18 @@ export class CodexStore {
           if (text) latestReplyMap.set(r.thread_id, text);
         }
       },
-      null
+      null, errors
     );
 
     return { latestTurnMap, durationMap, latestReplyMap };
   }
 
-  getThreadDetail(threadId) {
-    const snapshot = this.getSnapshot({ limit: 200 });
+  getThreadDetail(input) {
+    const threadId = this.resolveThreadId(input);
+    if (!threadId) return {task:null,turns:[],messages:[],queuedItems:[],childThreads:[],ops:[],bindings:[],errors:[]};
+    const snapshot = this.getSnapshot({ threadId, includeChildren:true, limit:251 });
+    if (!snapshot.connected) throw new Error('State database unavailable');
+    const errors = [...snapshot.health.errors];
     const task = snapshot.tasks.find((t) => t.id === threadId) || null;
 
     const history = withReadOnlyDb(
@@ -639,7 +671,7 @@ export class CodexStore {
 
         return { turns, messages };
       },
-      { turns: [], messages: [] }
+      { turns: [], messages: [] }, errors
     );
 
     const queuedItems = withReadOnlyDb(
@@ -652,7 +684,7 @@ export class CodexStore {
           ORDER BY queue_order ASC
         `).all(threadId);
       },
-      []
+      [], errors
     );
 
     const childThreads = snapshot.tasks
@@ -670,6 +702,7 @@ export class CodexStore {
 
     return {
       task,
+      errors,
       turns: history.turns,
       messages: history.messages,
       queuedItems,
