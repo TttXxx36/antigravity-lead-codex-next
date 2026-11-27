@@ -544,13 +544,18 @@
           "name": "Actual host migration, quiescence and recovery",
           "status": "BLOCKED",
           "ref": "docs/evidence/D15-storage.md"
+        },
+        {
+          "name": "BUG-007 cleanup denial and D14 EPERM integration",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D15-safety-integration.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "de11dc6f48588192c82cfd25172be44cfc5901f1",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45974689285",
-        "limitations": "Disposable fixtures only; actual host migration, manual process quiescence, power-loss and recovery activation not verified; no production migration or native DB writes."
+        "limitations": "Disposable fixtures only; actual host migration, manual process quiescence, power-loss and recovery activation not verified; no production migration or native DB writes. Verified D06 cleanup denial and D14 EPERM correction synchronized; current head needs CI."
       }
     },
     {

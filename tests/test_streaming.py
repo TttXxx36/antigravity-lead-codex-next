@@ -140,4 +140,28 @@ class StreamTests(unittest.TestCase):
                 d.cmd_resume(resume(4))
             self.assertEqual(len(calls),3)
 
+    def test_owned_process_exit_race_permission_error(self):
+        import subprocess
+        # A real short-lived child, with the observed macOS group error
+        # injected deterministically. No permission or unrelated PID used.
+        p=subprocess.Popen([sys.executable,"-c","pass"],
+            start_new_session=(os.name!="nt"),
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name=="nt" else 0)
+        try:
+            if os.name!="nt":
+                with patch.object(d.os,"killpg",side_effect=PermissionError(1,"fixture EPERM")) as group:
+                    d.terminate_owned_process_tree(p)
+                    p.wait(timeout=5)
+                    d.terminate_owned_process_tree(p)
+                    self.assertEqual(group.call_count,1,"reaped group must never be signalled again")
+            else:
+                p.wait(timeout=5)
+                with patch.object(d.subprocess,"run") as kill:
+                    d.terminate_owned_process_tree(p)
+                    kill.assert_not_called()
+            self.assertIsNotNone(p.returncode)
+        finally:
+            if p.poll() is None:p.kill()
+            p.wait(timeout=5)
+
 if __name__=="__main__":unittest.main()
