@@ -393,6 +393,25 @@ async function runTests() {
     publish(JSON.stringify(value));
     let found=await readFixture();
     assert.equal(found.reportAvailable,true);assert.equal(found.summary,'current fixture');assert.equal(found.verification,'unknown');
+
+    // D14: reconnect with explicit turn/seq; gaps and malformed ordering fail safely.
+    record.stream_events=true;record.status='running';
+    fs.writeFileSync(stateFile,JSON.stringify(fixtureState));
+    const streamFile=path.join(fixtureRun,'stream-state.json');
+    const streamEntries=[{seq:5,kind:'running',at:1,stdoutBytes:0,stderrBytes:0,lines:0},
+      {seq:6,kind:'progress',at:2,stdoutBytes:10,stderrBytes:2,lines:1,private:'NO_RAW_OUTPUT'}];
+    const streamSnapshot={version:1,taskId:fixtureId,turnId:'initial',entries:streamEntries};
+    fs.writeFileSync(streamFile,JSON.stringify(streamSnapshot));
+    const replay=await compactCall('task_events',{taskId:fixtureId,limit:1},2500);
+    assert.equal(replay.gap,true);assert.equal(replay.nextCursor,5);assert.equal(replay.hasMore,true);
+    const reconnect=await compactCall('task_events',{taskId:fixtureId,turnId:replay.turnId,cursor:replay.nextCursor},2500);
+    assert.equal(reconnect.gap,false);assert.equal(reconnect.nextCursor,6);assert.equal(reconnect.entries[0].private,undefined);
+    assert.equal(reconnect.verification,'unknown');
+    fs.writeFileSync(streamFile,JSON.stringify({...streamSnapshot,entries:[streamEntries[0],{...streamEntries[1],seq:8}]}));
+    const invalidStream=(await rpc('tools/call',{name:'task_events',arguments:{taskId:fixtureId}})).result;
+    assert.equal(invalidStream.isError,true);
+    fs.unlinkSync(streamFile);delete record.stream_events;
+    record.status='completed';fs.writeFileSync(stateFile,JSON.stringify(fixtureState));
     record.status='running';fs.writeFileSync(stateFile,JSON.stringify(fixtureState));
     assert.equal((await readFixture()).reportAvailable,false);
     record.status='completed';fs.writeFileSync(stateFile,JSON.stringify(fixtureState));

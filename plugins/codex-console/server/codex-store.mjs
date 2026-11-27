@@ -672,6 +672,64 @@ export class CodexStore {
     return {task,result};
   }
 
+
+  // Read only the producer's bounded metadata snapshot; not raw output.
+  getTaskEvents(taskId, turnId, cursor=0, limit=10) {
+    const entry=this.getManagedTask(taskId,false);
+    if (!entry || entry.task.stream_events!==true) throw new Error('Streaming task unavailable');
+    const task=entry.task;
+    if (!Number.isSafeInteger(cursor)||cursor<0||!Number.isInteger(limit)||limit<1||limit>10) throw new Error('Invalid cursor');
+    if (cursor>0 && turnId==null) throw new Error('Resume cursor requires turnId');
+    const current=task.active_turn_id || task.result_ref?.turn || 'initial';
+    const turn=turnId ?? current;
+    if (!(turn==='initial'||(typeof turn==='string'&&/^turn-[A-Za-z0-9_-]{1,75}$/.test(turn)))) throw new Error('Invalid turn');
+    const expected=path.resolve(DISPATCH_STATE_DIR,'runs',taskId);
+    if (path.resolve(task.run_dir)!==expected) throw new Error('Invalid run directory');
+    const root=fs.realpathSync(DISPATCH_STATE_DIR);
+    const directory=path.join(expected,...(turn==='initial'?[]:[turn]));
+    const file=path.join(directory,'stream-state.json');
+    const canonical=path.join(root,'runs',taskId,...(turn==='initial'?[]:[turn]),'stream-state.json');
+    if (fs.realpathSync(file)!==canonical||fs.lstatSync(file).isSymbolicLink()) throw new Error('Unsafe stream path');
+    const fd=fs.openSync(file,'r');
+    let parsed;
+    try {
+      const stat=fs.fstatSync(fd);
+      if (!stat.isFile()||stat.size>16384) throw new Error('Invalid stream snapshot');
+      const bytes=Buffer.alloc(16385);
+      let n=0;
+      while(n<bytes.length) {
+        const m=fs.readSync(fd,bytes,n,bytes.length-n,null);
+        if (!m) break;
+        n+=m;
+      }
+      if(n>16384) throw new Error('Oversize snapshot');
+      parsed=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes.subarray(0,n)));
+    } finally {fs.closeSync(fd);}
+    const entries=parsed?.entries;
+    if (parsed?.version!==1||parsed.taskId!==taskId||parsed.turnId!==turn||
+        !Array.isArray(entries)||entries.length<1||entries.length>64) throw new Error('Invalid snapshot identity');
+    const kinds=['queued','running','progress','heartbeat','process_exit','timed_out','stream_failed','launch_failed','interrupted'];
+    let last=0, previous=null;
+    const clean=entries.map(e=>{
+      if (!e||!Number.isSafeInteger(e.seq)||e.seq<=0||(last&&e.seq!==last+1)||
+          !kinds.includes(e.kind)||!Number.isSafeInteger(e.at)||e.at<0||
+          !Number.isSafeInteger(e.stdoutBytes)||e.stdoutBytes<0||e.stdoutBytes>4194304||
+          !Number.isSafeInteger(e.stderrBytes)||e.stderrBytes<0||e.stderrBytes>1048576||
+          !Number.isSafeInteger(e.lines)||e.lines<0||e.lines>e.stdoutBytes||
+          (previous&&(previous.stdoutBytes>e.stdoutBytes||previous.stderrBytes>e.stderrBytes||previous.lines>e.lines||
+            ['process_exit','timed_out','stream_failed','launch_failed','interrupted'].includes(previous.kind)))) throw new Error('Invalid stream sequence');
+      last=e.seq;previous=e;
+      return {seq:e.seq,kind:e.kind,at:e.at,stdoutBytes:e.stdoutBytes,stderrBytes:e.stderrBytes,lines:e.lines};
+    });
+    if(cursor>last) throw new Error('Cursor ahead of producer');
+    const gap=cursor<clean[0].seq-1;
+    const available=clean.filter(e=>e.seq>cursor);
+    const page=available.slice(0,limit);
+    return {taskId,turnId:turn,taskStatus:typeof task.status==='string'&&/^[a-z_]{1,24}$/.test(task.status)?task.status:'unknown',
+      current:turn===current,gap,entries:page,nextCursor:page.at(-1)?.seq??cursor,hasMore:available.length>limit,
+      verification:'unknown'};
+  }
+
   getLogPage(input, cursor = 0, limit = 10) {
     const id = this.resolveThreadId(input);
     if (!id) throw new Error('Thread not found');

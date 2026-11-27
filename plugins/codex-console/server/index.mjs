@@ -111,6 +111,8 @@ compactTool('task_delta','Read changed compact result using revision from previo
   args=>compactDelta(store,args));
 compactTool('get_operation_status','Read operation state without prompt, output or raw errors.',{opId:z.string().min(3).max(128)},
   ({opId})=>compactOperation(consoleDb.getOp(opId)),600);
+compactTool('task_events','Read bounded D14 process metadata; reuse turnId and nextCursor to reconnect. No raw output or task verification.',{taskId:z.string().min(1).max(80),turnId:z.string().min(1).max(80).optional(),cursor:z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),limit:z.number().int().min(1).max(10).optional()},
+  ({taskId,turnId,cursor=0,limit=10})=>store.getTaskEvents(taskId,turnId,cursor,limit),2500);
 compactTool('task_logs','Explicit cursor page of history event metadata; full log text remains in UI.',{threadId:z.string().min(4).max(256),cursor:z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),limit:z.number().int().min(1).max(20).optional()},
   ({threadId,cursor=0,limit=10})=>store.getLogPage(threadId,cursor,limit),2500);
 compactTool('task_list','List up to ten recent task IDs and states, without history.',{limit:z.number().int().min(1).max(10).optional()},
@@ -339,6 +341,7 @@ server.registerTool(
       prompt: z.string().min(1).describe('给 Codex 子代理的清晰任务指令'),
       taskId: z.string().optional().describe('可选自定义 task_id；requestId 时必填'),
       requestId: z.string().min(1).max(80).optional().describe('显式持久请求 ID，prompt 必须为 v2 JSON envelope'),
+      streamEvents: z.boolean().optional().describe('D14 有界流式执行；需要 requestId，后续 resume 继承'),
       difficulty: z.enum(['auto', 'low', 'medium', 'hard', 'extreme']).optional(),
       quality: z.enum(['smart', 'max', 'balanced']).optional(),
       isolation: z.enum(['worktree', 'inplace', 'auto']).optional(),

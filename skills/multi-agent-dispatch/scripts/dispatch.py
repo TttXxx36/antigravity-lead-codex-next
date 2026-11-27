@@ -17,6 +17,8 @@ import hashlib
 import json
 import os
 import ntpath
+import queue
+import threading
 import re
 import shutil
 import subprocess
@@ -1717,6 +1719,228 @@ def run_subprocess_with_timeout(
         terminate_owned_process_tree(proc)
         raise
 
+
+# D14: opt-in bounded streaming. Only fixed metadata is published; raw bytes
+# remain in local run artifacts. An interrupted producer never gets replayed.
+STREAM_STDOUT_LIMIT = 4 * 1024 * 1024
+STREAM_STDERR_LIMIT = 1024 * 1024
+STREAM_LINE_LIMIT = 64 * 1024
+STREAM_WINDOW = 64
+
+class StreamJournal:
+    def __init__(self, directory, task_id, turn_id):
+        self.path = directory / "stream-state.json"
+        reject_link(self.path)
+        if self.path.exists():
+            raise StateIntegrityError("D14: existing stream journal")
+        self.task_id = validate_task_id(task_id)
+        self.turn_id = validate_task_id(turn_id) if turn_id is not None else None
+        self.seq = 0
+        self.entries = []
+
+    def emit(self, kind, stdout_bytes=0, stderr_bytes=0, lines=0):
+        self.seq += 1
+        self.entries.append({"seq": self.seq, "kind": kind,
+            "at": time.time_ns() // 1000000, "stdoutBytes": stdout_bytes,
+            "stderrBytes": stderr_bytes, "lines": lines})
+        self.entries = self.entries[-STREAM_WINDOW:]
+        payload = {"version": 1, "taskId": self.task_id,
+                   "turnId": self.turn_id or "initial", "entries": self.entries}
+        atomic_write_bytes(self.path, (json.dumps(payload, separators=(",", ":")) + "\n").encode("utf-8"))
+
+
+def streamed_subprocess(cmd, *, cwd, stdin_text, timeout, run_dir, task_id, turn_id=None, env=None):
+    """Bounded concurrent pipe drain with a replayable, metadata-only journal.
+
+    Raw artifacts are capped per invocation, not silently truncated to success.
+    On quota, malformed JSONL, pipe failure or deadline, terminate only the owned
+    process tree. Uncertain termination cannot report task success.
+    """
+    if type(timeout) is not int or timeout <= 0:
+        raise ValueError("D14: positive timeout required")
+    reject_link(run_dir)
+    journal = StreamJournal(run_dir, task_id, turn_id)
+    journal.emit("queued")
+    chunks = queue.Queue(maxsize=32)
+    stop = threading.Event()
+    counts = {"stdout": 0, "stderr": 0}
+    limits = {"stdout": STREAM_STDOUT_LIMIT, "stderr": STREAM_STDERR_LIMIT}
+    output = bytearray()
+    errors = bytearray()
+    line = bytearray()
+    lines = 0
+    proc = None
+    eof = set()
+    failure = None
+    timed_out = False
+
+    def enqueue(item):
+        while not stop.is_set():
+            try:
+                chunks.put(item, timeout=.1)
+                return
+            except queue.Full:
+                continue
+
+    def reader(name, pipe):
+        try:
+            while not stop.is_set():
+                data = pipe.read1(8192)
+                if not data:
+                    enqueue((name, None))
+                    return
+                enqueue((name, data))
+        except (OSError, ValueError):
+            enqueue(("pipe_error", None))
+        finally:
+            pipe.close()
+
+    def writer(pipe):
+        try:
+            if stdin_text is not None:
+                pipe.write(stdin_text.encode("utf-8"))
+                pipe.flush()
+        except (OSError, ValueError, UnicodeError):
+            enqueue(("stdin_error", None))
+        finally:
+            try:
+                pipe.close()
+            except OSError:
+                pass
+
+    def parse_line(raw):
+        nonlocal lines
+        if len(raw) > STREAM_LINE_LIMIT:
+            raise ValueError("line_limit")
+        if not raw.strip():
+            return
+        value = json.loads(raw.decode("utf-8", errors="strict"))
+        if not isinstance(value, dict):
+            raise ValueError("invalid_jsonl")
+        lines += 1
+
+    def accept(name, data, sink):
+        nonlocal line
+        remaining = limits[name] - counts[name]
+        portion = data[:remaining]
+        sink.write(portion)
+        sink.flush()
+        counts[name] += len(portion)
+        (output if name == "stdout" else errors).extend(portion)
+        if len(data) > remaining:
+            raise ValueError("output_limit")
+        if name == "stdout":
+            line.extend(portion)
+            while True:
+                at = line.find(b"\n")
+                if at < 0:
+                    break
+                parse_line(line[:at])
+                del line[:at+1]
+            if len(line) > STREAM_LINE_LIMIT:
+                raise ValueError("line_limit")
+
+    stdout_file, stderr_file = run_dir / "events.jsonl", run_dir / "stderr.log"
+    for target in (stdout_file, stderr_file):
+        reject_link(target)
+    with stdout_file.open("xb") as stdout_sink, stderr_file.open("xb") as stderr_sink:
+        try:
+            proc = subprocess.Popen(cmd, cwd=str(cwd), env=env,
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                start_new_session=(os.name != "nt"),
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
+        except OSError as exc:
+            journal.emit("launch_failed")
+            return 127, "", "[dispatcher] Launch failed: " + type(exc).__name__, False
+        started = time.monotonic()
+        last_publish = started
+        last_counts = (0, 0)
+        threads = [
+            threading.Thread(target=reader, args=("stdout", proc.stdout), daemon=True),
+            threading.Thread(target=reader, args=("stderr", proc.stderr), daemon=True),
+            threading.Thread(target=writer, args=(proc.stdin,), daemon=True)]
+        try:
+            journal.emit("running")
+            for thread in threads:
+                thread.start()
+            while True:
+                now = time.monotonic()
+                if now - started >= timeout:
+                    timed_out = True
+                    failure = "timeout"
+                    break
+                try:
+                    name, data = chunks.get(timeout=min(.1, max(.001, timeout-(now-started))))
+                except queue.Empty:
+                    name, data = None, None
+                if name in ("pipe_error", "stdin_error"):
+                    failure = name
+                    break
+                if name in ("stdout", "stderr"):
+                    if data is None:
+                        eof.add(name)
+                    else:
+                        try:
+                            accept(name, data, stdout_sink if name=="stdout" else stderr_sink)
+                        except (ValueError, UnicodeError, RecursionError):
+                            failure = "invalid_or_oversized_output"
+                            break
+                now = time.monotonic()
+                totals = (counts["stdout"], counts["stderr"])
+                if now-last_publish >= 1 or (totals != last_counts and now-last_publish >= .25):
+                    journal.emit("progress" if totals != last_counts else "heartbeat", *totals, lines)
+                    last_publish, last_counts = now, totals
+                if len(eof)==2 and proc.poll() is not None and not threads[2].is_alive():
+                    if line:
+                        try:
+                            parse_line(line)
+                        except (ValueError, UnicodeError, RecursionError):
+                            failure = "invalid_or_oversized_output"
+                    break
+            if failure is not None:
+                terminate_owned_process_tree(proc)
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=5)
+            else:
+                proc.wait(timeout=5)
+            for sink in (stdout_sink, stderr_sink):
+                sink.flush()
+                os.fsync(sink.fileno())
+            journal.emit("timed_out" if timed_out else "stream_failed" if failure else "process_exit",
+                         counts["stdout"], counts["stderr"], lines)
+        except BaseException:
+            terminate_owned_process_tree(proc)
+            try:
+                journal.emit("interrupted", counts["stdout"], counts["stderr"], lines)
+            except (OSError, StateIntegrityError):
+                pass
+            raise
+        finally:
+            stop.set()
+            # Do not close a pipe from another thread while a read is blocked.
+            # Daemon readers cannot block CLI shutdown if an escaped child holds it.
+            for thread in threads:
+                if thread.ident is not None:
+                    thread.join(timeout=.2)
+        if failure:
+            # Incomplete streams cannot be used for session/usage inference.
+            return (124 if timed_out else 125), "", "[dispatcher] D14 " + failure, timed_out
+        return proc.returncode, output.decode("utf-8"), errors.decode("utf-8", "replace"), False
+
+
+def invoke_worker(cmd, *, cwd, stdin_text, timeout, run_dir, task_id, turn_id=None, stream_events=False):
+    if stream_events:
+        return streamed_subprocess(cmd, cwd=cwd, stdin_text=stdin_text, timeout=timeout,
+                                   run_dir=run_dir, task_id=task_id, turn_id=turn_id)
+    rc, out, err, timed_out = run_subprocess_with_timeout(cmd, cwd=cwd, stdin_text=stdin_text, timeout=timeout)
+    (run_dir / "events.jsonl").write_text(out, encoding="utf-8")
+    (run_dir / "stderr.log").write_text(err, encoding="utf-8")
+    return rc, out, err, timed_out
+
+
 def execute_single_task(
     *,
     prompt: str,
@@ -1740,7 +1964,10 @@ def execute_single_task(
     budget: dict[str,Any] | None = None,
     use_budget_route: bool = False,
     request_id: str | None = None,
+    stream_events: bool = False,
 ) -> dict[str, Any]:
+    if type(stream_events) is not bool or (stream_events and not protocol_v2):
+        raise ValueError('D14: streaming requires explicit v2 protocol')
     limits=make_budget() if budget is None else make_budget(budget['turns'],budget['tokens'],budget['seconds'])
     store=new_usage_store()
     timeout=budget_timeout(limits,store,timeout)
@@ -1820,7 +2047,7 @@ def execute_single_task(
     run_dir = reserve_run_dir(tid, {"backend": backend, "model": model_used, "effort": effort_used,
         "difficulty": routing["effective_difficulty"], "repo_root": git_info["repo_root"],
         "original_cwd": str(cwd), "workdir": str(cwd), "session_id": None, "network": network,
-        "sandbox": sandbox, "isolation": eff_isolation, "created_at": utc_now(), "updated_at": utc_now(), **protocol_meta(envelope), **context_state_fields(board), "budget":limits,"usage_store":store,"budget_route":use_budget_route}, request_id=request_id)
+        "sandbox": sandbox, "isolation": eff_isolation, "created_at": utc_now(), "updated_at": utc_now(), **protocol_meta(envelope), **context_state_fields(board), "budget":limits,"usage_store":store,"budget_route":use_budget_route,"stream_events":stream_events}, request_id=request_id)
     (run_dir / "prompt.txt").write_text(worker_prompt, encoding="utf-8")
 
     workdir = cwd
@@ -1842,13 +2069,19 @@ def execute_single_task(
         report_path=report_path,
         is_git_repo=git_info["is_git_repo"], protocol_v2=protocol_v2,
     )
+    if stream_events:
+        with locked_state() as state:
+            current = state["tasks"][tid]
+            if current.get("status") != "reserved":
+                raise StateIntegrityError("D14: reservation changed")
+            current.update(status="running", updated_at=utc_now(), workdir=str(workdir),
+                           worktree_path=worktree_path, branch=branch_name)
     started = time.monotonic_ns()
-    rc, stdout_text, stderr_text, timed_out = run_subprocess_with_timeout(
-        cmd, cwd=workdir, stdin_text=worker_prompt, timeout=timeout
+    rc, stdout_text, stderr_text, timed_out = invoke_worker(
+        cmd, cwd=workdir, stdin_text=worker_prompt, timeout=timeout,
+        run_dir=run_dir, task_id=tid, stream_events=stream_events
     )
     duration_ms = (time.monotonic_ns() - started) // 1000000
-    (run_dir / "events.jsonl").write_text(stdout_text, encoding="utf-8")
-    (run_dir / "stderr.log").write_text(stderr_text, encoding="utf-8")
     parsed_events = parse_codex_events(stdout_text)
     report = parse_report_file(
         report_path,
@@ -1858,7 +2091,7 @@ def execute_single_task(
         event_errors=parsed_events["errors"], protocol_v2=protocol_v2,
     )
     session_id = context_session(stdout_text,None,False) if board is not None else parsed_events["session_id"]
-    sample=invocation_usage(stdout_text)
+    sample=invocation_usage("" if stream_events and rc != 0 else stdout_text)
     usage={k:v for k,v in sample["counts"].items() if v is not None} or None
     store=finish_usage(store,sample,duration_ms,"initial")
 
@@ -1891,7 +2124,7 @@ def execute_single_task(
         "updated_at": now,
         "run_dir": str(run_dir),
         **protocol_meta(envelope),
-        "budget":limits,"usage_store":store,"budget_route":use_budget_route,
+        "budget":limits,"usage_store":store,"budget_route":use_budget_route,"stream_events":stream_events,
     }
 
     result = {
@@ -1929,7 +2162,7 @@ def execute_single_task(
             context_assert_session_owner(state,tid,session_id,board)
         else:
             context_protect_legacy_session(state,tid,session_id)
-        if state["tasks"].get(tid, {}).get("status") != "reserved":
+        if state["tasks"].get(tid, {}).get("status") != ("running" if stream_events else "reserved"):
             raise StateIntegrityError("Task reservation missing or changed")
         state["tasks"][tid] = task_record
 
@@ -2086,6 +2319,8 @@ def guarded_dispatch(args: argparse.Namespace, handler) -> int:
         if not isinstance(args.prompt, str) or len(args.prompt.encode("utf-8")) > PROTOCOL_LIMIT:
             raise ValueError("D13: request exceeds protocol bound")
     params = {k: v for k, v in vars(args).items() if k not in ("request_id",) and not k.startswith("_")}
+    if params.get("stream_events") is False:
+        params.pop("stream_events")  # preserve D13 request digest on upgrade
     if params.get("cwd") is not None:
         params["cwd"] = str(configured_path(params["cwd"]))
     digest = request_hash(params)
@@ -2218,7 +2453,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         dry_run=args.dry_run,
         protocol_v2=args.protocol_v2, blackboard=args.blackboard,
         budget=make_budget(args.max_turns,args.max_tokens,args.max_seconds),use_budget_route=args.budget_route,
-        request_id=getattr(args, 'request_id', None),
+        request_id=getattr(args, 'request_id', None), stream_events=getattr(args, 'stream_events', False),
     )
     print(json.dumps(result.get("protocol_result",result), ensure_ascii=False, separators=(",",":") if args.protocol_v2 else None, indent=None if args.protocol_v2 else 2))
     return task_exit_code(result)
@@ -2324,6 +2559,9 @@ def _cmd_resume(args: argparse.Namespace) -> int:
     limits=task_record.get("budget",make_budget())
     store=task_record.get("usage_store",new_usage_store(prior_unknown=True))
     effective_timeout=budget_timeout(limits,store,args.timeout)
+    stream_events=task_record.get("stream_events",False)
+    if type(stream_events) is not bool or (stream_events and not args.protocol_v2):
+        raise StateIntegrityError("D14: persisted streaming mode or protocol invalid")
     board = None
     if task_record.get("context_board") is not None:
         if not args.protocol_v2:
@@ -2464,12 +2702,11 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         current["updated_at"] = utc_now()
     cmd = resume_command()
     started = time.monotonic_ns()
-    rc, stdout_text, stderr_text, timed_out = run_subprocess_with_timeout(
-        cmd, cwd=workdir, stdin_text=worker_prompt, timeout=effective_timeout
+    rc, stdout_text, stderr_text, timed_out = invoke_worker(
+        cmd, cwd=workdir, stdin_text=worker_prompt, timeout=effective_timeout,
+        run_dir=run_dir, task_id=resume_tid, turn_id=turn_id, stream_events=stream_events
     )
     duration_ms = (time.monotonic_ns() - started) // 1000000
-    (run_dir / "events.jsonl").write_text(stdout_text, encoding="utf-8")
-    (run_dir / "stderr.log").write_text(stderr_text, encoding="utf-8")
     parsed_events = parse_codex_events(stdout_text)
     report = parse_report_file(
         report_path,
@@ -2479,7 +2716,7 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         event_errors=parsed_events["errors"], protocol_v2=args.protocol_v2,
     )
     new_session_id = context_session(stdout_text,session_id,args.rebuild_context) if board is not None else (parsed_events["session_id"] or session_id)
-    sample=invocation_usage(stdout_text)
+    sample=invocation_usage("" if stream_events and rc != 0 else stdout_text)
     usage={k:v for k,v in sample["counts"].items() if v is not None} or None
     store=finish_usage(store,sample,duration_ms,turn_id)
 
@@ -2793,6 +3030,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--files", nargs="*", default=None, help="Optional target file hints.")
     p_run.add_argument("--task-id", default=None)
     p_run.add_argument("--request-id", default=None, help="Persistent D13 operation ID (v2 only).")
+    p_run.add_argument("--stream-events", action="store_true", help="D14 bounded streaming (explicit v2 only; inherited by resume).")
     p_run.add_argument("--max-turns", type=int, default=None)
     p_run.add_argument("--max-tokens", type=int, default=None)
     p_run.add_argument("--max-seconds", type=int, default=None)

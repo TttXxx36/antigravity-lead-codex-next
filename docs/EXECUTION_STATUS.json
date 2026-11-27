@@ -489,15 +489,21 @@
         "D07",
         "D13"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "流式 JSONL、心跳/seq、内存有界、断线恢复",
+      "status": "IN_PROGRESS",
+      "evidence": "D14 bounded opt-in v2 streaming, metadata journal and MCP cursor candidate; CI pending",
+      "next": "Verify four-environment cumulative regression and actual host cancellation/reconnect evidence",
       "branch": "dev/d14",
-      "approval": null,
+      "approval": "2026-11-27 user authorized A candidate development; no real model or expanded authority",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D14 streaming and cumulative regression",
+          "status": "NOT_RUN",
+          "ref": "pending CI"
+        }
+      ]
     },
     {
       "id": "D15",

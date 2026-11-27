@@ -1,0 +1,7 @@
+# D14 — Bounded streaming and event replay
+
+
+## 2026-11-27 D14 candidate
+Base `f123cb30cf07023e2667126ff6a538890bf68122` (D13 verified code b61c1cddb9c1b67b3ebd1bfe7b7b1548b0729081, Run 45971644956 PASS; evidence-only follow-up). Opt-in v2 --stream-events, MCP streamEvents requires requestId; resume inherits the persisted flag. Legacy default unchanged; D13 default request hashes unchanged. Concurrent binary pipe readers, bounded queue, byte caps stdout 4MiB/stderr 1MiB, JSONL line cap 64KiB, UTF-8 validation on complete lines; incremental raw local artifact writes, fixed metadata snapshots with atomic durable seq and 64-entry rolling replay window, heartbeat and cursor/gap. No raw output in task_events; process_exit is not task acceptance. Output overflow/malformed stream/timeouts stop owned process tree, discard partial usage/session inference and never report success. Raw log cap stops instead of silently rotating/deleting raw evidence; metadata window rotates, full raw-log rotation and cross-turn global sequence are not implemented. If context/session identity or state settlement fails, retain pending/running for manual reconciliation. No new cancel authority or real host test; UI push transport and actual host reconnect remain unverified. Rollback: omit opt-in on new tasks; do not downgrade active streamed tasks or delete artifacts. Four-environment CI pending.
+
+Actual CI evidence: NOT_RUN until verified.

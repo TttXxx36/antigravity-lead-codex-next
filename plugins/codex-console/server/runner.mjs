@@ -276,7 +276,9 @@ export class CodexRunner {
     changeKey = '',
     goalTitle = '',
     requestId = null,
+    streamEvents = false,
   }) {
+    if (typeof streamEvents !== 'boolean' || (streamEvents && requestId==null)) throw new Error('D14: streaming requires explicit v2 requestId');
     if (!this.pythonBin) throw new Error('Python executable not found; set PYTHON_BIN');
     if (!this.codexBin) throw new Error('Codex executable not found; set CODEX_BIN');
     if (network !== false) throw new Error('D06: network access denied; trusted host authorization unavailable');
@@ -299,7 +301,7 @@ export class CodexRunner {
     if (requestId!=null && (changeKey || goalTitle)) throw new Error('D13: keyed v2 binding not supported');
     const rev=requestId==null?null:keyedEnvelope(cleanPrompt,taskId,true);
     const reservation=requestOp(this.consoleDb,requestId,
-      ['run',cleanCwd,taskId,cleanPrompt,rev,difficulty,quality,isolation,useNetwork], {
+      ['run',cleanCwd,taskId,cleanPrompt,rev,difficulty,quality,isolation,useNetwork,...(streamEvents?['stream-v1']:[])], {
       threadId:null,
       opType:'spawn_worker',
       prompt:cleanPrompt,
@@ -327,6 +329,7 @@ export class CodexRunner {
       args.push('--task-id', taskId.trim());
     }
     if (requestId!=null) args.push('--protocol-v2','--request-id',requestId);
+    if (streamEvents) args.push('--stream-events');
 
     const child = spawn(this.pythonBin, args, {
       cwd: cleanCwd,
