@@ -68,3 +68,5 @@ D07 BUG-001/002 修复候选已实现，等待 CI；不关闭缺陷或冒充真�
 
 ## 实际四环境 CI（候选通过）
 [Run 45937506260](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937506260) completed/success，测试 commit `8e472999c84f1a41dd188a5766d6bd4de7bd02a5`；Windows 11 ARM64、Windows Server x64、Ubuntu、macOS 各7项 Python outcome +4项 Node outcome（共44/44 PASS），真实本地父子进程超时 marker 未出现，缺报告与非零退出反向断言、启动失败、终态重复事件和重启孤儿状态通过。D06 策略、Hook、治理及 D03–D05 累计回归通过。旧 BUG-001/002 为 CANDIDATE_PASS，尚未合入 main；真实 Antigravity/实际 Codex worker 的进程树、逃逸/提前退出根进程及真实掉电未验收，不能据托管结果标 DONE。D07 候选允许后续依赖开发；PR #9 base dev/d06 保持 Draft。
+
+D08 RISK-06 候选实现：>250 历史会话、歧义、只读 SHA、schema 错误、真实 Git Unicode rename 回归；待 CI；不关闭真实宿主风险。

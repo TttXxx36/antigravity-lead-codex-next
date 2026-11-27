@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { classifyManagedResult, watchOwnedChild } from './outcome.mjs';
+import { parsePorcelainZ } from './git-status.mjs';
 import { runtimePaths, resolveExecutable, buildRuntimeEnv, normalizePath } from './platform.mjs';
 
 const execFileAsync = promisify(execFile);
@@ -361,23 +362,15 @@ export class CodexRunner {
       if (!this.gitBin) throw new Error('Git executable not found; set GIT_BIN');
       const [{ stdout: branch }, { stdout: status }, { stdout: diffStat }] = await Promise.all([
         execFileAsync(this.gitBin, ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, timeout: 5000 }),
-        execFileAsync(this.gitBin, ['status', '--short'], { cwd, timeout: 5000 }),
-        execFileAsync(this.gitBin, ['diff', '--stat'], { cwd, timeout: 5000 }),
+        execFileAsync(this.gitBin, ['status', '--porcelain=v1', '-z'], { cwd, timeout: 5000 }),
+        execFileAsync(this.gitBin, ['diff', '--no-ext-diff', '--no-textconv', '--stat'], { cwd, timeout: 5000 }),
       ]);
-      const files = status
-        .split('\n')
-        .map((l) => l.trimEnd())
-        .filter(Boolean)
-        .map((line) => ({
-          xy: line.slice(0, 2).trim() || 'M',
-          file: line.slice(3).trim(),
-          absPath: path.join(cwd, line.slice(3).trim()),
-        }));
+      const files = parsePorcelainZ(status,cwd);
       return {
         isGit: true,
         cwd,
         branch: branch.trim(),
-        statusShort: status.trim(),
+        statusShort: files.map(f=>`${f.xy} ${f.originalFile ? f.originalFile+' -> ' : ''}${f.file}`).join('\n'),
         diffStat: diffStat.trim(),
         files,
         hasBlackboard,

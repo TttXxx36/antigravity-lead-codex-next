@@ -267,15 +267,21 @@
         "D06",
         "D07"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "按 ID 查询、歧义拒绝、Git -z、DB 错误、三平台与 Windows 实机",
+      "status": "IN_PROGRESS",
+      "evidence": "D08 exact/prefix query, errors, git parser and permanent CI candidate",
+      "next": "CI plus real host end-to-end acceptance",
       "branch": "dev/d08",
-      "approval": null,
+      "approval": "2026-11-27 user approved A and verified candidate development",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D08 query and Git regression",
+          "status": "NOT_RUN",
+          "ref": "pending CI"
+        }
+      ]
     },
     {
       "id": "D09",

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -377,6 +378,27 @@ async function runTests() {
     assert.equal(listBindings.length, 1);
     await rpc('tools/call', { name: 'manage_collab_binding', arguments: { action: 'delete', id: bindingId } });
 
+    // Add 300 older sessions after original fixture assertions.
+    const oldDb = new DatabaseSync(path.join(codexHome,'state_5.sqlite'));
+    const insert = oldDb.prepare("INSERT INTO threads(id,created_at,updated_at,source,thread_source,originator,cwd,title,preview,archived,is_pinned) VALUES(?,?,?,?,?,?,?,?,?,?,?)");
+    const now=Math.floor(Date.now()/1000);
+    oldDb.exec('BEGIN');
+    for(let i=0;i<300;i++) insert.run('historical-'+String(i).padStart(4,'0'),now-10000-i,now-10000-i,'vscode','user','codex_work_desktop',tmpRoot,'History '+i,'old',0,0);
+    oldDb.exec('COMMIT');oldDb.close();
+    const sha=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+    const codexFiles=['state_5.sqlite','goals_1.sqlite','queue_1.sqlite','thread_history_1.sqlite'].map(x=>path.join(codexHome,x));
+    const before=codexFiles.map(sha);
+    const detailName='get_codex_task_detail';
+    for (const id of ['historical-0200','historical-0249','historical-0299']) {
+      const reply=await rpc('tools/call',{name:detailName,arguments:{threadId:id}});
+      assert.equal(reply.result?.structuredContent?.task?.id,id,JSON.stringify(reply));
+    }
+    const ambiguous=await rpc('tools/call',{name:detailName,arguments:{threadId:'historical-0'}});
+    assert.equal(ambiguous.result?.isError,true);
+    assert.match(ambiguous.result?.structuredContent?.error||'',/Ambiguous/);
+    const literal=await rpc('tools/call',{name:detailName,arguments:{threadId:'historical-%'}});
+    assert.equal(literal.result?.isError,true);
+    assert.deepEqual(codexFiles.map(sha),before,'read-only Codex DB bytes changed');
     // Denied before spawn: no trusted host grant or unmanaged queue.
     for (const args of [
       {name:'spawn_codex_worker',arguments:{cwd:tmpRoot,prompt:'synthetic',network:true}},
@@ -386,7 +408,16 @@ async function runTests() {
       const denied=await rpc('tools/call',args);
       assert.equal(denied.result?.isError,true, JSON.stringify(denied.result));
     }
-    console.log('[PASS] All MCP Codex Console integration tests passed.');
+    const incompatible=new DatabaseSync(path.join(codexHome,'state_5.sqlite'));
+    incompatible.exec('ALTER TABLE threads RENAME TO incompatible_threads');
+    incompatible.close();
+    const broken=await rpc('tools/call',{name:'console_snapshot',arguments:{limit:50}});
+    assert.equal(broken.result?.structuredContent?.connected,false);
+    assert.ok(broken.result?.structuredContent?.health?.errors?.some(e=>e.source==='state_5.sqlite'&&e.code!=='MISSING'));
+    const unavailable=await rpc('tools/call',{name:detailName,arguments:{threadId:'historical-0299'}});
+    assert.equal(unavailable.result?.isError,true);
+    assert.match(unavailable.result?.structuredContent?.error||'',/State database unavailable/);
+    console.log('[PASS] All MCP Codex Console integration tests passed, including >250 historical tasks, ambiguity, read-only hashes and schema errors.');
   } finally {
     if (child) {
       child.kill();
