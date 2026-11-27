@@ -2018,9 +2018,90 @@ STREAM_STDOUT_LIMIT = 4 * 1024 * 1024
 STREAM_STDERR_LIMIT = 1024 * 1024
 STREAM_LINE_LIMIT = 64 * 1024
 STREAM_WINDOW = 64
+STREAM_SEGMENT_BYTES = 256 * 1024
+STREAM_SAFE_SEQ = 2**53 - 1
+STREAM_TERMINAL = ("process_exit", "timed_out", "stream_failed", "launch_failed", "interrupted")
+
+
+class RotatingStreamSink:
+    """Append-only bounded segments plus the legacy bounded compatibility mirror.
+
+    The total invocation cap is still enforced by accept(); no old segment is
+    deleted, reused or silently dropped. A failed write cannot publish success.
+    """
+    def __init__(self, directory, name, mirror):
+        self.directory, self.name, self.mirror = directory, name, mirror
+        self.parts, self.part, self.digest, self.size = [], None, None, 0
+        if type(STREAM_SEGMENT_BYTES) is not int or STREAM_SEGMENT_BYTES <= 0:
+            raise ValueError("D14: invalid segment size")
+
+    def __enter__(self):
+        return self
+
+    def _close_part(self):
+        if self.part is None:
+            return
+        stream = self.part
+        try:
+            stream.flush()
+            os.fsync(stream.fileno())
+            self.parts.append({"name": Path(stream.name).name, "bytes": self.size,
+                               "sha256": self.digest.hexdigest()})
+        finally:
+            self.part = None
+            stream.close()
+
+    def write(self, data):
+        self.mirror.write(data)
+        offset = 0
+        while offset < len(data):
+            if self.part is None:
+                target = self.directory / (self.name + ".part-%04d" % (len(self.parts)+1))
+                reject_link(target)
+                self.part = target.open("xb")
+                self.digest, self.size = hashlib.sha256(), 0
+            end = offset + min(len(data)-offset, STREAM_SEGMENT_BYTES-self.size)
+            portion = data[offset:end]
+            if self.part.write(portion) != len(portion):
+                raise OSError("D14: short segment write")
+            self.digest.update(portion)
+            self.size += len(portion)
+            offset = end
+            if self.size == STREAM_SEGMENT_BYTES:
+                self._close_part()
+
+    def flush(self):
+        self.mirror.flush()
+        if self.part is not None:
+            self.part.flush()
+
+    def finish(self):
+        self._close_part()
+        self.mirror.flush()
+        os.fsync(self.mirror.fileno())
+        return list(self.parts)
+
+    def __exit__(self, *_):
+        self.finish()
+
+
+def stream_segment_manifest(run_dir, stdout, stderr):
+    target = run_dir / "stream-segments.json"
+    reject_link(target)
+    if target.exists():
+        raise StateIntegrityError("D14: existing segment manifest")
+    data = {"version": 1, "segmentBytes": STREAM_SEGMENT_BYTES,
+            "stdout": stdout.finish(), "stderr": stderr.finish()}
+    atomic_write_bytes(target, (json.dumps(data, separators=(",", ":"))+"\n").encode("utf-8"))
+
 
 class StreamJournal:
-    def __init__(self, directory, task_id, turn_id):
+    def __init__(self, directory, task_id, turn_id, sequence_base=0, sequence_scope="task"):
+        if type(sequence_base) is not int or not 0 <= sequence_base < STREAM_SAFE_SEQ or sequence_scope not in ("task","since_upgrade"):
+            raise StateIntegrityError("D14: invalid task sequence base")
+        if turn_id is None and (sequence_base != 0 or sequence_scope != "task"):
+            raise StateIntegrityError("D14: invalid initial sequence")
+        self.sequence_base, self.sequence_scope = sequence_base, sequence_scope
         self.path = directory / "stream-state.json"
         reject_link(self.path)
         if self.path.exists():
@@ -2031,17 +2112,78 @@ class StreamJournal:
         self.entries = []
 
     def emit(self, kind, stdout_bytes=0, stderr_bytes=0, lines=0):
+        if self.sequence_base + self.seq >= STREAM_SAFE_SEQ:
+            raise StateIntegrityError("D14: task sequence exhausted")
         self.seq += 1
-        self.entries.append({"seq": self.seq, "kind": kind,
+        self.entries.append({"seq": self.seq, "taskSeq": self.sequence_base+self.seq, "kind": kind,
             "at": time.time_ns() // 1000000, "stdoutBytes": stdout_bytes,
             "stderrBytes": stderr_bytes, "lines": lines})
         self.entries = self.entries[-STREAM_WINDOW:]
-        payload = {"version": 1, "taskId": self.task_id,
-                   "turnId": self.turn_id or "initial", "entries": self.entries}
+        payload = {"version": 2, "taskId": self.task_id,
+                   "turnId": self.turn_id or "initial", "sequenceBase": self.sequence_base,
+                   "sequenceScope": self.sequence_scope, "entries": self.entries}
         atomic_write_bytes(self.path, (json.dumps(payload, separators=(",", ":")) + "\n").encode("utf-8"))
 
 
-def streamed_subprocess(cmd, *, cwd, stdin_text, timeout, run_dir, task_id, turn_id=None, env=None):
+def stream_checkpoint(directory, task_id, turn_id):
+    """Read a bounded terminal snapshot; legacy v1 is an explicit upgrade epoch."""
+    target = directory / "stream-state.json"
+    reject_link(target)
+    if not target.is_file():
+        raise StateIntegrityError("D14: missing stream journal")
+    with target.open("rb") as f:
+        raw = f.read(16385)
+    if len(raw) > 16384:
+        raise StateIntegrityError("D14: oversized stream journal")
+    value = strict_state_json(raw)
+    if (not isinstance(value,dict) or type(value.get("version")) is not int
+        or value["version"] not in (1,2) or value.get("taskId") != task_id
+        or value.get("turnId") != (turn_id or "initial")):
+        raise StateIntegrityError("D14: stream journal identity")
+    entries = value.get("entries")
+    if not isinstance(entries,list) or not 1<=len(entries)<=STREAM_WINDOW:
+        raise StateIntegrityError("D14: invalid journal window")
+    version = value["version"]
+    base = value.get("sequenceBase",0)
+    scope = value.get("sequenceScope","since_upgrade")
+    if (version==2 and (type(base) is not int or not 0<=base<STREAM_SAFE_SEQ
+        or scope not in ("task","since_upgrade") or (turn_id is None and (base!=0 or scope!="task")))):
+        raise StateIntegrityError("D14: invalid journal sequence scope")
+    previous = None
+    for e in entries:
+        if (not isinstance(e,dict) or type(e.get("seq")) is not int or not 1<=e["seq"]<=STREAM_SAFE_SEQ
+            or e.get("kind") not in ("queued","running","progress","heartbeat",*STREAM_TERMINAL)
+            or (previous is not None and (e["seq"]!=previous["seq"]+1 or previous["kind"] in STREAM_TERMINAL))
+            or (version==2 and (type(e.get("taskSeq")) is not int or e["taskSeq"]!=base+e["seq"] or e["taskSeq"]>STREAM_SAFE_SEQ))):
+            raise StateIntegrityError("D14: invalid journal event sequence")
+        previous = e
+    if previous["kind"] not in STREAM_TERMINAL:
+        raise StateIntegrityError("D14: journal has no terminal receipt")
+    return {"version":version,"lastTaskSeq":previous["taskSeq"] if version==2 else 0,
+            "sequenceScope":scope if version==2 else "since_upgrade",
+            "terminal":previous["kind"],"sha256":hashlib.sha256(raw).hexdigest()}
+
+
+def prior_stream_sequence(record, task_id):
+    ref = record.get("result_ref")
+    if not isinstance(ref,dict) or "turn" not in ref:
+        raise StateIntegrityError("D14: missing prior result reference")
+    turn = ref["turn"]
+    root = bounded_child(RUNS_DIR, task_id)
+    directory = root if turn is None else bounded_child(root, validate_task_id(turn))
+    checkpoint = stream_checkpoint(directory,task_id,turn)
+    if checkpoint["terminal"] != "process_exit":
+        raise StateIntegrityError("D14: prior journal is not a complete process exit")
+    if checkpoint["version"] == 2:
+        if record.get("stream_checkpoint") != checkpoint:
+            raise StateIntegrityError("D14: prior stream checkpoint changed")
+    elif "stream_checkpoint" in record:
+        raise StateIntegrityError("D14: prior stream checkpoint downgraded")
+    return checkpoint["lastTaskSeq"], checkpoint["sequenceScope"]
+
+
+def streamed_subprocess(cmd, *, cwd, stdin_text, timeout, run_dir, task_id, turn_id=None, env=None,
+                        sequence_base=0, sequence_scope="task"):
     """Bounded concurrent pipe drain with a replayable, metadata-only journal.
 
     Raw artifacts are capped per invocation, not silently truncated to success.
@@ -2051,7 +2193,7 @@ def streamed_subprocess(cmd, *, cwd, stdin_text, timeout, run_dir, task_id, turn
     if type(timeout) is not int or timeout <= 0:
         raise ValueError("D14: positive timeout required")
     reject_link(run_dir)
-    journal = StreamJournal(run_dir, task_id, turn_id)
+    journal = StreamJournal(run_dir, task_id, turn_id, sequence_base, sequence_scope)
     journal.emit("queued")
     chunks = queue.Queue(maxsize=32)
     stop = threading.Event()
@@ -2145,13 +2287,16 @@ def streamed_subprocess(cmd, *, cwd, stdin_text, timeout, run_dir, task_id, turn
     stdout_file, stderr_file = run_dir / "events.jsonl", run_dir / "stderr.log"
     for target in (stdout_file, stderr_file):
         reject_link(target)
-    with stdout_file.open("xb") as stdout_sink, stderr_file.open("xb") as stderr_sink:
+    with stdout_file.open("xb") as stdout_mirror, stderr_file.open("xb") as stderr_mirror, \
+         RotatingStreamSink(run_dir,"events.jsonl",stdout_mirror) as stdout_sink, \
+         RotatingStreamSink(run_dir,"stderr.log",stderr_mirror) as stderr_sink:
         try:
             proc = subprocess.Popen(cmd, cwd=str(cwd), env=env,
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 start_new_session=(os.name != "nt"),
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
         except OSError as exc:
+            stream_segment_manifest(run_dir,stdout_sink,stderr_sink)
             journal.emit("launch_failed")
             return 127, "", "[dispatcher] Launch failed: " + type(exc).__name__, False
         started = time.monotonic()
@@ -2208,25 +2353,33 @@ def streamed_subprocess(cmd, *, cwd, stdin_text, timeout, run_dir, task_id, turn
                     proc.wait(timeout=5)
             else:
                 proc.wait(timeout=5)
-            for sink in (stdout_sink, stderr_sink):
-                sink.flush()
-                os.fsync(sink.fileno())
+            stream_segment_manifest(run_dir,stdout_sink,stderr_sink)
             journal.emit("timed_out" if timed_out else "stream_failed" if failure else "process_exit",
                          counts["stdout"], counts["stderr"], lines)
         except BaseException:
-            terminate_owned_process_tree(proc)
             try:
-                journal.emit("interrupted", counts["stdout"], counts["stderr"], lines)
-            except (OSError, StateIntegrityError):
-                pass
+                terminate_owned_process_tree(proc)
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    if proc.poll() is None:
+                        proc.kill()
+                    proc.wait(timeout=5)
+            finally:
+                try:
+                    journal.emit("interrupted", counts["stdout"], counts["stderr"], lines)
+                except (OSError, StateIntegrityError):
+                    pass
             raise
         finally:
             stop.set()
             # Do not close a pipe from another thread while a read is blocked.
             # Daemon readers cannot block CLI shutdown if an escaped child holds it.
-            for thread in threads:
+            for thread, pipe in zip(threads, (proc.stdout, proc.stderr, proc.stdin)):
                 if thread.ident is not None:
                     thread.join(timeout=.2)
+                else:
+                    pipe.close()
         if failure:
             # Incomplete streams cannot be used for session/usage inference.
             return (124 if timed_out else 125), "", "[dispatcher] D14 " + failure, timed_out
@@ -2245,11 +2398,13 @@ def mark_stream_interrupted(task_id, turn_id):
                       usage_store={**store, "prior_unknown": True}, updated_at=utc_now())
 
 
-def invoke_worker(cmd, *, cwd, stdin_text, timeout, run_dir, task_id, turn_id=None, stream_events=False):
+def invoke_worker(cmd, *, cwd, stdin_text, timeout, run_dir, task_id, turn_id=None, stream_events=False,
+                  sequence_base=0, sequence_scope="task"):
     if stream_events:
         try:
             return streamed_subprocess(cmd, cwd=cwd, stdin_text=stdin_text, timeout=timeout,
-                                       run_dir=run_dir, task_id=task_id, turn_id=turn_id)
+                                       run_dir=run_dir, task_id=task_id, turn_id=turn_id,
+                                       sequence_base=sequence_base, sequence_scope=sequence_scope)
         except BaseException:
             mark_stream_interrupted(task_id, turn_id)
             raise
@@ -2505,7 +2660,52 @@ def scheduler_known_terminal(result):
             and result.get("task_status") in ("completed","failed","partial","blocked"))
 
 
+def scheduler_reconciliation_packet(state, key):
+    """Describe one unresolved slot without inferring process death or granting release."""
+    if not re.fullmatch(r"[a-f0-9]{32}",key):
+        raise ValueError("D17: invalid ticket")
+    ticket=scheduler_registry(state)["tickets"].get(key)
+    if not ticket or ticket["status"] not in ("active","uncertain"):
+        raise ValueError("D17: reconciliation requires an active or uncertain ticket")
+    tid=ticket["task_id"]
+    task=state["tasks"].get(tid)
+    ops=sorted(((k,v) for k,v in request_records(state).items()
+                if v["task_id"].casefold()==tid.casefold()),key=lambda x:x[1]["ordinal"])
+    latest_key,latest=ops[-1] if ops else (None,None)
+    rec=orchestrator_lookup(state,tid)
+    event=rec["events"][-1] if rec else None
+    lease=event["lease"] if event else None
+    bound=bool(lease and lease["ticket"]==key and lease["owner_pid"]==ticket["owner_pid"])
+    reasons=["trusted_owned_process_tree_exit_evidence_required",
+             "trusted_reconciliation_authority_required"]
+    if any(op["status"] in ("pending","uncertain") for _,op in ops):
+        reasons.append("unsettled_request")
+    if task is None or task.get("active_turn_id") or not scheduler_known_terminal(task) or task.get("stream_integrity")=="incomplete":
+        reasons.append("terminal_task_unconfirmed")
+    if lease:
+        reasons.append("orchestration_lease_outstanding")
+    if not bound:
+        reasons.append("ticket_to_latest_result_binding_unverified")
+    ref=task.get("result_ref") if task else None
+    # Only a validated digest/turn shape is returned. Latest task metadata is
+    # not evidence that this particular ticket's process tree terminated.
+    packet={"version":1,"operation":"scheduler_reconcile_preview","ticket":key,
+            "ticketSequence":ticket["seq"],"ticketStatus":ticket["status"],
+            "ticketDigest":request_hash(ticket),"taskId":tid,"kind":ticket["kind"],
+            "taskRecordDigest":request_hash(task) if task is not None else None,
+            "latestRequestId":latest_key,"latestRequestStatus":latest["status"] if latest else None,
+            "latestResultSha256":ref["sha256"] if ref and orchestrator_result_ref(ref) else None,
+            "orchestrationAuditDigest":event["digest"] if event else None,
+            "orchestrationLeaseMatchesTicket":bound,"blockers":reasons,
+            "processExitProof":"NOT_RUN","authority":"NOT_CONFIGURED",
+            "slotReleased":False,"workerTerminated":False,"cleanupAuthorized":False}
+    packet["evidenceDigest"]=request_hash(packet)
+    return packet
+
+
 def scheduler_status_cmd(args):
+    if args.subcommand=="scheduler-reconcile-preview" and not STATE_FILE.exists():
+        raise ValueError("D17: scheduler state not found")
     with locked_state() as state:
         registry=scheduler_registry(state)
         if args.subcommand=="scheduler-cancel":
@@ -2517,6 +2717,8 @@ def scheduler_status_cmd(args):
                 raise ValueError("D17: only a queued ticket may be cancelled; no active process kill")
             rec.update(status="cancelled",reason="operator_cancelled",updated_at=utc_now())
             payload={"ticket":key,"status":"cancelled"}
+        elif args.subcommand=="scheduler-reconcile-preview":
+            payload=scheduler_reconciliation_packet(state,args.ticket)
         else:
             payload={"enabled":scheduler_config() is not None,"tickets":[
                 {"ticket":key,"seq":t["seq"],"task_id":t["task_id"],"kind":t["kind"],
@@ -2761,6 +2963,8 @@ def _execute_single_task(
     result_bytes = (json.dumps(result, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     atomic_write_bytes(run_dir / "result.json", result_bytes)
     task_record["result_ref"] = {"turn": None, "sha256": hashlib.sha256(result_bytes).hexdigest()}
+    if stream_events:
+        task_record["stream_checkpoint"] = stream_checkpoint(run_dir,tid,None)
     if board is not None:
         board["last_result_ref"] = task_record["result_ref"]
         task_record.update(context_state_fields(board))
@@ -3444,10 +3648,34 @@ def risk_review_command(args):
 
 
 
+def orchestrator_acceptance_packet(state,rec,expected_revision):
+    e=rec["events"][-1]
+    if type(expected_revision) is not int or expected_revision!=e["revision"] or e["status"]!="verifying" or e["lease"] is not None:
+        raise ValueError("D18: current verifying revision required for acceptance packet")
+    artifact_ok=orchestrator_artifact_matches(state,rec)
+    risk=risk_registry(state).get(rec["task_id"])
+    current_risk=bool(risk and risk["revision"]==e["revision"] and risk["auditDigest"]==e["digest"]
+                      and risk["artifactSha256"]==e["result_ref"]["sha256"])
+    git_ok=bool(current_risk and all(risk["evidence"]["checks"][k]=="PASS" for k in RISK_CHECKS[:5]))
+    packet={"version":1,"operation":"independent_acceptance_preview","taskId":rec["task_id"],
+            "revision":e["revision"],"protocolRevision":e["protocol_rev"],"requestId":e["request_id"],
+            "scopeDigest":rec["scope"],"envelopeDigest":e["envelope"],"auditDigest":e["digest"],
+            "artifactSha256":e["result_ref"]["sha256"],"riskReceiptDigest":risk["digest"] if current_risk else None,
+            "base":risk["base"] if current_risk else None,"head":risk["head"] if current_risk else None,
+            "checks":{"workerArtifact":"PASS" if artifact_ok else "FAIL",
+                      "pinnedGitChecks":"PASS" if git_ok else "FAIL" if current_risk else "NOT_RUN",
+                      "worktree":"NOT_RUN","projectTests":"NOT_RUN","independentReview":"NOT_RUN",
+                      "trustedAuthority":"NOT_CONFIGURED"},
+            "readyForIndependentReview":artifact_ok and git_ok,
+            "accepted":False,"mergeAuthorized":False,"stateChanged":False}
+    packet["evidenceDigest"]=request_hash(packet)
+    return packet
+
+
 def orchestrator_command(args):
     kind=args.subcommand
     tid=validate_task_id(args.task_id)
-    if kind in ("orchestrator-status","orchestrator-audit","orchestrator-recover") and not STATE_FILE.exists():
+    if kind in ("orchestrator-status","orchestrator-audit","orchestrator-recover","orchestrator-acceptance-preview") and not STATE_FILE.exists():
         raise ValueError("D18: orchestration not found")
     with locked_state() as state:
         registry=orchestrator_registry(state,create=kind=="orchestrator-queue")
@@ -3509,6 +3737,8 @@ def orchestrator_command(args):
                 reason="trusted_acceptance_unavailable" if orchestrator_artifact_matches(state,rec) else "artifact_invalid"
                 orchestrator_append(rec,"verify_blocked",reason)
         payload=orchestrator_public(state,rec)
+        if kind=="orchestrator-acceptance-preview":
+            payload=orchestrator_acceptance_packet(state,rec,args.expected_revision)
         if kind=="orchestrator-audit":
             cursor=args.cursor
             if cursor<0 or cursor>len(rec["events"]) or not 1<=args.limit<=10:
@@ -3967,6 +4197,7 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         if current.get("usage_store",new_usage_store(prior_unknown=True)) != store or current.get("budget",make_budget()) != limits:
             raise StateIntegrityError("D12: usage or budget changed before reservation")
         budget_timeout(limits,store,effective_timeout)
+        sequence_base, sequence_scope = prior_stream_sequence(current,resume_tid) if stream_events else (0,"task")
         if envelope is not None:
             if current.get("protocol_rev") != envelope["base_rev"] or current.get("protocol_version") != 2:
                 raise StateIntegrityError("D10: revision changed before reservation")
@@ -3985,7 +4216,8 @@ def _cmd_resume(args: argparse.Namespace) -> int:
     started = time.monotonic_ns()
     rc, stdout_text, stderr_text, timed_out = invoke_worker(
         cmd, cwd=workdir, stdin_text=worker_prompt, timeout=effective_timeout,
-        run_dir=run_dir, task_id=resume_tid, turn_id=turn_id, stream_events=stream_events
+        run_dir=run_dir, task_id=resume_tid, turn_id=turn_id, stream_events=stream_events,
+        sequence_base=sequence_base, sequence_scope=sequence_scope
     )
     duration_ms = (time.monotonic_ns() - started) // 1000000
     parsed_events = parse_codex_events(stdout_text)
@@ -4050,6 +4282,7 @@ def _cmd_resume(args: argparse.Namespace) -> int:
             context_protect_legacy_session(state,resume_tid,new_session_id)
         if stream_events:
             current["stream_integrity"] = "incomplete" if rc in (124,125,127) else "complete"
+            current["stream_checkpoint"] = stream_checkpoint(run_dir,resume_tid,turn_id)
         current.pop("active_turn_id", None)
     print(json.dumps(result.get("protocol_result",result), ensure_ascii=False, separators=(",",":") if envelope else None, indent=None if envelope else 2))
     return task_exit_code(result)
@@ -4294,23 +4527,46 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
             expected=WORKTREES_DIR.resolve().joinpath(*rel.parts)
             if not path.is_dir() or path.resolve(strict=True)!=expected:
                 raise ValueError("invalid worktree")
-            git=get_git_bin()
-            if not git:raise ValueError("git missing")
+            # Reuse D19 bounded, offline Git probes (no inherited GIT_*,
+            # fsmonitor, hooks, external diff, lazy fetch or protocols).
+            # Git status may invoke configured clean/process filters; refuse
+            # such repos and gitlinks before running status. This is a preview,
+            # not an OS sandbox or a race-free authorization to delete.
+            repo_path=Path(repo).resolve(strict=True)
+            deadline=time.monotonic()+25
             def probe(cwd,*argv):
-                return subprocess.run([git,"-C",str(cwd),*argv],capture_output=True,timeout=10,
-                                      env={**os.environ,"GIT_OPTIONAL_LOCKS":"0","LC_ALL":"C"})
-            current=probe(path,"symbolic-ref","--short","HEAD")
-            top=probe(path,"rev-parse","--show-toplevel")
-            if current.returncode or current.stdout.decode("utf-8").strip()!=branch or top.returncode or Path(top.stdout.decode("utf-8").strip()).resolve()!=expected:
+                return risk_git(cwd,list(argv),deadline)
+            current_rc,current=probe(path,"symbolic-ref","--short","HEAD")
+            top_rc,top=probe(path,"rev-parse","--show-toplevel")
+            repo_rc,repo_top=probe(repo_path,"rev-parse","--show-toplevel")
+            wc_rc,wc=probe(path,"rev-parse","--path-format=absolute","--git-common-dir")
+            rc,common=probe(repo_path,"rev-parse","--path-format=absolute","--git-common-dir")
+            if (current_rc!=0 or current.decode("utf-8").strip()!=branch or top_rc!=0
+                or Path(top.decode("utf-8").strip()).resolve()!=expected or repo_rc!=0
+                or Path(repo_top.decode("utf-8").strip()).resolve()!=repo_path or wc_rc!=0 or rc!=0
+                or Path(wc.decode("utf-8").strip()).resolve()!=Path(common.decode("utf-8").strip()).resolve()):
                 reasons.append("worktree_identity_mismatch")
-            dirty=probe(path,"status","--porcelain=v1","-z","--untracked-files=all","--ignored=matching")
-            if dirty.returncode or dirty.stdout:
-                reasons.append("dirty_untracked_or_ignored_files")
-            target=probe(repo,"symbolic-ref","--short","HEAD")
-            head=probe(path,"rev-parse","--verify","HEAD")
-            if (target.returncode or target.stdout.decode("utf-8").strip()==branch or head.returncode
-                or probe(repo,"merge-base","--is-ancestor",head.stdout.decode("ascii").strip(),"HEAD").returncode):
-                reasons.append("unmerged_or_unknown_commits")
+            else:
+                filter_rc,filter_output=probe(path,"config","--null","--get-regexp",r"^filter\.")
+                stage_rc,staged=probe(path,"ls-files","--stage","-z")
+                if filter_rc!=1 or filter_output:
+                    reasons.append("configured_filters_or_unknown")
+                elif stage_rc!=0 or (staged and not staged.endswith(b"\0")) or any(x.startswith(b"160000 ") for x in staged.split(b"\0")):
+                    reasons.append("gitlinks_or_index_unknown")
+                else:
+                    dirty_rc,dirty=probe(path,"status","--porcelain=v1","-z","--untracked-files=all","--ignored=matching")
+                    if dirty_rc!=0 or dirty:
+                        reasons.append("dirty_untracked_or_ignored_files")
+                target_rc,target=probe(repo_path,"symbolic-ref","--short","HEAD")
+                head_rc,head=probe(path,"rev-parse","--verify","HEAD^{commit}")
+                base_rc,base=probe(repo_path,"rev-parse","--verify","HEAD^{commit}")
+                hs,bs=head.decode("ascii").strip(),base.decode("ascii").strip()
+                if (target_rc!=0 or target.decode("utf-8").strip()==branch or head_rc!=0 or base_rc!=0
+                    or not risk_sha(hs) or not risk_sha(bs)
+                    or probe(repo_path,"merge-base","--is-ancestor",hs,bs)[0]!=0):
+                    reasons.append("unmerged_or_unknown_commits")
+                elif probe(path,"rev-parse","--verify","HEAD^{commit}")!=(0,head) or probe(repo_path,"rev-parse","--verify","HEAD^{commit}")!=(0,base):
+                    reasons.append("worktree_heads_changed")
         except (OSError,ValueError,UnicodeError,StateIntegrityError,subprocess.TimeoutExpired):
             reasons.append("worktree_probe_failed")
     # D17 has no trusted approval bridge. Do not remove/prune/delete even when
@@ -4424,7 +4680,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_risk.add_argument("--approve-git-checks",action="store_true",help="Explicit local operator request for fixed Git checks; not approval to merge")
     p_risk_status=sub.add_parser("orchestrator-risk-status",allow_abbrev=False,help="Read historical D19 receipt")
     p_risk_status.add_argument("--task-id",required=True)
-    for operation in ("orchestrator-queue","orchestrator-retry","orchestrator-cancel","orchestrator-verify","orchestrator-status","orchestrator-audit","orchestrator-recover"):
+    for operation in ("orchestrator-queue","orchestrator-retry","orchestrator-cancel","orchestrator-verify","orchestrator-status","orchestrator-audit","orchestrator-recover","orchestrator-acceptance-preview"):
         p_orch=sub.add_parser(operation,allow_abbrev=False,help="D18 explicit local orchestration; no automatic execution or merge")
         p_orch.add_argument("--task-id",required=True)
         if operation in ("orchestrator-queue","orchestrator-retry"):
@@ -4432,7 +4688,7 @@ def build_parser() -> argparse.ArgumentParser:
             p_orch.add_argument("--prompt",required=True,help="Exact bounded v2 task envelope; not an approval grant")
         if operation=="orchestrator-queue":
             p_orch.add_argument("--cwd",required=True)
-        if operation in ("orchestrator-retry","orchestrator-cancel","orchestrator-verify"):
+        if operation in ("orchestrator-retry","orchestrator-cancel","orchestrator-verify","orchestrator-acceptance-preview"):
             p_orch.add_argument("--expected-revision",type=int,required=True)
         if operation=="orchestrator-audit":
             p_orch.add_argument("--cursor",type=int,default=0)
@@ -4440,6 +4696,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("scheduler-status",allow_abbrev=False,help="Read bounded local scheduler metadata")
     p_cancel=sub.add_parser("scheduler-cancel",allow_abbrev=False,help="Cancel queued ticket only; never kills an active worker")
     p_cancel.add_argument("--ticket",required=True)
+    p_reconcile=sub.add_parser("scheduler-reconcile-preview",allow_abbrev=False,help="Read unresolved slot evidence; never releases or kills")
+    p_reconcile.add_argument("--ticket",required=True)
     p_cln = sub.add_parser("cleanup", allow_abbrev=False, help="D17 read-only cleanup preflight; trusted human approval unavailable.")
     p_cln.add_argument("--task-id", required=True)
     p_cln.add_argument("--delete-branch", action="store_true")
@@ -4464,6 +4722,7 @@ def main() -> int:
         "state-recover": cmd_state_storage,
         "scheduler-status": scheduler_status_cmd,
         "scheduler-cancel": scheduler_status_cmd,
+        "scheduler-reconcile-preview": scheduler_status_cmd,
     }
     try:
         if args.subcommand=='app-server-status':

@@ -202,6 +202,51 @@ class SchedulerTests(unittest.TestCase):
         remove.assert_not_called();result=json.loads(out.getvalue())
         self.assertEqual(result["blockers"],["trusted_human_cleanup_approval_required"])
         self.assertTrue(wt.is_dir());self.assertTrue((wt/"a.txt").is_file())
+    def test_reconciliation_packet_does_not_release_uncertain_slot(self):
+        with self.assertRaises(RuntimeError):
+            with d.scheduler_admission("run","a",self.work):
+                raise RuntimeError("fixture interrupted")
+        key,_=self.ticket("a","uncertain")
+        before=d.STATE_FILE.read_bytes()
+        args=d.build_parser().parse_args(["scheduler-reconcile-preview","--ticket",key])
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(d.scheduler_status_cmd(args),0)
+        packet=json.loads(out.getvalue())
+        self.assertEqual(packet["ticket"],key)
+        self.assertEqual(packet["ticketStatus"],"uncertain")
+        self.assertFalse(packet["slotReleased"])
+        self.assertFalse(packet["workerTerminated"])
+        self.assertFalse(packet["cleanupAuthorized"])
+        self.assertEqual(packet["processExitProof"],"NOT_RUN")
+        self.assertEqual(packet["evidenceDigest"],d.request_hash({k:v for k,v in packet.items() if k!="evidenceDigest"}))
+        self.assertEqual(d.STATE_FILE.read_bytes(),before)
+        self.assertEqual(self.ticket("a")[1]["status"],"uncertain")
+        with self.assertRaises(ValueError):
+            d.scheduler_status_cmd(d.build_parser().parse_args(["scheduler-reconcile-preview","--ticket","0"*32]))
+
+    def test_cleanup_configured_filters_refused_before_status(self):
+        self.init_repo(self.work)
+        d.ensure_state_dirs()
+        wt=d.WORKTREES_DIR/"repo"/"task-1";wt.parent.mkdir()
+        self.git(self.work,"worktree","add","-b","agy-worker/task-1",str(wt))
+        self.git(wt,"config","filter.fixture.clean","never-run-this-fixture")
+        with d.locked_state() as state:
+            state["tasks"]["task-1"]={"task_id":"task-1","status":"completed","repo_root":str(self.work),
+                "worktree_path":str(wt),"branch":"agy-worker/task-1","verification_status":"passed","verification_passed":True}
+        args=d.build_parser().parse_args(["cleanup","--task-id","task-1"])
+        original=d.risk_git
+        calls=[]
+        def probe(cwd,argv,deadline):
+            calls.append(argv[0])
+            if argv[0]=="status":self.fail("configured filter repo must not run status")
+            return original(cwd,argv,deadline)
+        with patch.object(d,"risk_git",side_effect=probe),patch.object(d,"remove_worktree") as remove,contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(d.cmd_cleanup(args),1)
+        remove.assert_not_called()
+        self.assertIn("configured_filters_or_unknown",json.loads(out.getvalue())["blockers"])
+        self.assertNotIn("status",calls)
+        self.assertTrue((wt/"a.txt").exists())
+
     def test_stale_quota_and_untracked_activation_fail_closed(self):
         cfg=json.loads((self.root/"scheduler.json").read_text())
         cfg["quota"]["observed_at"]=int(time.time())-301
