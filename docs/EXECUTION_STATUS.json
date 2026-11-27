@@ -445,9 +445,9 @@
         "D10",
         "D12"
       ],
-      "status": "IN_PROGRESS",
-      "evidence": "D13 CLI/MCP keyed reservation and loop guard implemented; Run 45971488857 exposed SQLite concurrent startup lock; correction submitted, exact-head retest pending",
-      "next": "Verify latest exact-head four-environment CI; real host, crash/power-loss recovery and formal dependency acceptance remain blocked",
+      "status": "BLOCKED",
+      "evidence": "Exact-head four-environment cumulative CI PASS; D13 Python 24/24 and Node 16/16; prior SQLite BUSY regression corrected",
+      "next": "D14 candidate permitted; actual host, recovery and formal dependency acceptance remain blocked",
       "branch": "dev/d13",
       "approval": "2026-11-27 user approved A and verified candidate development; no real model or expanded authority",
       "pr": 15,
@@ -455,14 +455,29 @@
       "merged": false,
       "checks": [
         {
-          "name": "D13 request and cumulative regression",
-          "status": "NOT_RUN",
-          "ref": "Latest corrected head CI pending; prior failure Run 45971488857"
+          "name": "D13 keyed dispatch and cumulative regression",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45971644956",
+          "tested_commit": "b61c1cddb9c1b67b3ebd1bfe7b7b1548b0729081"
         },
         {
-          "name": "Actual host and recovery",
+          "name": "Actual host, risk review and crash/power-loss recovery",
           "status": "BLOCKED",
-          "ref": "docs/ISSUES_AND_BUGS.md"
+          "ref": "docs/evidence/D13-requests.md"
+        }
+      ],
+      "candidate": {
+        "ready": true,
+        "tested_commit": "b61c1cddb9c1b67b3ebd1bfe7b7b1548b0729081",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45971644956",
+        "limitations": "Opt-in keyed CLI/MCP only; legacy callers excluded; conservative Git metadata; real host and power loss, cross-store reconciliation and trusted retry approval not independently accepted; no merge."
+      },
+      "observations": [
+        {
+          "name": "Concurrent SQLite initialization SQLITE_BUSY",
+          "status": "FAIL",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45971488857",
+          "tested_commit": "0d004c13cfe648048142131a6f7ccfc2c703bb1c"
         }
       ]
     },
