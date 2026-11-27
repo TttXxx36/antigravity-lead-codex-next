@@ -562,8 +562,8 @@
         "D15"
       ],
       "status": "BLOCKED",
-      "evidence": "D16 original code Run 45981702422 PASS; evidence-only macOS recheck exposed D14 owned-process exit race EPERM; corrected termination handling pending exact-head CI",
-      "next": "Pause successor candidate gate until corrected cumulative CI PASS; retain prior D16 benchmark and failure evidence",
+      "evidence": "Corrected exact-head four-environment CI PASS; EPERM regression 36/36 streaming, 32/32 cache; benchmark query reduction stable, macOS rerun p95 slight increase",
+      "next": "Synchronize corrected D16 base into existing D17 candidate; formal host and dependency acceptance remain blocked",
       "branch": "dev/d16",
       "approval": "2026-11-27 user authorized A candidate development; display-only, no real model or production data writes",
       "pr": 18,
@@ -571,29 +571,31 @@
       "merged": false,
       "checks": [
         {
-          "name": "D16 cache, UI reproducible build and paired benchmark",
+          "name": "Corrected D16 cumulative regression",
           "status": "PASS",
-          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45981702422",
-          "tested_commit": "d70653cacd24c9cc448db4519a3f87deffd7bbfc"
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45982938825",
+          "tested_commit": "6db070f17039338762e03a375c911873302fa32b"
         },
         {
-          "name": "Actual host UI, old host and physical I/O",
+          "name": "Actual host UI, repeated p95 and physical I/O",
           "status": "BLOCKED",
           "ref": "docs/evidence/D16-cache.md"
-        },
+        }
+      ],
+      "candidate": {
+        "ready": true,
+        "tested_commit": "6db070f17039338762e03a375c911873302fa32b",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45982938825",
+        "limitations": "Synthetic fixtures; original paired p95 improvement in four environments but macOS rerun slight increase; actual host and physical I/O unverified; EPERM fallback only owned child, escaped descendants not confirmed; no merge."
+      },
+      "observations": [
         {
           "name": "Evidence-head cumulative regression: macOS process exit race",
           "status": "FAIL",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45982277920",
           "tested_commit": "c54b32f300259cc4d5178994c42de9a38e2b2d95"
         }
-      ],
-      "candidate": {
-        "ready": false,
-        "tested_commit": "d70653cacd24c9cc448db4519a3f87deffd7bbfc",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45981702422",
-        "limitations": "Synthetic paired fixture, logical file bytes/native DB query counts not physical I/O; UI source/build verified but actual host interaction and old host compatibility not accepted; TTL-bounded display lag; no model calls or merge."
-      }
+      ]
     },
     {
       "id": "D17",
