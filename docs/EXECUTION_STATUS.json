@@ -730,21 +730,33 @@
         "D18",
         "D19"
       ],
-      "status": "IN_PROGRESS",
-      "evidence": "Experimental bounded read-only app-server transport, exact version/identity, reconnect, permission/usage receipts; CLI remains default; CI pending",
-      "next": "Verify actual local mock protocol/negative fixtures and cumulative four-platform CI",
+      "status": "BLOCKED",
+      "evidence": "Exact-head four-platform cumulative PASS; 40/40 offline protocol tests; six-read mock reuse benchmark on all four",
+      "next": "D21 candidate may proceed with offline evidence; native App Server execution, actual parity/usage/latency and upstream acceptance blocked",
       "branch": "dev/d20",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no real model, permission or merge grant",
-      "pr": null,
+      "pr": 22,
       "accepted": false,
       "merged": false,
       "checks": [
         {
           "name": "D20 offline protocol and cumulative CI",
-          "status": "NOT_RUN",
-          "ref": "Latest candidate CI pending"
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45990023472",
+          "tested_commit": "78043c43833f10fafc48eddf0b6a3398e3e6e520"
+        },
+        {
+          "name": "Native App Server result, permission, usage and performance parity",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D20-app-server.md"
         }
-      ]
+      ],
+      "candidate": {
+        "ready": true,
+        "tested_commit": "78043c43833f10fafc48eddf0b6a3398e3e6e520",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45990023472",
+        "limitations": "Actual mock subprocess transport/reconnect, strict metadata parser, fixture timings only; no native App Server startup, production task routing, actual task/permission/usage parity or native performance verified. CLI stays default; real model and release need separate authorization."
+      }
     },
     {
       "id": "D21",
