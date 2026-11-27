@@ -41,6 +41,8 @@ jobs:
           node -p "JSON.stringify({platform:process.platform,arch:process.arch,node:process.version})"
           python -c "import platform,sys; print(platform.machine(),sys.version)"
           git rev-parse HEAD
+      - name: Deterministic source RC and isolated rollback regression
+        run: python -m unittest discover -s tests -p test_release_rc.py -v
       - name: Paired benchmark evidence regression
         run: node --test tests/test-paired-benchmark.mjs
       - name: Experimental app-server offline protocol and reuse regression
@@ -114,3 +116,15 @@ jobs:
         run: |
           bash -n scripts/install.sh scripts/doctor.sh plugins/codex-console/bin/run-server.sh
           node --no-warnings scripts/mcp-smoke.mjs plugins/codex-console/server/index.mjs
+
+      - name: Build exact unpublished source RC
+        if: github.event_name == 'pull_request' && github.head_ref == 'dev/d22'
+        run: python scripts/rc_package.py build --commit ${{ github.event.pull_request.head.sha }} --version v2.0.0-rc.1 --out rc-artifacts
+      - name: Retain unpublished RC CI artifacts
+        if: github.event_name == 'pull_request' && github.head_ref == 'dev/d22'
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-rc-${{ matrix.os }}-${{ github.event.pull_request.head.sha }}
+          path: rc-artifacts/
+          retention-days: 7
+          if-no-files-found: error

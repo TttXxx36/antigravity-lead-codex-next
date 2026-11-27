@@ -1,23 +1,19 @@
 # Antigravity Lead Codex Next
 
-独立维护规划：Windows 原生、低 Token、事件驱动的 Gemini × Codex（目标 GPT-6 系列，以实际可用模型为准）协同开发框架。
+独立维护的 Antigravity × Codex 协同开发框架；当前为 V2.0 **未发布候选分支**。main 仍为既有已验收基础版本。D00–D04 正式 DONE，D05 起各卡候选开发与正式验收分离；以 [执行台账](docs/EXECUTION_STATUS.json) 和原始 CI 为准。真实宿主、实际模型质量/Token 及正式发布尚未批准或验收。
 
-> D00 已导入并校验上游 v1.0.2 原始快照，经用户验收后通过 PR #1 合并至 main；尚未实施 Windows 适配、Token 优化或功能修复，也未运行真实模型基准。不是已验证的 Windows 产品。
+## 候选能力
 
-## 项目入口
+- CLI 默认、只读原生 Codex 数据查询、严格任务身份及状态恢复；JSON 默认、SQLite 显式离线迁移。
+- 紧凑 MCP、事件元数据、预算和幂等门禁、持久化调度、确定性编排、风险审查、只读 App Server 实验探测；所有 opt-in 能力仍受安全和正式验收约束。
+- 真实四环境 CI（Ubuntu、macOS ARM64、Windows Server x64、Windows 11 ARM64）；Mock/合成任务不是实机产品认证。真实 Windows Antigravity + Codex UI、真实模型与权限、生产迁移/回滚仍未验收。
 
-- [完整开发路线](docs/ROADMAP.md)：5 个批次，23 张可单独验收的决策卡。
-- [决策卡索引](docs/decisions/README.md)：所有技术选择、范围、验收与回滚。
-- [上游来源与许可证](docs/UPSTREAM.md)：独立仓库，不 fork。
-- [基准与验收方法](docs/BENCHMARK.md)：真实/估算/未知用量区分。
-- [开发代理规则](AGENTS.md)：按卡执行、人工确认、不得自动合并。
+## 入口
 
-## 当前状态
+- [路线图](docs/ROADMAP.md) · [决策卡](docs/decisions/README.md) · [剩余任务](docs/REMAINING_WORK.md) · [Bug](docs/ISSUES_AND_BUGS.md)
+- [测量方法](docs/BENCHMARK.md) · [D21 配对结果](docs/RESULTS.md)
+- [RC 构建和校验](docs/RELEASE_CANDIDATE.md) · [迁移与回滚](docs/MIGRATION.md) · [Windows 安装说明](docs/WINDOWS_INSTALL.md)
 
-P0 / D00–D02 DONE（用户已验收并授权合并）。当前仓库为公开独立仓库，D00 基线已在 main。已由 GitHub API 确认 fork=false。上游是 [Koala973/antigravity-lead-codex](https://github.com/Koala973/antigravity-lead-codex)。已保留双方 MIT 版权声明；原始上游文档见 [README_UPSTREAM.md](README_UPSTREAM.md)，原始许可证见 [LICENSE.upstream](LICENSE.upstream)，完整性证据见 [D00 清单](docs/evidence/D00-import.md)。
+当前 RC 仅为源代码包准备，不得作为正式发布安装；不自动联网、下载依赖、扩大权限或调用模型。明确批准后方可进行实际宿主测试。不要使用上游安装命令作为 Next 安装命令。
 
-## 启动下一步
-
-2026-11-27 用户明确验收 D01、D02 并授权合并 PR #2、#3；批准 D03–D22 推荐 A 按依赖实施及 GitHub Actions 测试。后续 PR 的合并、真实模型测试及正式发布仍遵守独立授权门禁。
-
-[剩余工作](docs/REMAINING_WORK.md) · [Bug 登记](docs/ISSUES_AND_BUGS.md) · [执行台账](docs/EXECUTION_STATUS.json)。原始 Windows 基线失败已保留；PR #4 仅为独立修复候选，按对应卡集成。
+上游为 [Koala973/antigravity-lead-codex](https://github.com/Koala973/antigravity-lead-codex)，独立仓库非 fork，保留 [上游来源](docs/UPSTREAM.md)、[原始文档](README_UPSTREAM.md)、[MIT 许可证](LICENSE) 和 [原始许可证](LICENSE.upstream)。原始上游文档仅作历史参考，不表示 Next 功能已验收。

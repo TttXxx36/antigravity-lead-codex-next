@@ -803,15 +803,21 @@
       "depends": [
         "D21"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "RC、三平台/真实 Windows、SHA256、回滚演练、人工发布许可",
+      "status": "IN_PROGRESS",
+      "evidence": "Offline deterministic source RC and verified extraction/rollback rehearsal, docs and CI artifacts implemented; CI pending",
+      "next": "Verify exact-head four-platform RC builds, archive integrity, rollback and cumulative CI; no formal release",
       "branch": "dev/d22",
-      "approval": null,
+      "approval": "2026-11-27 user authorized A candidate development D06-D22; no formal release, merge, permission or real model grant",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D22 source RC, rollback and cumulative CI",
+          "status": "NOT_RUN",
+          "ref": "Latest candidate CI pending"
+        }
+      ]
     }
   ],
   "roadmap_approval": "2026-11-27 用户明确验收 D01、D02 并授权合并 PR #2、#3；批准 D03–D22 推荐 A 按依赖实施及 GitHub Actions 测试。后续 PR 的合并、真实模型测试及正式发布仍遵守独立授权门禁。",

@@ -28,7 +28,7 @@
 | [D19](decisions/D19.md) 风险驱动审查与验收 | V2.0 | D18 | BLOCKED | PR #21 四环境累计 PASS；可信独立审查及项目检查未验证；D20 可继续 |
 | [D20](decisions/D20.md) 常驻 Codex App Server 可选适配 | V2.0 | D18,D19 | BLOCKED | PR #22 四环境离线候选 PASS；真实协议、任务/权限/用量/性能对等未验证；D21 可继续 |
 | [D21](decisions/D21.md) 可观测性与性能/Token 验收 | V2.0 | D12,D16,D19,D20 | BLOCKED | PR #23 四环境配对候选 PASS；真实质量/Token 未验证；D22 可继续 |
-| [D22](decisions/D22.md) 发布、兼容性与回滚 | V2.0 | D21 | PROPOSED | 未实施；RC、三平台/真实 Windows、SHA256、回滚演练、人工发布许可 |
+| [D22](decisions/D22.md) 发布、兼容性与回滚 | V2.0 | D21 | IN_PROGRESS | 未发布源 RC、SHA256、隔离回滚；CI 待验证；正式发布未授权 |
 
 各卡完整实施清单和验收门槛以链接原文为准，不能以本表摘要代替。可机读依赖与状态见 [EXECUTION_STATUS.json](EXECUTION_STATUS.json)；更新状态须核验实际证据、PR、人工许可。其他分支的卡文件可能尚未合并，不能仅以 main 的旧 PROPOSED 判定活动状态。
 
@@ -224,3 +224,7 @@ Run 45999409240 completed/success; source c1bff452b8718c759820ae919aa05c1c624681
 | install (ubuntu-latest) / 140506913703 | 1339600 | 278008 | 79.247% | 11.6 → 6.377 | 13.886 → 7.111 | ABOVE |
 
 Measured communication exceeds 30–60% hypothesis for this narrow stable synthetic polling workload; not actual total communication, cost, real task quality/success or token savings. Fixture checks zero failures and zero observed P0 fixture regressions; all actual real tasks/model quality, actual Codex usage, Gemini usage, mixed-workload baselines, confidence and production P0 acceptance NOT_RUN/UNKNOWN. No real model invocation or merge. Candidate ready for D22 offline package/rollback preparation; formal BLOCKED. Evidence-only head recheck required.
+
+
+## D22 candidate implementation 2026-11-27
+Base 1226e5d27db5737cc843145a956c980790b6aac5; D21 exact source c1bff45 Run 45999409240 completed/success all four. A staged unpublished source RC. Exact committed Git objects only, fixed USTAR/gzip metadata and sorted members, SHA256 archive + per-file canonical manifest, both MIT notices preserved unchanged. Strict source allowlist, no node_modules/real state/screenshot/.github workflow/credential files; reject non-text, common secret patterns, invalid/reserved paths, links, case collisions and size limits; scan is limited, not a guarantee. Verify digest/manifest/identity/canonical archive before fresh-directory extraction. No dependency install, network, model, tag, release or upstream push by packaging tool. CI tests two byte-identical builds per runner, Git blob match, tamper/traversal/identity, secret-pattern negatives, disposable old code tree restore with real SQLite/JSON untouched; actual Unix installer uses explicit mock Node/npm/curl, existing native Windows lifecycle tests actual installation/restore/doctor using native mock executable. Source package only; actual Antigravity/Codex host and production migration/rollback NOT_RUN. Read-only CI retains short-lived RC artifacts only after applicable cumulative checks on dev/d22 PR; no formal publication. README/English/CHANGELOG/guide updated, license originals preserved; historical source retained. Formal release blocked all upstream formal acceptance, actual host and explicit authorization. CI pending.
