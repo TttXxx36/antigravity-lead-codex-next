@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
+import {pairedDisplayBenchmark} from '../benchmarks/paired_display.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -571,6 +572,8 @@ async function runTests() {
     const changedDetail=await view('console_thread_delta',{threadId:'historical-0299',revision:detailDelta.revision,force:true});
     assert.equal(changedDetail.changed,true);assert.equal(changedDetail.value.task.title,'D16 changed');
     console.log('[PASS] D16 app delta, ID detail, explicit refresh, no Git by default, legacy contracts retained');
+    // D21 fixed synthetic workload; actual native MCP JSON-RPC, no real model.
+    await pairedDisplayBenchmark({rpc,root:ROOT,expected:await view('console_snapshot',{limit:50})});
     // Paired same-fixture benchmark: real sqlite queries and real artifact
     // reads, alternating baseline/candidate to reduce warmup bias.
     process.env.CODEX_HOME=codexHome;process.env.AGY_DISPATCH_STATE_DIR=dispatchDir;

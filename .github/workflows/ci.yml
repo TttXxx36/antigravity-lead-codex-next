@@ -24,6 +24,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -40,6 +41,8 @@ jobs:
           node -p "JSON.stringify({platform:process.platform,arch:process.arch,node:process.version})"
           python -c "import platform,sys; print(platform.machine(),sys.version)"
           git rev-parse HEAD
+      - name: Paired benchmark evidence regression
+        run: node --test tests/test-paired-benchmark.mjs
       - name: Experimental app-server offline protocol and reuse regression
         run: python -m unittest discover -s tests -p test_app_server.py -v
       - name: Risk-driven review and immutable Git evidence regression

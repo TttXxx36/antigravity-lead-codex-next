@@ -1,0 +1,7 @@
+# D21 测量结果
+
+正式真实模型验收：NOT_RUN。候选配对基准待 CI。
+
+
+## D21 candidate implementation 2026-11-27
+A paired benchmark; exact predecessor 505f5bf955f47b66c935b3371e3991085221e083 (D20 evidence recheck 45990579786 all four PASS). Same checked-out implementation, legacy full snapshot vs opt-in delta, NOT historical main-vs-candidate benchmark. Actual native MCP over stdio and synthetic SQLite fixture: six independent pairs, five polls per arm, alternating order, force first candidate refresh/new revision, then reuse; OS caches not controlled. Validate equal displayed task IDs/status/title, managed IDs/status, stats, connected health on every successful poll. Capture actual serialized request+response JSON-RPC envelope bytes excluding newline (not network or model tokens), per-batch wall clock median and nearest-rank p95, explicit attempted/success/failure/unknown/not-run counts, no retries. Failures retained; no savings if incomplete. 30–60% communication hypothesis explicitly report BELOW/WITHIN/ABOVE, no guarantee. Fixture-only quality and regression, real quality/Token NOT_RUN, Gemini UNKNOWN, no byte-to-token conversion or billing claim. Numeric whitelist output with no prompts/path/raw payloads; checkout and fixture shape digest, Node/OS/arch. Full history read-only checkout for pinned ancestry, no permission expansion. Six summary/negative unit tests and actual paired native MCP regression on four runners pending. Formal acceptance blocked real tasks, model/effort/cache and independent evidence.

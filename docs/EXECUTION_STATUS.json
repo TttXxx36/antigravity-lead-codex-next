@@ -768,15 +768,21 @@
         "D19",
         "D20"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "配对基准、质量/成功率、真实用量及置信限制",
+      "status": "IN_PROGRESS",
+      "evidence": "Paired native MCP synthetic display benchmark and evidence checks implemented; CI pending",
+      "next": "Run paired measurements on all four environments and record quality, bytes, deviations and unknown tokens",
       "branch": "dev/d21",
-      "approval": null,
+      "approval": "2026-11-27 user authorized A candidate development D06-D22; no real model, permission or release grant",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D21 paired benchmark and cumulative CI",
+          "status": "NOT_RUN",
+          "ref": "Latest candidate CI pending"
+        }
+      ]
     },
     {
       "id": "D22",
