@@ -28,7 +28,7 @@ def main():
     if '--output-schema' in args and Path(args[args.index('--output-schema')+1]).name == 'report_schema_v2.json':
         report = dict(version=2,status=report['status'],summary=report['summary'],risks=['mock only; checks not run'],blockers=['synthetic failure'] if failed else [],verification_claim='not_run')
     Path(args[args.index('-o') + 1]).write_text(json.dumps(report), encoding='utf-8')
-    print(json.dumps({'type': 'thread.started', 'thread_id': 'mock-thread-01'}))
+    print(json.dumps({'type': 'thread.started', 'thread_id': os.environ.get('ALC_MOCK_SESSION','mock-thread-01')}))
     if failed:
         print(json.dumps({'type': 'error', 'message': 'synthetic error'}))
     print(json.dumps({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': json.dumps(report)}}))

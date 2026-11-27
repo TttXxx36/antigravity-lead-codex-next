@@ -272,6 +272,60 @@ with d.locked_state() as state:
             self.assertEqual(state["tasks"]["v2-task"]["protocol_rev"],2)
             self.assertEqual(state["tasks"]["v2-task"]["protocol_version"],2)
 
+    def test_blackboard_delta_rebuild_and_isolation(self):
+        work=Path(self.tmp.name)/"board";work.mkdir()
+        route={"model":"mock","effort":"low","effective_difficulty":"low"}
+        original=d.run_subprocess_with_timeout
+        calls=[]
+        def boundary(cmd,**kwargs):
+            self.assertEqual(cmd[0],"MOCK_ONLY")
+            calls.append((cmd,kwargs["stdin_text"]))
+            session="board-session-2" if len(calls)==3 else "board-session-1"
+            kwargs["env"]=dict(self.env,ALC_MOCK_CASE="B01",ALC_MOCK_SESSION=session)
+            return original([sys.executable,"-I",str(ROOT/"tests/mock_codex.py"),*cmd[1:]],**kwargs)
+        stable=dict(version=2,task_id="board-task",rev=1,base_rev=0,goal="STABLE_GOAL_UNIQUE",scope=["answer.txt"],accept=["keep tests"],delta="")
+        def delta(rev,base,**extra):
+            return json.dumps(dict(version=2,task_id="board-task",rev=rev,base_rev=base,delta="update fixture",**extra))
+        def resume(raw,*flags):
+            args=d.build_parser().parse_args(["resume","--protocol-v2","--task-id","board-task","--prompt",raw,*flags])
+            with contextlib.redirect_stdout(io.StringIO()):
+                return d.cmd_resume(args)
+        with patch.object(d,"get_codex_bin",return_value="MOCK_ONLY"),patch.object(d,"resolve_model_and_effort",return_value=route),patch.object(d,"run_subprocess_with_timeout",side_effect=boundary),patch.object(d,"CONTEXT_MAX_TURNS",2):
+            d.execute_single_task(prompt=json.dumps(stable),cwd=work,backend="codex",difficulty="low",
+                model="mock",effort="low",quality="balanced",alternate=False,prefer_wide=False,
+                sandbox="workspace-write",network=False,isolation="inplace",timeout=15,
+                files_hint=None,task_id=None,dry_run=False,protocol_v2=True,blackboard=True)
+            self.assertIn("STABLE_GOAL_UNIQUE",calls[0][1])
+            # Reload persisted context in a fresh Python process (no worker call).
+            probe=self.worker("\nimport json\nwith d.locked_state() as state:\n    rec=state[\"tasks\"][\"board-task\"]\n    assert rec[\"context_digest\"]==d.context_digest(rec[\"context_board\"])\n    assert rec[\"context_board\"][\"rev\"]==1\n")
+            _,err=probe.communicate(timeout=15)
+            self.assertEqual(probe.returncode,0,err.decode("utf8","replace"))
+            self.assertEqual(resume(delta(2,1)),0)
+            self.assertNotIn("STABLE_GOAL_UNIQUE",calls[1][1])
+            self.assertEqual(calls[1][0][2],"resume")
+            self.assertIn("board-session-1",calls[1][0])
+            with self.assertRaises(ValueError):resume(delta(2,1))
+            with self.assertRaises(ValueError):resume(delta(3,2))
+            with self.assertRaises(ValueError):resume(delta(3,2),"--rebuild-context")
+            self.assertEqual(len(calls),2)
+            cp=dict(summary="reviewed previous state",decisions=["keep scope"],pending=["verify"])
+            self.assertEqual(resume(delta(3,2,checkpoint=cp),"--rebuild-context"),0)
+            self.assertNotEqual(calls[2][0][2],"resume")
+            for expected in ("STABLE_GOAL_UNIQUE","keep tests","workspace-write","reviewed previous state","verify"):
+                self.assertIn(expected,calls[2][1])
+            state=json.loads(d.STATE_FILE.read_bytes());record=state["tasks"]["board-task"]
+            self.assertEqual(record["session_id"],"board-session-2")
+            self.assertEqual(record["context_board"]["generation"],2)
+            self.assertEqual(record["context_board"]["retired_sessions"],["board-session-1"])
+            self.assertEqual(record["context_board"]["rev"],3)
+            self.assertEqual(record["context_digest"],d.context_digest(record["context_board"]))
+            self.assertEqual(record["context_board"]["last_result_ref"],record["result_ref"])
+            # Cross-task session is rejected before any process launch.
+            with d.locked_state() as state:
+                state["tasks"]["other"]={"task_id":"other","session_id":"board-session-2"}
+            with self.assertRaises(d.StateIntegrityError):resume(delta(4,3))
+            self.assertEqual(len(calls),3)
+
     def test_resume_lock_refuses_parallel_resume(self):
         d.reserve_run_dir("resume-race", {"backend":"mock"})
         root=d.RUNS_DIR/"resume-race"
