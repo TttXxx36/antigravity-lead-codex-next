@@ -3205,10 +3205,32 @@ def orchestrator_public(state,rec):
             "accepted":False,"mergeAuthorized":False,"auditDigest":e["digest"]}
 
 
+def orchestrator_acceptance_packet(state,rec,expected_revision):
+    e=rec["events"][-1]
+    if type(expected_revision) is not int or expected_revision!=e["revision"] or e["status"]!="verifying" or e["lease"] is not None:
+        raise ValueError("D18: current verifying revision required for acceptance packet")
+    artifact_ok=orchestrator_artifact_matches(state,rec)
+    # D19 pinned Git evidence is not yet available in this independent card.
+    risk,current_risk,git_ok=None,False,False
+    packet={"version":1,"operation":"independent_acceptance_preview","taskId":rec["task_id"],
+            "revision":e["revision"],"protocolRevision":e["protocol_rev"],"requestId":e["request_id"],
+            "scopeDigest":rec["scope"],"envelopeDigest":e["envelope"],"auditDigest":e["digest"],
+            "artifactSha256":e["result_ref"]["sha256"],"riskReceiptDigest":risk["digest"] if current_risk else None,
+            "base":risk["base"] if current_risk else None,"head":risk["head"] if current_risk else None,
+            "checks":{"workerArtifact":"PASS" if artifact_ok else "FAIL",
+                      "pinnedGitChecks":"PASS" if git_ok else "FAIL" if current_risk else "NOT_RUN",
+                      "worktree":"NOT_RUN","projectTests":"NOT_RUN","independentReview":"NOT_RUN",
+                      "trustedAuthority":"NOT_CONFIGURED"},
+            "readyForIndependentReview":artifact_ok and git_ok,
+            "accepted":False,"mergeAuthorized":False,"stateChanged":False}
+    packet["evidenceDigest"]=request_hash(packet)
+    return packet
+
+
 def orchestrator_command(args):
     kind=args.subcommand
     tid=validate_task_id(args.task_id)
-    if kind in ("orchestrator-status","orchestrator-audit","orchestrator-recover") and not STATE_FILE.exists():
+    if kind in ("orchestrator-status","orchestrator-audit","orchestrator-recover","orchestrator-acceptance-preview") and not STATE_FILE.exists():
         raise ValueError("D18: orchestration not found")
     with locked_state() as state:
         registry=orchestrator_registry(state,create=kind=="orchestrator-queue")
@@ -3269,6 +3291,8 @@ def orchestrator_command(args):
                 reason="trusted_acceptance_unavailable" if orchestrator_artifact_matches(state,rec) else "artifact_invalid"
                 orchestrator_append(rec,"verify_blocked",reason)
         payload=orchestrator_public(state,rec)
+        if kind=="orchestrator-acceptance-preview":
+            payload=orchestrator_acceptance_packet(state,rec,args.expected_revision)
         if kind=="orchestrator-audit":
             cursor=args.cursor
             if cursor<0 or cursor>len(rec["events"]) or not 1<=args.limit<=10:
@@ -4175,7 +4199,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_st = sub.add_parser("status", help="Inspect tracked task metadata and round-robin state.")
     p_st.add_argument("--task-id", default=None)
 
-    for operation in ("orchestrator-queue","orchestrator-retry","orchestrator-cancel","orchestrator-verify","orchestrator-status","orchestrator-audit","orchestrator-recover"):
+    for operation in ("orchestrator-queue","orchestrator-retry","orchestrator-cancel","orchestrator-verify","orchestrator-status","orchestrator-audit","orchestrator-recover","orchestrator-acceptance-preview"):
         p_orch=sub.add_parser(operation,allow_abbrev=False,help="D18 explicit local orchestration; no automatic execution or merge")
         p_orch.add_argument("--task-id",required=True)
         if operation in ("orchestrator-queue","orchestrator-retry"):
@@ -4183,7 +4207,7 @@ def build_parser() -> argparse.ArgumentParser:
             p_orch.add_argument("--prompt",required=True,help="Exact bounded v2 task envelope; not an approval grant")
         if operation=="orchestrator-queue":
             p_orch.add_argument("--cwd",required=True)
-        if operation in ("orchestrator-retry","orchestrator-cancel","orchestrator-verify"):
+        if operation in ("orchestrator-retry","orchestrator-cancel","orchestrator-verify","orchestrator-acceptance-preview"):
             p_orch.add_argument("--expected-revision",type=int,required=True)
         if operation=="orchestrator-audit":
             p_orch.add_argument("--cursor",type=int,default=0)
