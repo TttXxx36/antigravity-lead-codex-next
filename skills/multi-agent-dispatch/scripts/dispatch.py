@@ -2493,7 +2493,50 @@ def scheduler_known_terminal(result):
             and result.get("task_status") in ("completed","failed","partial","blocked"))
 
 
+def scheduler_reconciliation_packet(state, key):
+    """Describe one unresolved slot without inferring process death or granting release."""
+    if not re.fullmatch(r"[a-f0-9]{32}",key):
+        raise ValueError("D17: invalid ticket")
+    ticket=scheduler_registry(state)["tickets"].get(key)
+    if not ticket or ticket["status"] not in ("active","uncertain"):
+        raise ValueError("D17: reconciliation requires an active or uncertain ticket")
+    tid=ticket["task_id"]
+    task=state["tasks"].get(tid)
+    ops=sorted(((k,v) for k,v in request_records(state).items()
+                if v["task_id"].casefold()==tid.casefold()),key=lambda x:x[1]["ordinal"])
+    latest_key,latest=ops[-1] if ops else (None,None)
+    # D18 orchestration does not exist in this independent D17 candidate.
+    event,lease,bound=None,None,False
+    reasons=["trusted_owned_process_tree_exit_evidence_required",
+             "trusted_reconciliation_authority_required"]
+    if any(op["status"] in ("pending","uncertain") for _,op in ops):
+        reasons.append("unsettled_request")
+    if task is None or task.get("active_turn_id") or not scheduler_known_terminal(task) or task.get("stream_integrity")=="incomplete":
+        reasons.append("terminal_task_unconfirmed")
+    if lease:
+        reasons.append("orchestration_lease_outstanding")
+    if not bound:
+        reasons.append("ticket_to_latest_result_binding_unverified")
+    ref=task.get("result_ref") if task else None
+    # Only a validated digest/turn shape is returned. Latest task metadata is
+    # not evidence that this particular ticket's process tree terminated.
+    packet={"version":1,"operation":"scheduler_reconcile_preview","ticket":key,
+            "ticketSequence":ticket["seq"],"ticketStatus":ticket["status"],
+            "ticketDigest":request_hash(ticket),"taskId":tid,"kind":ticket["kind"],
+            "taskRecordDigest":request_hash(task) if task is not None else None,
+            "latestRequestId":latest_key,"latestRequestStatus":latest["status"] if latest else None,
+            "latestResultSha256":ref["sha256"] if isinstance(ref,dict) and set(ref)=={"turn","sha256"} and isinstance(ref["sha256"],str) and re.fullmatch(r"[a-f0-9]{64}",ref["sha256"]) and (ref["turn"] is None or (isinstance(ref["turn"],str) and re.fullmatch(r"turn-[A-Za-z0-9_-]{1,75}",ref["turn"]))) else None,
+            "orchestrationAuditDigest":event["digest"] if event else None,
+            "orchestrationLeaseMatchesTicket":bound,"blockers":reasons,
+            "processExitProof":"NOT_RUN","authority":"NOT_CONFIGURED",
+            "slotReleased":False,"workerTerminated":False,"cleanupAuthorized":False}
+    packet["evidenceDigest"]=request_hash(packet)
+    return packet
+
+
 def scheduler_status_cmd(args):
+    if args.subcommand=="scheduler-reconcile-preview" and not STATE_FILE.exists():
+        raise ValueError("D17: scheduler state not found")
     with locked_state() as state:
         registry=scheduler_registry(state)
         if args.subcommand=="scheduler-cancel":
@@ -2505,6 +2548,8 @@ def scheduler_status_cmd(args):
                 raise ValueError("D17: only a queued ticket may be cancelled; no active process kill")
             rec.update(status="cancelled",reason="operator_cancelled",updated_at=utc_now())
             payload={"ticket":key,"status":"cancelled"}
+        elif args.subcommand=="scheduler-reconcile-preview":
+            payload=scheduler_reconciliation_packet(state,args.ticket)
         else:
             payload={"enabled":scheduler_config() is not None,"tickets":[
                 {"ticket":key,"seq":t["seq"],"task_id":t["task_id"],"kind":t["kind"],
@@ -3621,6 +3666,54 @@ def cmd_status(args: argparse.Namespace) -> int:
         return 0
 
 
+def cleanup_sha(value):
+    return isinstance(value,str) and re.fullmatch(r"(?:[a-f0-9]{40}|[a-f0-9]{64})",value) is not None
+
+
+def cleanup_git_probe(cwd,args,deadline):
+    binary=get_git_bin()
+    remaining=min(8,deadline-time.monotonic())
+    if not binary or remaining<=0:return None,b""
+    env={k:v for k,v in os.environ.items() if not k.upper().startswith("GIT_")}
+    env.update(GIT_CONFIG_NOSYSTEM="1",GIT_CONFIG_GLOBAL=os.devnull,GIT_TERMINAL_PROMPT="0",
+               GIT_NO_REPLACE_OBJECTS="1",GIT_NO_LAZY_FETCH="1",GIT_OPTIONAL_LOCKS="0",
+               GIT_PROTOCOL_FROM_USER="0",GIT_ALLOW_PROTOCOL="",LC_ALL="C")
+    cmd=[binary,"--no-optional-locks","-c","core.fsmonitor=false","-c","core.hooksPath="+os.devnull,
+         "-c","diff.external=","-c","protocol.allow=never",
+         "-c","core.whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol",
+         "-C",str(cwd),*args]
+    try:
+        proc=subprocess.Popen(cmd,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+            env=env,start_new_session=os.name!="nt",
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name=="nt" else 0)
+    except OSError:return None,b""
+    over=threading.Event();buffers=[bytearray(),bytearray()]
+    def read(pipe,buf,limit):
+        try:
+            while True:
+                part=pipe.read1(8192)
+                if not part:break
+                if len(buf)+len(part)>limit:
+                    over.set();break
+                buf.extend(part)
+        except OSError:over.set()
+        finally:pipe.close()
+    threads=[threading.Thread(target=read,args=(proc.stdout,buffers[0],262144),daemon=True),
+             threading.Thread(target=read,args=(proc.stderr,buffers[1],32768),daemon=True)]
+    for thread in threads:thread.start()
+    end=time.monotonic()+remaining
+    try:
+        while proc.poll() is None and not over.is_set() and time.monotonic()<end:time.sleep(.02)
+        if proc.poll() is None:
+            terminate_owned_process_tree(proc);proc.wait(timeout=5);return None,b""
+        for thread in threads:thread.join(timeout=.3)
+        if over.is_set() or any(thread.is_alive() for thread in threads):return None,b""
+        return proc.returncode,bytes(buffers[0])
+    except (OSError,subprocess.TimeoutExpired):return None,b""
+    except BaseException:
+        terminate_owned_process_tree(proc);raise
+
+
 def cmd_cleanup(args: argparse.Namespace) -> int:
     if args.force or args.delete_branch:
         raise ValueError("D06: destructive cleanup requires trusted human authorization")
@@ -3650,23 +3743,46 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
             expected=WORKTREES_DIR.resolve().joinpath(*rel.parts)
             if not path.is_dir() or path.resolve(strict=True)!=expected:
                 raise ValueError("invalid worktree")
-            git=get_git_bin()
-            if not git:raise ValueError("git missing")
+            # Reuse D19 bounded, offline Git probes (no inherited GIT_*,
+            # fsmonitor, hooks, external diff, lazy fetch or protocols).
+            # Git status may invoke configured clean/process filters; refuse
+            # such repos and gitlinks before running status. This is a preview,
+            # not an OS sandbox or a race-free authorization to delete.
+            repo_path=Path(repo).resolve(strict=True)
+            deadline=time.monotonic()+25
             def probe(cwd,*argv):
-                return subprocess.run([git,"-C",str(cwd),*argv],capture_output=True,timeout=10,
-                                      env={**os.environ,"GIT_OPTIONAL_LOCKS":"0","LC_ALL":"C"})
-            current=probe(path,"symbolic-ref","--short","HEAD")
-            top=probe(path,"rev-parse","--show-toplevel")
-            if current.returncode or current.stdout.decode("utf-8").strip()!=branch or top.returncode or Path(top.stdout.decode("utf-8").strip()).resolve()!=expected:
+                return cleanup_git_probe(cwd,list(argv),deadline)
+            current_rc,current=probe(path,"symbolic-ref","--short","HEAD")
+            top_rc,top=probe(path,"rev-parse","--show-toplevel")
+            repo_rc,repo_top=probe(repo_path,"rev-parse","--show-toplevel")
+            wc_rc,wc=probe(path,"rev-parse","--path-format=absolute","--git-common-dir")
+            rc,common=probe(repo_path,"rev-parse","--path-format=absolute","--git-common-dir")
+            if (current_rc!=0 or current.decode("utf-8").strip()!=branch or top_rc!=0
+                or Path(top.decode("utf-8").strip()).resolve()!=expected or repo_rc!=0
+                or Path(repo_top.decode("utf-8").strip()).resolve()!=repo_path or wc_rc!=0 or rc!=0
+                or Path(wc.decode("utf-8").strip()).resolve()!=Path(common.decode("utf-8").strip()).resolve()):
                 reasons.append("worktree_identity_mismatch")
-            dirty=probe(path,"status","--porcelain=v1","-z","--untracked-files=all","--ignored=matching")
-            if dirty.returncode or dirty.stdout:
-                reasons.append("dirty_untracked_or_ignored_files")
-            target=probe(repo,"symbolic-ref","--short","HEAD")
-            head=probe(path,"rev-parse","--verify","HEAD")
-            if (target.returncode or target.stdout.decode("utf-8").strip()==branch or head.returncode
-                or probe(repo,"merge-base","--is-ancestor",head.stdout.decode("ascii").strip(),"HEAD").returncode):
-                reasons.append("unmerged_or_unknown_commits")
+            else:
+                filter_rc,filter_output=probe(path,"config","--null","--get-regexp",r"^filter\.")
+                stage_rc,staged=probe(path,"ls-files","--stage","-z")
+                if filter_rc!=1 or filter_output:
+                    reasons.append("configured_filters_or_unknown")
+                elif stage_rc!=0 or (staged and not staged.endswith(b"\0")) or any(x.startswith(b"160000 ") for x in staged.split(b"\0")):
+                    reasons.append("gitlinks_or_index_unknown")
+                else:
+                    dirty_rc,dirty=probe(path,"status","--porcelain=v1","-z","--untracked-files=all","--ignored=matching")
+                    if dirty_rc!=0 or dirty:
+                        reasons.append("dirty_untracked_or_ignored_files")
+                target_rc,target=probe(repo_path,"symbolic-ref","--short","HEAD")
+                head_rc,head=probe(path,"rev-parse","--verify","HEAD^{commit}")
+                base_rc,base=probe(repo_path,"rev-parse","--verify","HEAD^{commit}")
+                hs,bs=head.decode("ascii").strip(),base.decode("ascii").strip()
+                if (target_rc!=0 or target.decode("utf-8").strip()==branch or head_rc!=0 or base_rc!=0
+                    or not cleanup_sha(hs) or not cleanup_sha(bs)
+                    or probe(repo_path,"merge-base","--is-ancestor",hs,bs)[0]!=0):
+                    reasons.append("unmerged_or_unknown_commits")
+                elif probe(path,"rev-parse","--verify","HEAD^{commit}")!=(0,head) or probe(repo_path,"rev-parse","--verify","HEAD^{commit}")!=(0,base):
+                    reasons.append("worktree_heads_changed")
         except (OSError,ValueError,UnicodeError,StateIntegrityError,subprocess.TimeoutExpired):
             reasons.append("worktree_probe_failed")
     # D17 has no trusted approval bridge. Do not remove/prune/delete even when
@@ -3774,6 +3890,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("scheduler-status",allow_abbrev=False,help="Read bounded local scheduler metadata")
     p_cancel=sub.add_parser("scheduler-cancel",allow_abbrev=False,help="Cancel queued ticket only; never kills an active worker")
     p_cancel.add_argument("--ticket",required=True)
+    p_reconcile=sub.add_parser("scheduler-reconcile-preview",allow_abbrev=False,help="Read unresolved slot evidence; never releases or kills")
+    p_reconcile.add_argument("--ticket",required=True)
     p_cln = sub.add_parser("cleanup", allow_abbrev=False, help="D17 read-only cleanup preflight; trusted human approval unavailable.")
     p_cln.add_argument("--task-id", required=True)
     p_cln.add_argument("--delete-branch", action="store_true")
@@ -3798,6 +3916,7 @@ def main() -> int:
         "state-recover": cmd_state_storage,
         "scheduler-status": scheduler_status_cmd,
         "scheduler-cancel": scheduler_status_cmd,
+        "scheduler-reconcile-preview": scheduler_status_cmd,
     }
     try:
         if args.subcommand in ('run', 'resume', 'review'):
