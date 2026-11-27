@@ -804,8 +804,8 @@
         "D21"
       ],
       "status": "BLOCKED",
-      "evidence": "Exact-head four-platform cumulative PASS; 28/28 D22 tests; 8 identical rebuilds; 4 equal SHA256 RC artifacts; isolated rollback restores 3 components and preserves SQLite/JSON",
-      "next": "Privacy scanner remediation pending exact-head cumulative CI; all formal blockers unchanged",
+      "evidence": "Exact code head 6f2d23b PASS four environments; 34 passed / 6 platform skips in D22 test module; privacy remediation candidate verified; four identical inner RC hashes",
+      "next": "Formal acceptance remains blocked by D05 real host and remaining dependencies; standalone D06/D14 correction and evidence-only head recheck pending; no release",
       "branch": "dev/d22",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no formal release, merge, permission or real model grant",
       "pr": 24,
@@ -825,8 +825,9 @@
         },
         {
           "name": "Privacy scanner remediation exact-head CI",
-          "status": "NOT_RUN",
-          "ref": "docs/decisions/D22.md"
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46003742874",
+          "tested_commit": "6f2d23bfb8b7bf56cdaed20239e049af1571de11"
         }
       ],
       "observations": [
@@ -844,10 +845,10 @@
         }
       ],
       "candidate": {
-        "ready": false,
-        "tested_commit": "7eb7b43cfe7be57aae2854f94aecf962e7745886",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46000875781",
-        "limitations": "Four identical source-only RC artifacts, actual mock installer/portable rollback/SQLite fixtures; no actual Windows Antigravity+Codex host, production rollback, complete privacy/dependency licensing audit, real model parity or release grant. No tag, release, formal merge or upstream push. Historical tested SHA only; current privacy remediation requires fresh CI."
+        "ready": true,
+        "tested_commit": "6f2d23bfb8b7bf56cdaed20239e049af1571de11",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46003742874",
+        "limitations": "Four-platform cumulative regression and source-only RC; Bash privacy scanner 6/6 Unix cases, 6 Windows platform skips, package/rollback 28/28; no actual host, production rollback, full privacy/license audit, model parity or release authorization. D06/D14 standalone remediation needs integration verification. Historical PASS applies to exact code head."
       }
     }
   ],
