@@ -17,7 +17,7 @@ W=真实 Windows x64/桌面；H=实际宿主/系统边界；A=另行授权（真
 | 卡 | 类型 | 待验收/限制（详见原卡） |
 |---|---|---|
 | D05 | W/H | 安装/升级/恢复/卸载/重装；实际 Antigravity MCP initialize/tools/resources，真实 Codex --version，隔离数据不变 |
-| D06 | H/A/E | OS sandbox、外部写和联网拒绝；可信宿主签发、范围/时效/重放约束尚无可信来源，全部拒绝不是正向授权功能 |
+| D06 | H/A/E | OS sandbox、外部写和联网拒绝；Ed25519 离线凭证校验核心候选；真实可信签发密钥、原子 nonce 消费及 OS sandbox 未配置，全部拒绝不是正向授权功能 |
 | D07 | W/H | 实际 Codex 进程树、提前退出、逃逸后代、真实掉电恢复、结果语义；仅 owned process 范围 |
 | D08 | W/H | Antigravity/Codex 端到端、Windows x64 发布门禁、实际 DB schema 只读兼容 |
 | D09 | H/A | 真实 MCP 宿主 UI/旧客户端兼容、真实 Token 独立测量；不把字节当 Token |
@@ -31,7 +31,7 @@ W=真实 Windows x64/桌面；H=实际宿主/系统边界；A=另行授权（真
 | D17 | W/H/A/E | 实际调度/活动取消/逃逸后代和可信 quota；不自动回收不确定 slot；scheduler-reconcile-preview 导出绑定票据证据，cleanup 使用有界离线 Git 检查，可信回收/删除仍待宿主授权 |
 | D18 | H/A/E | 可信独立验收 completed bridge、真实恢复/取消审批；orchestrator-acceptance-preview 导出绑定 revision/结果/risk 的独立验收包，不授予 completed；可信验收仍待宿主授权 |
 | D19 | H/A | 独立人/可信宿主审查、真实任务 scope 和 worktree 测试 |
-| D20 | W/H/A/E | 实际 App Server 启动/协议与真实任务/权限/usage parity；仅实验探测，CLI 默认，真实生产路由未启用 |
+| D20 | W/H/A/E | 实际 App Server 启动/协议与真实任务/权限/usage parity；实验探测严格限定 metadata RPC，CLI 默认，真实生产路由未启用 |
 | D21 | H/A | 历史基线与候选真实工作负载、质量、成功率、P0、真实 usage 和模型/effort/cache；合成轮询不是生产 Token |
 | D22 | W/H/A/F | 生产等价隔离宿主回滚、前置 D05–D21 正式门禁、完整隐私/分发审查、最终精确源 RC、另行发布授权 |
 

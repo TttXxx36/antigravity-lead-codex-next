@@ -225,13 +225,18 @@
           "status": "PASS",
           "tested_commit": "234c8388b093b5dedf1d7c0cc65e42e7d1d1a710",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004837384"
+        },
+        {
+          "name": "Offline Ed25519 receipt binding/expiry/replay checks, no authority provision",
+          "status": "NOT_RUN",
+          "ref": "docs/decisions/D06.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "234c8388b093b5dedf1d7c0cc65e42e7d1d1a710",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004837384",
-        "limitations": "No positive trusted grant issuance or real OS sandbox proof; network, unmanaged queue/resume, live quota disabled; no production merge."
+        "limitations": "No positive trusted grant issuance or real OS sandbox proof; network, unmanaged queue/resume, live quota disabled; no production merge. Offline capability follow-up pending CI, no live trust root/route or production permission."
       }
     },
     {
@@ -940,13 +945,18 @@
           "status": "PASS",
           "tested_commit": "cbbed8ac862546470d0cacc78a282a9ae760141d",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46014172198"
+        },
+        {
+          "name": "Exact metadata-only outbound RPC envelope regression",
+          "status": "NOT_RUN",
+          "ref": "docs/decisions/D20.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "cbbed8ac862546470d0cacc78a282a9ae760141d",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46014172198",
-        "limitations": "Actual mock subprocess transport/reconnect, strict metadata parser, fixture timings only; no native App Server startup, production task routing, actual task/permission/usage parity or native performance verified. CLI stays default; real model and release need separate authorization."
+        "limitations": "Actual mock subprocess transport/reconnect, strict metadata parser, fixture timings only; no native App Server startup, production task routing, actual task/permission/usage parity or native performance verified. CLI stays default; real model and release need separate authorization. Offline capability follow-up pending CI, no live trust root/route or production permission."
       }
     },
     {
