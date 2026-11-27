@@ -1,0 +1,71 @@
+name: D06 execution policy
+on:
+  pull_request:
+    branches: [dev/d05, main]
+    types: [opened, synchronize, reopened, ready_for_review]
+permissions:
+  contents: read
+concurrency:
+  group: d06-pr-acceptance-${{ github.head_ref }}
+  cancel-in-progress: true
+jobs:
+  install:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'dev/d06'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, windows-11-arm, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify Windows 11 desktop runner identity
+        if: matrix.os == 'windows-11-arm'
+        shell: pwsh
+        run: |
+          $os = Get-CimInstance Win32_OperatingSystem
+          $os | Select-Object Caption,Version,BuildNumber,ProductType,OSArchitecture | ConvertTo-Json -Compress
+          if ($os.ProductType -ne 1 -or [int]$os.BuildNumber -lt 22000 -or $os.Caption -notmatch 'Windows 11') { throw 'Not Windows 11 desktop' }
+          node -p "JSON.stringify({platform:process.platform,arch:process.arch,node:process.version})"
+          python -c "import platform,sys; print(platform.machine(),sys.version)"
+          git rev-parse HEAD
+      - name: Execution boundary tests
+        run: python -m unittest discover -s tests -p test_execution_policy.py -v
+      - name: Dispatch and hook regression
+        run: python -m unittest discover -s tests -p test_dispatch.py -v
+      - name: Candidate governance regression
+        run: python -m unittest discover -s tests -p test_governance.py -v
+      - name: State and platform Python regression
+        run: python -m unittest discover -s tests -p test_state*.py -v
+      - name: Platform Python regression
+        run: python -m unittest discover -s tests -p test_platform.py -v
+      - name: Platform Node regression
+        run: node --test tests/test-platform.mjs
+      - name: Offline signed authority receipt regression (no production grant)
+        run: node --test tests/test-authority-receipt.mjs tests/test-authority-receipt-ledger.mjs
+      - name: Governance ledger
+        run: python scripts/check_governance.py docs/EXECUTION_STATUS.json
+      - name: Prepare locked runtime dependencies
+        working-directory: plugins/codex-console
+        run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+      - name: Native MCP synthetic regression
+        run: node --no-warnings tests/test-mcp-console.mjs
+      - name: Windows installation lifecycle (mock native executable)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tests/test-install-windows.ps1
+      - name: Unix installer syntax and native MCP smoke
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          bash -n scripts/install.sh scripts/doctor.sh plugins/codex-console/bin/run-server.sh
+          node --no-warnings scripts/mcp-smoke.mjs plugins/codex-console/server/index.mjs

@@ -1084,6 +1084,31 @@ def make_task_id(prefix: str = "task") -> str:
     return f"{prefix}-{stamp}-{uuid.uuid4().hex[:6]}"
 
 
+def enforce_execution_policy(sandbox: str, network: bool = False, effort: str | None = None) -> None:
+    """Fail closed until a trusted host can issue scoped, expiring grants.
+
+    A request boolean, manifest or saved state is never a grant. This controls
+    worker sandbox configuration, not the Codex service's own transport.
+    """
+    if sandbox not in ("read-only", "workspace-write"):
+        raise ValueError("D06: unsupported or dangerous sandbox")
+    if network is not False:
+        raise ValueError("D06: network access denied; trusted host authorization unavailable")
+    if effort is not None and not re.fullmatch(r"[A-Za-z0-9_-]{1,32}", effort):
+        raise ValueError("D06: invalid reasoning effort")
+
+
+def validate_resume_binding(record: dict[str, Any], args: argparse.Namespace) -> None:
+    if args.session_id is not None and args.session_id != record.get("session_id"):
+        raise ValueError("D06: resume session differs from managed task")
+    if args.cwd is not None and configured_path(args.cwd) != configured_path(record["workdir"]):
+        raise ValueError("D06: resume cwd differs from managed task")
+    if args.sandbox is not None and args.sandbox != record.get("sandbox") and args.sandbox != "read-only":
+        raise ValueError("D06: resume sandbox escalation denied")
+    if record.get("status") == "reserved":
+        raise ValueError("D06: incomplete task cannot be resumed")
+
+
 def build_codex_exec_cmd(
     *,
     codex_bin: str,
@@ -1095,8 +1120,7 @@ def build_codex_exec_cmd(
     report_path: Path,
     is_git_repo: bool,
 ) -> list[str]:
-    if network and sandbox != "workspace-write":
-        raise ValueError("--network requires --sandbox workspace-write.")
+    enforce_execution_policy(sandbox, network, effort)
     cmd = [
         codex_bin,
         "exec",
@@ -1111,8 +1135,7 @@ def build_codex_exec_cmd(
         "-s",
         sandbox,
     ])
-    if network:
-        cmd.extend(["-c", "sandbox_workspace_write.network_access=true"])
+    cmd.extend(["-c", "sandbox_workspace_write.network_access=false"])
     cmd.extend([
         "-c",
         'approval_policy="never"',
@@ -1139,8 +1162,7 @@ def build_codex_resume_cmd(
     report_path: Path,
     is_git_repo: bool,
 ) -> list[str]:
-    if network and sandbox != "workspace-write":
-        raise ValueError("--network requires --sandbox workspace-write.")
+    enforce_execution_policy(sandbox, network, effort)
     # codex exec resume does NOT accept -s/--sandbox or -C/--cd; use -c sandbox_mode and subprocess cwd.
     cmd = [
         codex_bin,
@@ -1155,8 +1177,7 @@ def build_codex_resume_cmd(
         "-c",
         f'sandbox_mode="{sandbox}"',
     ])
-    if network:
-        cmd.extend(["-c", "sandbox_workspace_write.network_access=true"])
+    cmd.extend(["-c", "sandbox_workspace_write.network_access=false"])
     cmd.extend([
         "-c",
         'approval_policy="never"',
@@ -1216,11 +1237,10 @@ def execute_single_task(
     task_id: str | None,
     dry_run: bool,
 ) -> dict[str, Any]:
+    enforce_execution_policy(sandbox, network, effort)
     cwd = configured_path(cwd)
     if not cwd.exists() or not cwd.is_dir():
         raise ValueError(f"Target cwd does not exist or is not a directory: {cwd}")
-    if network and sandbox != "workspace-write":
-        raise ValueError("--network requires --sandbox workspace-write.")
 
     git_info = inspect_git(cwd)
     eff_isolation, isolation_reason = resolve_isolation(isolation, sandbox, git_info)
@@ -1454,6 +1474,12 @@ def cmd_batch(args: argparse.Namespace) -> int:
     if not isinstance(items, list) or not items:
         raise ValueError("Manifest must be a non-empty JSON list or an object with a 'tasks' list.")
 
+    # Validate every entry before launching any worker, including the default.
+    enforce_execution_policy("workspace-write", args.network)
+    for item in items:
+        if not isinstance(item, dict):
+            raise ValueError("Manifest task must be an object")
+        enforce_execution_policy(item.get("sandbox", "workspace-write"), item.get("network", False), item.get("effort"))
     default_cwd = Path(args.cwd).resolve() if args.cwd else Path.cwd().resolve()
 
     def _run_item(idx: int, item: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -1466,7 +1492,7 @@ def cmd_batch(args: argparse.Namespace) -> int:
         item_alt = item.get("alternate")
         if item_alt is None and "no_alternate" in item:
             item_alt = not bool(item["no_alternate"])
-        item_network = bool(item.get("network", args.network))
+        item_network = item.get("network", False)
         res = execute_single_task(
             prompt=item["prompt"],
             cwd=item_cwd,
@@ -1507,8 +1533,10 @@ def cmd_batch(args: argparse.Namespace) -> int:
 
 
 def cmd_resume(args: argparse.Namespace) -> int:
+    if args.network is True:
+        raise ValueError("D06: network access denied; trusted host authorization unavailable")
     if not args.task_id:
-        return _cmd_resume(args)
+        raise ValueError("D06: unmanaged session resume denied; managed task ID required")
     validate_task_id(args.task_id)
     if args.dry_run:
         return _cmd_resume(args)
@@ -1530,7 +1558,10 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         if not task_record:
             raise ValueError(f"Unknown task_id: {args.task_id}")
 
-    backend = args.backend or (task_record["backend"] if task_record else "codex")
+    if not task_record:
+        raise ValueError("D06: managed task record required")
+    validate_resume_binding(task_record, args)
+    backend = args.backend or task_record["backend"]
     session_id = args.session_id or (task_record["session_id"] if task_record else None)
     if not session_id:
         raise ValueError("No session_id available to resume (pass --session-id or valid --task-id).")
@@ -1540,9 +1571,8 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         raise ValueError(f"Workdir does not exist: {workdir}")
 
     sandbox = args.sandbox or (task_record["sandbox"] if task_record else "workspace-write")
-    network = args.network if args.network is not None else bool(task_record.get("network", False) if task_record else False)
-    if network and sandbox != "workspace-write":
-        raise ValueError("--network requires --sandbox workspace-write.")
+    network = args.network is True  # Never inherit a previous grant.
+    enforce_execution_policy(sandbox, network, args.effort)
     base_sha = task_record.get("base_sha") if task_record else None
     git_info = inspect_git(workdir)
 
@@ -1751,11 +1781,14 @@ def cmd_review(args: argparse.Namespace) -> int:
     ]
     if review_model:
         cmd.extend(["-m", review_model])
+    enforce_execution_policy("read-only", False, review_effort)
     if review_effort:
         cmd.extend(["-c", f'model_reasoning_effort="{review_effort}"'])
     cmd.extend([
         "-c",
         'sandbox_mode="read-only"',
+        "-c",
+        "sandbox_workspace_write.network_access=false",
         "-c",
         'approval_policy="never"',
         "--json",
@@ -1869,55 +1902,22 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 
 def cmd_cleanup(args: argparse.Namespace) -> int:
-    validate_task_id(args.task_id)
-    with locked_state() as state:
-        rec = state["tasks"].get(args.task_id)
-        if not rec:
-            raise ValueError(f"Unknown task_id: {args.task_id}")
+    # A request, including a plain cleanup without force/delete-branch, is
+    # not a trusted grant. Keep the worktree and task state intact.
+    raise ValueError("D06: cleanup requires trusted human authorization")
 
-    if not rec.get("repo_root"):
-        result = {"task_id": args.task_id, "message": "Task was non-Git inplace; nothing to remove."}
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-        return 0
-
-    if rec.get("status") == "reserved":
-        raise StateIntegrityError("Reserved/incomplete task requires manual inspection; refusing cleanup")
-    if rec.get("worktree_path"):
-        wp = Path(rec["worktree_path"])
-        try:
-            rel = wp.relative_to(WORKTREES_DIR)
-        except ValueError as exc:
-            raise StateIntegrityError("Worktree outside configured root") from exc
-        if len(rel.parts) != 2 or rel.parts[-1] != args.task_id or bounded_child(WORKTREES_DIR, *rel.parts) != wp:
-            raise StateIntegrityError("Unexpected worktree location")
-    if rec.get("branch") and rec["branch"] != f"agy-worker/{args.task_id}":
-        raise StateIntegrityError("Unexpected worker branch")
-    details = remove_worktree(
-        rec["repo_root"],
-        rec.get("worktree_path"),
-        rec.get("branch"),
-        delete_branch=args.delete_branch,
-        force=args.force,
-    )
-    with locked_state() as state:
-        if args.task_id in state["tasks"]:
-            state["tasks"][args.task_id]["status"] = "cleaned"
-            state["tasks"][args.task_id]["updated_at"] = utc_now()
-
-    print(json.dumps({"task_id": args.task_id, **details}, ensure_ascii=False, indent=2))
-    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Local multi-agent dispatcher (Antigravity Brain -> Codex CLI Hand)."
+        description="Local multi-agent dispatcher (Antigravity Brain -> Codex CLI Hand).", allow_abbrev=False
     )
     sub = parser.add_subparsers(dest="subcommand", required=True)
 
     sub.add_parser("health", help="Check local Codex CLI, Git, Node, and model cache readiness.")
 
     p_run = sub.add_parser(
-        "run",
+        "run", allow_abbrev=False,
         help="Dispatch one coding/analysis task. Defaults to smart quality-quota (--quality smart) dynamic frontier routing.",
     )
     p_run.add_argument("--cwd", default=".", help="Target repository or working directory.")
@@ -1931,23 +1931,23 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--alternate", dest="alternate", action="store_true", default=None, help="Enable alternation across flagship/wide_fast on medium.")
     p_run.add_argument("--no-alternate", dest="alternate", action="store_false", help="Disable alternation on medium.")
     p_run.add_argument("--sandbox", choices=VALID_SANDBOXES, default="workspace-write")
-    p_run.add_argument("--network", action="store_true", help="Enable sandbox_workspace_write.network_access=true while preserving filesystem sandbox outside workdir.")
+    p_run.add_argument("--network", action="store_true", help="Network request (currently denied without trusted host authorization).")
     p_run.add_argument("--isolation", choices=VALID_ISOLATIONS, default="auto")
     p_run.add_argument("--timeout", type=int, default=600)
     p_run.add_argument("--files", nargs="*", default=None, help="Optional target file hints.")
     p_run.add_argument("--task-id", default=None)
     p_run.add_argument("--dry-run", action="store_true")
 
-    p_batch = sub.add_parser("batch", help="Dispatch parallel independent tasks from a JSON manifest.")
+    p_batch = sub.add_parser("batch", allow_abbrev=False, help="Dispatch parallel independent tasks from a JSON manifest.")
     p_batch.add_argument("--manifest", required=True, help="Path to JSON list or {tasks:[...]} file.")
     p_batch.add_argument("--cwd", default=None, help="Default cwd when task item omits cwd.")
     p_batch.add_argument("--quality", choices=VALID_QUALITIES, default="smart")
-    p_batch.add_argument("--network", action="store_true", help="Default network_access=true for batch tasks (overridable per item).")
+    p_batch.add_argument("--network", action="store_true", help="Network request (currently denied).")
     p_batch.add_argument("--max-concurrency", type=int, default=3)
     p_batch.add_argument("--timeout", type=int, default=600)
     p_batch.add_argument("--dry-run", action="store_true")
 
-    p_res = sub.add_parser("resume", help="Continue an existing worker session in its workdir.")
+    p_res = sub.add_parser("resume", allow_abbrev=False, help="Continue an existing worker session in its workdir.")
     p_res.add_argument("--task-id", default=None)
     p_res.add_argument("--session-id", default=None)
     p_res.add_argument("--cwd", default=None)
@@ -1961,12 +1961,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_res.add_argument("--alternate", dest="alternate", action="store_true", default=None)
     p_res.add_argument("--no-alternate", dest="alternate", action="store_false")
     p_res.add_argument("--sandbox", choices=VALID_SANDBOXES, default=None)
-    p_res.add_argument("--network", dest="network", action="store_true", default=None, help="Enable workspace-write network access on resume.")
+    p_res.add_argument("--network", dest="network", action="store_true", default=None, help="Network request (currently denied; grants are never inherited).")
     p_res.add_argument("--no-network", dest="network", action="store_false", help="Disable workspace-write network access on resume.")
     p_res.add_argument("--timeout", type=int, default=600)
     p_res.add_argument("--dry-run", action="store_true")
 
-    p_rev = sub.add_parser("review", help="Run non-interactive read-only Codex code review.")
+    p_rev = sub.add_parser("review", allow_abbrev=False, help="Run non-interactive read-only Codex code review.")
     p_rev.add_argument("--task-id", default=None)
     p_rev.add_argument("--cwd", default=None)
     p_rev.add_argument("--backend", choices=VALID_BACKENDS, default="codex")
@@ -1982,7 +1982,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_st = sub.add_parser("status", help="Inspect tracked task metadata and round-robin state.")
     p_st.add_argument("--task-id", default=None)
 
-    p_cln = sub.add_parser("cleanup", help="Remove a task's managed Git worktree (and optionally branch).")
+    p_cln = sub.add_parser("cleanup", allow_abbrev=False, help="Cleanup disabled until trusted human authorization is available.")
     p_cln.add_argument("--task-id", required=True)
     p_cln.add_argument("--delete-branch", action="store_true")
     p_cln.add_argument("--force", action="store_true")

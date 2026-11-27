@@ -42,6 +42,25 @@ class GovernanceTests(unittest.TestCase):
         self.data['cards'][3].update(status='IN_PROGRESS', approval='test approval')
         self.assertTrue(mod.validate(self.data))
 
+    def test_candidate_dependency_only_for_development(self):
+        d05 = self.data['cards'][5]
+        d06 = self.data['cards'][6]
+        d06.update(status='IN_PROGRESS', approval='test')
+        self.assertEqual(mod.validate(self.data), [])
+        d06.update(status='DONE', accepted=True, merged=True, pr=999,
+                   checks=[{'name':'test','status':'PASS','ref':'test'}])
+        self.assertTrue(any('dependency' in error for error in mod.validate(self.data)))
+
+    def test_candidate_without_matching_ci_evidence_rejected(self):
+        self.data['cards'][6].update(status='IN_PROGRESS', approval='test')
+        self.data['cards'][5]['candidate']['tested_commit'] = '0'*40
+        self.assertTrue(any('dependency' in error for error in mod.validate(self.data)))
+
+    def test_candidate_failure_rejected(self):
+        self.data['cards'][6].update(status='IN_PROGRESS', approval='test')
+        self.data['cards'][5]['checks'].append({'name':'failure','status':'FAIL','ref':'test'})
+        self.assertTrue(any('dependency' in error for error in mod.validate(self.data)))
+
     def test_done_without_human_acceptance(self):
         self.data['cards'][0]['accepted'] = False
         self.assertTrue(mod.validate(self.data))

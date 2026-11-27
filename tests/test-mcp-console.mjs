@@ -377,6 +377,15 @@ async function runTests() {
     assert.equal(listBindings.length, 1);
     await rpc('tools/call', { name: 'manage_collab_binding', arguments: { action: 'delete', id: bindingId } });
 
+    // Denied before spawn: no trusted host grant or unmanaged queue.
+    for (const args of [
+      {name:'spawn_codex_worker',arguments:{cwd:tmpRoot,prompt:'synthetic',network:true}},
+      {name:'send_codex_message',arguments:{threadId:agyTask.id,message:'synthetic',mode:'queue'}},
+      {name:'send_codex_message',arguments:{threadId:agyTask.id,message:'synthetic',mode:'resume'}},
+    ]) {
+      const denied=await rpc('tools/call',args);
+      assert.equal(denied.result?.isError,true, JSON.stringify(denied.result));
+    }
     console.log('[PASS] All MCP Codex Console integration tests passed.');
   } finally {
     if (child) {

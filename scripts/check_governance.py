@@ -48,8 +48,32 @@ def validate(data):
         active = state in {'ACCEPTED', 'IN_PROGRESS', 'REVIEW', 'DONE'}
         if active and not str(card.get('approval') or '').strip():
             errors.append(f'{id}: missing approval')
-        if active and any(by_id.get(d, {}).get('status') != 'DONE' or by_id.get(d, {}).get('merged') is not True for d in deps):
-            errors.append(f'{id}: dependency not accepted and merged')
+        def merged_dependency(dep):
+            return dep.get('status') == 'DONE' and dep.get('merged') is True
+
+        def candidate_dependency(dep):
+            candidate = dep.get('candidate')
+            if not isinstance(candidate, dict) or dep.get('status') not in {'REVIEW', 'BLOCKED'}:
+                return False
+            sha = candidate.get('tested_commit')
+            ref = candidate.get('ref')
+            return (candidate.get('ready') is True and isinstance(sha, str)
+                    and re.fullmatch(r'[0-9a-f]{40}', sha) is not None
+                    and isinstance(ref, str) and re.fullmatch(r'https://github\.com/TttXxx36/antigravity-lead-codex-next/actions/runs/[0-9]+', ref) is not None
+                    and isinstance(candidate.get('limitations'), str) and bool(candidate['limitations'].strip())
+                    and any(isinstance(check, dict) and check.get('status') == 'PASS'
+                            and check.get('ref') == ref and check.get('tested_commit') == sha
+                            for check in (dep.get('checks') if isinstance(dep.get('checks'), list) else []))
+                    and not any(isinstance(check, dict) and check.get('status') == 'FAIL'
+                                for check in (dep.get('checks') if isinstance(dep.get('checks'), list) else [])))
+
+        approval = data.get('candidate_development_approval')
+        candidate_allowed = (isinstance(approval, dict) and approval.get('cards') == 'D06-D22'
+                             and approval.get('merge_gate_unchanged') is True and isinstance(id, str)
+                             and id in IDS and id >= 'D06' and state != 'DONE')
+        if active and any(not merged_dependency(by_id.get(d, {}))
+                          and not (candidate_allowed and candidate_dependency(by_id.get(d, {}))) for d in deps):
+            errors.append(f'{id}: dependency not accepted and merged or verified candidate')
         checks = card.get('checks')
         if not isinstance(checks, list) or any(not isinstance(c, dict) or not isinstance(c.get('status'), str) or c['status'] not in RESULTS or not str(c.get('ref') or '').strip() or not str(c.get('name') or '').strip() for c in checks):
             errors.append(f'{id}: invalid evidence')

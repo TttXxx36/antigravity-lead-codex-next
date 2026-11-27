@@ -12,7 +12,7 @@
 | [D03](decisions/D03.md) 跨平台路径与运行时发现 | V1.1 | D01,D02 | DONE | PR #5 已合并；三平台实际长路径 I/O 与 MCP smoke PASS；真实客户端/桌面由 D05/D08 验收 |
 | [D04](decisions/D04.md) 跨平台锁与状态完整性 | V1.1 | D03 | DONE | PR #6 已合并；39/39 状态回归通过 |
 | [D05](decisions/D05.md) 安装器和环境诊断 | V1.1 | D03,D04 | BLOCKED | PR #7；四环境及真实 Windows 11 ARM64 OS 生命周期 PASS；真实 Antigravity 宿主和实际 Codex 版本证据缺失 |
-| [D06](decisions/D06.md) 审批门禁与执行边界 | V1.1 | D04,D05 | PROPOSED | PR #4 Windows hook 保守转人工；任务绑定可信授权、batch/resume/MCP 防绕过、危险权限拒绝 |
+| [D06](decisions/D06.md) 审批门禁与执行边界 | V1.1 | D04,D05 | BLOCKED | PR #8 候选四环境 CI PASS；可信宿主授权/真实 sandbox 未验收；可继续 D07 候选 |
 | [D07](decisions/D07.md) 任务结果与进程生命周期正确性 | V1.1 | D04,D06 | PROPOSED | 已复现 BUG-001/002；独立退出/任务/验证状态，失败/取消/超时、进程树清理 |
 | [D08](decisions/D08.md) 历史任务定位与 Windows 发布门禁 | V1.1 | D05,D06,D07 | PROPOSED | 未实施；按 ID 查询、歧义拒绝、Git -z、DB 错误、三平台与 Windows 实机 |
 | [D09](decisions/D09.md) 模型可见的轻量 MCP 接口 | V1.2 | D08 | PROPOSED | 未实施；状态/结果/增量/日志拆分，宿主兼容，保留 UI |
@@ -71,3 +71,18 @@ D00–D04 正式完成（5/23）；D05 代码及托管 CI 通过，保留 Draft 
 
 ## Windows 11 ARM64 真正 OS 补测（2026-11-27）
 [Run 45936238126](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45936238126) completed/success，精确测试 head `9813f19c222a858f2a4f7cf217702f62252cc540`，四个 job 均 success。Windows 11 Enterprise / 10.0.26200 / Build 26200 / ProductType 1 / ARM 64-bit Processor；Node 22.23.5 win32 arm64、Python 3.12.10 ARM64；13/13 状态、7/7 Python 平台、4/4 Node 平台、真实本地 MCP 合成客户端和完整 PowerShell 生命周期均 PASS。Windows Server 2025 x64 同样通过新增 SQLite SHA256/内容断言；Linux/macOS 回归 PASS。Windows 两种架构均通过 install/upgrade/restore/uninstall/reinstall、ConsoleOnly、Unicode、missing dependency、injected rollback、持久数据及 SQLite bytes preserved。Job IDs: Win11 140299982943、WinServer 140299983157、Ubuntu 140299983213、macOS 140299983240。原 push/PR 重复取消不计入 PASS。实际 Win11 OS 子门槛已取得 ARM64 证据，真实 x64 桌面及 Antigravity App/IDE 登录宿主仍 NOT_RUN；native mock CLI 仅 --version，0 真实模型调用，不冒充真实宿主。
+
+
+2026-11-27 用户批准分离候选开发与正式验收/合并。D06–D22 可基于经 CI 验证的前置候选分支依赖顺序开发、独立 stacked Draft PR；实际验收门槛、DONE、main 合并条件不变。前置候选有未解决的 CI FAIL/安全缺陷时先修复；缺真实宿主等环境证据可在不启用受阻能力的前提下继续候选开发。禁止真实模型测试、权限扩张、发布。
+D06 基于 D05 精确通过 head 启动，D05 正式验收仍阻塞；后续候选逐卡通过 CI 方可复用。
+
+## 实际四环境 CI（候选开发就绪，不是正式验收）
+[Run 45937059171](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937059171) completed/success，精确 tested commit `b652c5877df2e5a91d5191e1f21fab8c208b3015`；Windows 11 ARM64、Windows Server x64、Ubuntu、macOS 四个 job 均成功。每环境执行5项执行策略、5项 dispatch/hook、18项治理测试（合计112次通过），并运行 D03/D04 平台/状态回归、真实本地 MCP synthetic 及 Windows 原生安装生命周期。真实模型测试未执行。D06 否决未授权操作的候选可作为后续开发基础；可信宿主签发任务/范围/有效期授权、实际 OS sandbox、外部写与真实宿主验证仍 BLOCKED；不得将全部拒绝冒充完整授权功能。PR #8 base dev/d05 保持 Draft，未合并。
+
+
+## 2026-11-27 formal acceptance security review
+Static review of exact D06 head 39cc294bba80c5d563df21b4b329a2646293e017 found a plain cleanup path calling remove_worktree and setting cleaned without trusted authorization (only force/delete-branch and reserved state rejected). BUG-007 proposed P1; potential worktree removal during active/unaccepted task, not a reproduced data loss. Correction rejects all D06 cleanup before state access or Git mutation, and regression checks plain/force/delete-branch denial. D17+ cumulative cleanup already preview-only; intermediate D07–D16 need safe integration before formal acceptance. MCP descriptions now accurately describe denied unmanaged queue/resume and local quota only; tool identifiers/schema preserved. No actual deletion, model calls, permission expansion or host grants. New exact-head tests NOT_RUN until CI; candidate.ready=false, formal BLOCKED. D05 real environment still missing. Trusted scoped grants and actual OS sandbox remain unimplemented/unverified respectively.
+
+
+## Formal acceptance round 3: BUG-007 candidate evidence
+[Run 46004369900](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004369900) four environments success, exact checkout b9c3fe4df5636aa32bac3ee673e9a0ca5839ddeb directly checked in all logs. Jobs ARM64 140523698666, Windows x64 140523698892, macOS 140523699016, Ubuntu 140523699106. Five execution-policy tests per job PASS (20/20), including plain/force/delete-branch cleanup denial before state/Git access; five dispatch/hook and 18 governance tests per job PASS. BUG-007 candidate fix verified, not formally closed. No real host or model or data deletion. D07–D16 must integrate; D17+ preview-only implementation remains. Formal D06 BLOCKED. Evidence-only head requires recheck.

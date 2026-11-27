@@ -40,3 +40,7 @@ PROPOSED → ACCEPTED → IN_PROGRESS → REVIEW → DONE。BLOCKED/DEFERRED 须
 
 ## 条件合并授权更新
 2026-11-27 用户授权 D03–D21 在满足实际验收门槛后依次合并并更新 DONE，无需再次逐卡确认；未满足则修复或记录 BLOCKED。此授权不涵盖 D22 正式发布、真实模型测试、权限扩张或无条件自动合并。 本段优先于原来逐卡人工合并的流程描述。合并执行者核对确切 head 和实际测试结果，必要证据缺失时保留 BLOCKED；不改变权限配置字段，不启用 GitHub 自动合并。
+
+## 候选开发门禁（最新授权）
+2026-11-27 用户批准分离候选开发与正式验收/合并。D06–D22 可基于经 CI 验证的前置候选分支依赖顺序开发、独立 stacked Draft PR；实际验收门槛、DONE、main 合并条件不变。前置候选有未解决的 CI FAIL/安全缺陷时先修复；缺真实宿主等环境证据可在不启用受阻能力的前提下继续候选开发。禁止真实模型测试、权限扩张、发布。
+机读台账 `candidate_development_approval` 只允许 D06–D22 启动；未 DONE 依赖必须有 `candidate`（ready=true、40位 tested_commit、成功 run 引用、对应 PASS check、明确未完成事项），仅 REVIEW/BLOCKED 候选可复用。DONE 始终要求所有前置 DONE/merged 及全部验收 PASS。台账为辅助检查，不证明 GitHub/真实审批。

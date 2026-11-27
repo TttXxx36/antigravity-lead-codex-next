@@ -1,7 +1,7 @@
 {
   "version": 1,
   "as_of": "2026-11-27",
-  "main_commit": "1ad712a9ae3ab8d3e11e3616c1e8a995fe4423fb",
+  "main_commit": "995db122b2049ca73efd624fd8752813f4e5d975",
   "permissions": {
     "automatic_merge": false,
     "release": false,
@@ -160,7 +160,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "4 environments PASS including genuine Windows 11 ARM64 OS, SQLite bytes preserved; actual Antigravity desktop host still NOT_RUN",
-      "next": "Actual Antigravity host connection evidence and real local Codex --version; verify exact head, then merge D05; D06 waits.",
+      "next": "Host acceptance remains blocked; candidate development permitted",
       "branch": "dev/d05",
       "approval": "2026-11-27 user approved A and conditional merge",
       "pr": 7,
@@ -168,17 +168,23 @@
       "merged": false,
       "checks": [
         {
-          "name": "four-platform hosted regression and Windows Server x64 + Windows 11 ARM64 lifecycle",
+          "name": "four-environment exact head hosted CI",
           "status": "PASS",
-          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45936238126",
-          "tested_commit": "9813f19c222a858f2a4f7cf217702f62252cc540"
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45936571412",
+          "tested_commit": "7b29c0b40fcfa61305c587dbc5992270e5018d27"
         },
         {
           "name": "actual Antigravity desktop host MCP initialize and real Codex version",
           "status": "BLOCKED",
           "ref": "docs/evidence/D05-WINDOWS11-acceptance.md"
         }
-      ]
+      ],
+      "candidate": {
+        "ready": true,
+        "tested_commit": "7b29c0b40fcfa61305c587dbc5992270e5018d27",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45936571412",
+        "limitations": "Real Antigravity host and actual Codex version pending; no production merge."
+      }
     },
     {
       "id": "D06",
@@ -188,15 +194,39 @@
         "D04",
         "D05"
       ],
-      "status": "PROPOSED",
-      "evidence": "PR #4 Windows hook 保守转人工",
-      "next": "任务绑定可信授权、batch/resume/MCP 防绕过、危险权限拒绝",
+      "status": "BLOCKED",
+      "evidence": "BUG-007 ordinary/force/delete-branch cleanup denial 4-platform PASS; no state access or deletion",
+      "next": "Synchronize verified denial to D07-D16; D05/actual trusted grants and sandbox remain blocked.",
       "branch": "dev/d06",
-      "approval": null,
-      "pr": null,
+      "approval": "2026-11-27 用户批准分离候选开发与正式验收/合并。D06–D22 可基于经 CI 验证的前置候选分支依赖顺序开发、独立 stacked Draft PR；实际验收门槛、DONE、main 合并条件不变。前置候选有未解决的 CI FAIL/安全缺陷时先修复；缺真实宿主等环境证据可在不启用受阻能力的前提下继续候选开发。禁止真实模型测试、权限扩张、发布。",
+      "pr": 8,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "four-environment D06 policy and cumulative regression",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937059171",
+          "tested_commit": "b652c5877df2e5a91d5191e1f21fab8c208b3015"
+        },
+        {
+          "name": "trusted host scoped grants and real OS execution boundary",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D06-policy.md"
+        },
+        {
+          "name": "D06 plain cleanup deny and metadata regression",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004369900",
+          "tested_commit": "b9c3fe4df5636aa32bac3ee673e9a0ca5839ddeb"
+        }
+      ],
+      "candidate": {
+        "ready": true,
+        "tested_commit": "b9c3fe4df5636aa32bac3ee673e9a0ca5839ddeb",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004369900",
+        "limitations": "Cleanup denial verified in four environments; trusted positive grants, OS sandbox and actual host remain unverified. Exact tested code head only."
+      }
     },
     {
       "id": "D07",
@@ -498,5 +528,10 @@
       "permission expansion",
       "D22 release"
     ]
+  },
+  "candidate_development_approval": {
+    "cards": "D06-D22",
+    "date": "2026-11-27",
+    "merge_gate_unchanged": true
   }
 }

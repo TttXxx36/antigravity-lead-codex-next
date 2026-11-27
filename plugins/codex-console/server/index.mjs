@@ -265,16 +265,16 @@ server.registerTool(
   'send_codex_message',
   {
     title: '向 Codex 会话发送消息',
-    description: '向指定 Codex 会话投递指令，支持排队唤醒（codex queue --resume）、同步续跑（codex exec resume）、dispatch.py 续跑或只读提问。',
+    description: '向受管 Codex 会话通过 dispatch.py 续跑或只读提问；未受管 queue/resume 拒绝。',
     inputSchema: {
       threadId: z.string().min(4).describe('目标 Codex 会话 UUID'),
       message: z.string().min(1).describe('要发送的消息或执行指令'),
-      mode: z.enum(['queue', 'resume', 'dispatch_resume', 'readonly']).optional().describe('默认 queue'),
+      mode: z.enum(['queue', 'resume', 'dispatch_resume', 'readonly']).optional().describe('默认 dispatch_resume；queue/resume 无受管授权时拒绝'),
       allowDuplicate: z.boolean().optional().describe('是否允许 60 秒内重复投递同一条消息'),
     },
     _meta: BOTH_META,
   },
-  async ({ threadId, message, mode = 'queue', allowDuplicate = false }) => {
+  async ({ threadId, message, mode = 'dispatch_resume', allowDuplicate = false }) => {
     const snap = store.getSnapshot({ limit: 250 });
     const match = snap.tasks.find((t) => t.id === threadId || t.id.startsWith(threadId));
     if (!match) return fail(`未找到目标 Codex 会话: ${threadId}`);
@@ -311,7 +311,7 @@ server.registerTool(
       difficulty: z.enum(['auto', 'low', 'medium', 'hard', 'extreme']).optional(),
       quality: z.enum(['smart', 'max', 'balanced']).optional(),
       isolation: z.enum(['worktree', 'inplace', 'auto']).optional(),
-      network: z.boolean().optional().describe('是否开启 workspace-write 联网权限（--network，仅在用户确认联网/外部CLI任务后设为 true）'),
+      network: z.boolean().optional().describe('当前版本无可信宿主授权；true 会被执行层拒绝'),
       changeKey: z.string().optional().describe('可选 OpenSpec Change / Goal 标识，用于跨会话绑定'),
       goalTitle: z.string().optional().describe('可选 Goal 标题'),
     },
@@ -424,8 +424,8 @@ server.registerTool(
 server.registerTool(
   'console_refresh_quota',
   {
-    title: 'Refresh Codex Quota Live',
-    description: '通过官方 codex app-server 实时查询 5 小时/周额度与重置时间（仅前端 App 可调用）',
+    title: 'Refresh Local Codex Quota',
+    description: '读取本地额度证据，不启动 app-server 或实时联网查询（仅前端 App 可调用）',
     inputSchema: {},
     _meta: APP_ONLY_META,
   },
