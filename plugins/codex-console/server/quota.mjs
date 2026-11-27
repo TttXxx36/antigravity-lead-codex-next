@@ -276,28 +276,13 @@ export class QuotaTracker {
     if (this.cachedLive && now - this.cachedLive.updatedAtMs < CACHE_TTL_MS) {
       return this.cachedLive;
     }
-    if (now - this.lastLiveAttemptMs > CACHE_TTL_MS && !this.inFlight) {
-      this._triggerBackgroundRefresh();
-    }
     if (this.cachedLive) return this.cachedLive;
     return readQuotaFromRollouts(this.codexHome);
   }
 
   async refreshLive() {
-    if (this.inFlight) return this.inFlight;
-    this.lastLiveAttemptMs = Date.now();
-    this.inFlight = fetchQuotaFromAppServer(this.codexBin, this.env)
-      .then((res) => {
-        if (res && res.available) {
-          this.cachedLive = res;
-          return res;
-        }
-        return this.cachedLive || readQuotaFromRollouts(this.codexHome);
-      })
-      .finally(() => {
-        this.inFlight = null;
-      });
-    return this.inFlight;
+    // No implicit app-server / authenticated external connection.
+    return this.cachedLive || readQuotaFromRollouts(this.codexHome);
   }
 
   _triggerBackgroundRefresh() {

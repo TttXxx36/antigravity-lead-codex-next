@@ -70,6 +70,8 @@ export class CodexRunner {
       '-c',
       'sandbox_mode="read-only"',
       '-c',
+      'sandbox_workspace_write.network_access=false',
+      '-c',
       'approval_policy="never"',
       '-o',
       outFile,
@@ -161,6 +163,12 @@ export class CodexRunner {
       throw new Error('消息内容不能为空');
     }
 
+    if (!['readonly', 'dispatch_resume'].includes(mode)) {
+      throw new Error('D06: unmanaged queue/resume denied; use managed dispatch_resume or readonly');
+    }
+    if (mode === 'dispatch_resume' && (!taskId || !fs.existsSync(DISPATCH_SCRIPT))) {
+      throw new Error('D06: managed task and dispatcher required; no fallback');
+    }
     if (mode === 'readonly') {
       return this.startReadonlyAsk({
         threadId,
@@ -183,45 +191,6 @@ export class CodexRunner {
       }
     }
 
-    if (mode === 'queue') {
-      const op = this.consoleDb.createOp({
-        threadId,
-        opType: 'queue_send',
-        prompt: cleanMsg,
-        mode: 'queue',
-        dedupKey,
-        meta: { cwd: safeCwd(cwd) },
-      });
-
-      const args = ['queue', '--thread', threadId, '--message', cleanMsg, '--resume'];
-      const validCwd = safeCwd(cwd);
-      if (cwd && validCwd === cwd) {
-        args.push('-C', validCwd);
-      }
-
-      try {
-        const { stdout, stderr } = await execFileAsync(this.codexBin, args, {
-          cwd: validCwd,
-          env: buildExecEnv(),
-          timeout: 30_000,
-          maxBuffer: 1024 * 1024,
-        });
-        return this.consoleDb.finishOp(op.id, {
-          status: 'succeeded',
-          outputText: (stdout || '').trim() || '消息已入队并触发唤醒（codex queue --resume）',
-          errorText: (stderr || '').trim() || null,
-          metaPatch: { exitCode: 0 },
-        });
-      } catch (err) {
-        return this.consoleDb.finishOp(op.id, {
-          status: 'failed',
-          outputText: (err.stdout || '').trim(),
-          errorText: (err.stderr || err.message || 'codex queue 执行失败').trim(),
-          metaPatch: { exitCode: err.code ?? -1 },
-        });
-      }
-    }
-
     if (mode === 'dispatch_resume' && taskId && fs.existsSync(DISPATCH_SCRIPT)) {
       const op = this.consoleDb.createOp({
         threadId,
@@ -234,7 +203,7 @@ export class CodexRunner {
 
       const child = spawn(
         this.pythonBin,
-        [DISPATCH_SCRIPT, 'resume', '--task-id', taskId, '--prompt', cleanMsg],
+        [DISPATCH_SCRIPT, 'resume', '--task-id', taskId, '--no-network', '--prompt', cleanMsg],
         {
           cwd: safeCwd(cwd),
           env: buildExecEnv(),
@@ -261,60 +230,7 @@ export class CodexRunner {
       return op;
     }
 
-    // Default async exec resume
-    const op = this.consoleDb.createOp({
-      threadId,
-      opType: 'exec_resume',
-      prompt: cleanMsg,
-      mode: 'resume',
-      dedupKey,
-      meta: { cwd: safeCwd(cwd) },
-    });
-
-    const outFile = path.join(os.tmpdir(), `codex-console-resume-${op.id}.txt`);
-    const child = spawn(
-      this.codexBin,
-      ['exec', 'resume', '--skip-git-repo-check', '-o', outFile, threadId, cleanMsg],
-      {
-        cwd: safeCwd(cwd),
-        env: buildExecEnv(),
-        stdio: ['ignore', 'pipe', 'pipe'],
-      }
-    );
-
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (c) => {
-      if (stdout.length < 200_000) stdout += c.toString('utf8');
-    });
-    child.stderr.on('data', (c) => {
-      if (stderr.length < 80_000) stderr += c.toString('utf8');
-    });
-    child.on('error', (err) => {
-      this.consoleDb.finishOp(op.id, {
-        status: 'failed',
-        errorText: `启动 codex exec resume 失败: ${err.message}`,
-      });
-    });
-    child.on('close', (code) => {
-      let finalMsg = '';
-      if (fs.existsSync(outFile)) {
-        try {
-          finalMsg = fs.readFileSync(outFile, 'utf8').trim();
-          fs.unlinkSync(outFile);
-        } catch {
-          // ignore
-        }
-      }
-      this.consoleDb.finishOp(op.id, {
-        status: code === 0 ? 'succeeded' : 'failed',
-        outputText: finalMsg || stdout.trim(),
-        errorText: stderr.trim() || (code !== 0 ? `codex exec resume 退出码 ${code}` : null),
-        metaPatch: { exitCode: code },
-      });
-    });
-
-    return op;
+    throw new Error('D06: no authorized execution route');
   }
 
   /**
@@ -333,6 +249,8 @@ export class CodexRunner {
   }) {
     if (!this.pythonBin) throw new Error('Python executable not found; set PYTHON_BIN');
     if (!this.codexBin) throw new Error('Codex executable not found; set CODEX_BIN');
+    if (network !== false) throw new Error('D06: network access denied; trusted host authorization unavailable');
+    if (!['auto','low','medium','hard','extreme'].includes(difficulty) || !['smart','max','balanced'].includes(quality) || !['worktree','inplace','auto'].includes(isolation)) throw new Error('D06: invalid worker options');
     const cleanCwd = cwd ? safeCwd(cwd) : '';
     const cleanPrompt = (prompt || '').trim();
     if (!cleanCwd || !fs.existsSync(cleanCwd)) {
@@ -345,7 +263,7 @@ export class CodexRunner {
       throw new Error(`未找到多端调度脚本: ${DISPATCH_SCRIPT}`);
     }
 
-    const useNetwork = Boolean(network);
+    const useNetwork = false;
     const op = this.consoleDb.createOp({
       threadId: null,
       opType: 'spawn_worker',
@@ -368,9 +286,6 @@ export class CodexRunner {
       '--prompt',
       cleanPrompt,
     ];
-    if (useNetwork) {
-      args.push('--network');
-    }
     if (taskId && taskId.trim()) {
       args.push('--task-id', taskId.trim());
     }

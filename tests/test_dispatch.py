@@ -63,46 +63,19 @@ class DispatchAndHookTests(unittest.TestCase):
         self.assertNotIn("sandbox_workspace_write.network_access=true", offline_cmd)
         self.assertIn("workspace-write", offline_cmd)
 
-        net_cmd = self.dispatch.build_codex_exec_cmd(
-            codex_bin="codex",
-            workdir=workdir,
-            model="gpt-6.2-sol",
-            effort="high",
-            sandbox="workspace-write",
-            network=True,
-            report_path=report_path,
-            is_git_repo=True,
-        )
-        self.assertIn("sandbox_workspace_write.network_access=true", net_cmd)
-        self.assertIn("workspace-write", net_cmd)
-        self.assertNotIn("danger-full-access", net_cmd)
-
-        resume_net_cmd = self.dispatch.build_codex_resume_cmd(
-            codex_bin="codex",
-            session_id="01a9-demo",
-            model="gpt-6.2-sol",
-            effort="high",
-            sandbox="workspace-write",
-            network=True,
-            report_path=report_path,
-            is_git_repo=True,
-        )
-        self.assertIn("sandbox_workspace_write.network_access=true", resume_net_cmd)
-
-        with self.assertRaises(ValueError):
-            self.dispatch.build_codex_exec_cmd(
-                codex_bin="codex",
-                workdir=workdir,
-                model="gpt-6.2-sol",
-                effort="high",
-                sandbox="read-only",
-                network=True,
-                report_path=report_path,
-                is_git_repo=True,
-            )
+        self.assertIn("sandbox_workspace_write.network_access=false", offline_cmd)
+        for builder, extra in (
+            (self.dispatch.build_codex_exec_cmd, {"workdir": workdir}),
+            (self.dispatch.build_codex_resume_cmd, {"session_id":"01a9-demo"}),
+        ):
+            for sandbox, network in (("workspace-write", True), ("read-only", True), ("danger-full-access", False)):
+                with self.assertRaises(ValueError):
+                    builder(codex_bin="codex", model="mock", effort="high", sandbox=sandbox,
+                            network=network, report_path=report_path, is_git_repo=True, **extra)
 
     def test_hook_gates_network_dispatch_and_forbids_danger_mode(self):
-        script = self.hook.DISPATCH_SCRIPT
+        import shlex
+        script = shlex.quote(self.hook.DISPATCH_SCRIPT)
 
         offline = self.hook.evaluate_hook(
             {
@@ -112,7 +85,7 @@ class DispatchAndHookTests(unittest.TestCase):
                 }
             }
         )
-        self.assertEqual(offline["decision"], "allow")
+        self.assertEqual(offline["decision"], "ask")
 
         networked = self.hook.evaluate_hook(
             {

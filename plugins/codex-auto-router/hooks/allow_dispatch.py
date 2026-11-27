@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """PreToolUse hook for Antigravity Desktop:
-- Auto-allows pure, unchained invocations of multi-agent-dispatch's dispatch.py.
+- Never grants execution automatically; delegates to standard approval.
 - Forces user confirmation (`force_ask`) before merging/cherry-picking agy-worker/* branches.
-- Returns `{}` (exit 0) for all other commands and malformed inputs (fail-safe).
+- Returns ask for other commands and malformed inputs (fail-safe).
 """
 
 from __future__ import annotations
@@ -83,6 +83,8 @@ def has_unsafe_shell_syntax(cmd: str) -> bool:
 
 
 def _parse_pure_dispatch_argv(cmd: str) -> list[str] | None:
+    if os.name == 'nt':
+        return None  # POSIX parsing cannot authorize PowerShell/cmd.
     if not cmd or has_unsafe_shell_syntax(cmd):
         return None
     try:
@@ -117,7 +119,7 @@ def is_pure_dispatch_command(cmd: str) -> bool:
     argv = _parse_pure_dispatch_argv(cmd)
     if argv is None:
         return False
-    return not _has_network_flag(argv)
+    return False  # No auto-approval until trusted host grants exist.
 
 
 DEFER_TO_STANDARD_APPROVAL = {
@@ -150,11 +152,11 @@ def evaluate_hook(payload: object) -> dict[str, str]:
                 "reason": "Human network gate: confirm before granting Codex worker outbound network / authenticated CLI access (--network).",
             }
         return {
-            "decision": "allow",
-            "reason": "Auto-approved offline sandboxed multi-agent-dispatch CLI call.",
+            "decision": "ask",
+            "reason": "D06: standard human approval; no automatic grant.",
         }
 
-    if WORKER_MERGE_RE.search(cmd):
+    if WORKER_MERGE_RE.search(cmd) or re.search(r'--network(?:\s|=|$)', cmd):
         return {
             "decision": "force_ask",
             "reason": "Human merge gate: confirm before merging Codex worker branch (agy-worker/*).",

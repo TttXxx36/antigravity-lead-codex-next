@@ -57,3 +57,5 @@ D05 RISK-03/BUG-005：原生安装及 MCP 配置候选；不删除数据，不�
 RISK-03：候选安装器完成，Windows Server 2025 的原生安装/升级/恢复/卸载/重装、ConsoleOnly、真实本地 MCP initialize、缺依赖及注入失败回滚均 PASS；Linux/macOS 回归 PASS。[Run 45935195557](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45935195557)。ENV-05 仍阻塞真实 Windows 11/Antigravity host 验收；D05 未合并，不声称真实客户端已修复。未发现新的已确认产品 Bug；已加固 ConsoleOnly 缺可选 Python/Git 字段、绝对 exe 覆盖、探测环境和进程清理，均通过最终托管测试。
 ### D05 Windows 11 补测
 RISK-03/BUG-005：四环境 Run 45936238126 success；Win11 ARM64、WinServer x64 SQLite 原始字节保持和生命周期通过。BUG-005 原生启动器已合入 D03；真实宿主缺失，D05 尚未合入。初次四环境 push/PR 同组取消是 CI 配置问题，已改 PR-only，最新四 job 通过；不计为产品 Bug。
+
+D06 RISK-04：候选执行层拒绝无可信授权的联网、危险 sandbox、未受管 resume/queue 和批清单权限绕过，取消自动额度 app-server 连接；可信宿主签发、OS 权限及真实外部写验证待补，未合并。
