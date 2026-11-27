@@ -132,7 +132,11 @@ def collect(root,commit):
         if buf.readline()!=f"{sha} blob {n}\n".encode("ascii"):raise PackageError("D22: blob header mismatch")
         data=buf.read(n)
         if len(data)!=n or buf.read(1)!=b"\n" or git_blob(data)!=sha:raise PackageError("D22: blob identity mismatch")
-        check_content(data);files[path]=(0o755 if mode=="100755" else 0o644,data)
+        try:check_content(data)
+        except PackageError as exc:
+            # Identify the exact immutable blob, never disclose filename or matched contents.
+            raise PackageError(str(exc)+"; blob "+sha) from None
+        files[path]=(0o755 if mode=="100755" else 0o644,data)
     if buf.read(1):raise PackageError("D22: extra object bytes")
     return files
 

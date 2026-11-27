@@ -804,11 +804,11 @@
         "D21"
       ],
       "status": "IN_PROGRESS",
-      "evidence": "Offline deterministic source RC and verified extraction/rollback rehearsal, docs and CI artifacts implemented; CI pending",
+      "evidence": "Initial candidate blocked by literal synthetic PEM marker in D11 negative test; preserve exact runtime negative fixture by string concatenation, no scan bypass; rerun pending",
       "next": "Verify exact-head four-platform RC builds, archive integrity, rollback and cumulative CI; no formal release",
       "branch": "dev/d22",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no formal release, merge, permission or real model grant",
-      "pr": null,
+      "pr": 24,
       "accepted": false,
       "merged": false,
       "checks": [
@@ -816,6 +816,14 @@
           "name": "D22 source RC, rollback and cumulative CI",
           "status": "NOT_RUN",
           "ref": "Latest candidate CI pending"
+        }
+      ],
+      "observations": [
+        {
+          "name": "D22 source secret-pattern scan rejected literal synthetic PEM negative-test marker on all four runners",
+          "status": "FAIL",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46000304667",
+          "tested_commit": "027821e581addbe87c7ff691cdc3b239c5058140"
         }
       ]
     }

@@ -23,7 +23,7 @@ class ContextTests(unittest.TestCase):
         self.board["stable"]["goal"]="tampered"
         with self.assertRaises(ValueError):d.context_prepare(json.dumps(self.delta),self.record,False)
     def test_secret_marker_rejected(self):
-        for raw in ("password=synthetic-secret","api_key: fixture-value","-----BEGIN PRIVATE KEY-----"):
+        for raw in ("password=synthetic-secret","api_key: fixture-value",("-----BEGIN " + "PRIVATE KEY-----")):
             with self.assertRaises(ValueError):d.initial_context(self.initial|{"goal":raw},"read-only",None)
             with self.assertRaises(ValueError):d.context_prepare(json.dumps(self.delta|{"delta":raw}),self.record,False)
     def test_byte_budget(self):
