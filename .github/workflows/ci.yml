@@ -89,6 +89,8 @@ jobs:
         run: node --test tests/test-platform.mjs
       - name: Governance ledger
         run: python scripts/check_governance.py docs/EXECUTION_STATUS.json
+      - name: Dependency notice audit offline regression
+        run: python -m unittest discover -s tests -p test_dependency_notices.py -v
       - name: Prepare locked runtime dependencies
         working-directory: plugins/codex-console
         run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund

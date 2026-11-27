@@ -13,13 +13,17 @@ SAFE_PART = re.compile(r"[@A-Za-z0-9_][A-Za-z0-9_.@-]*\Z")
 NOTICE = re.compile(r"(?:licen[cs]e|copying|notice|copyright)(?:[._-].*)?\Z", re.I)
 LICENSES = {"MIT", "ISC", "BSD-2-Clause", "BSD-3-Clause"}
 
-def read_json(path):
+def read_json_bytes(path):
     if path.is_symlink() or getattr(path, 'is_junction', lambda: False)() or not path.is_file() or path.stat().st_size > 5*1024*1024:
         raise ValueError("unsafe or missing inventory metadata")
-    value = json.loads(path.read_text(encoding="utf-8"))
+    raw = path.read_bytes()
+    value = json.loads(raw.decode("utf-8"))
     if not isinstance(value, dict):
         raise ValueError("invalid inventory metadata")
-    return value
+    return raw, value
+
+def read_json(path):
+    return read_json_bytes(path)[1]
 
 def packages(root, path):
     parts = path.split("/")
@@ -44,9 +48,12 @@ def license_family(raw):
 
 def audit(root, phase):
     root = root.resolve(strict=True)
-    lock_raw = (root/"package-lock.json").read_bytes()
-    lock = read_json(root/"package-lock.json")["packages"]
-    installed = read_json(root/"node_modules"/".package-lock.json")["packages"]
+    lock_raw, lock_doc = read_json_bytes(root/"package-lock.json")
+    lock = lock_doc["packages"]
+    modules = root/"node_modules"
+    if modules.is_symlink() or getattr(modules, "is_junction", lambda: False)() or not modules.is_dir():
+        raise ValueError("unsafe installed package root")
+    installed = read_json(modules/".package-lock.json")["packages"]
     if not isinstance(lock, dict) or not isinstance(installed, dict):
         raise ValueError("invalid lock inventory")
     entries, findings, hosts = [], [], Counter()
@@ -78,6 +85,8 @@ def audit(root, phase):
         manifest = read_json(folder/"package.json")
         if actual.get("version") != version or manifest.get("version") != version:
             findings.append({"package":path,"kind":"installed_version_mismatch"})
+        if actual.get("resolved") != meta.get("resolved") or actual.get("integrity") != meta.get("integrity"):
+            findings.append({"package":path,"kind":"installed_lock_source_or_integrity_mismatch"})
         if manifest.get("license") != lic:
             findings.append({"package":path,"kind":"installed_license_declaration_review"})
         notices = []
@@ -97,8 +106,9 @@ def audit(root, phase):
     for path in sorted(set(installed)-set(lock)):
         packages(root,path)
         findings.append({"package":path,"kind":"unlocked_installed_package"})
-    fatal = {"required_package_missing","hidden_lock_missing_package","installed_version_mismatch","unlocked_installed_package","lock_source_or_integrity_review","unsafe_notice"}
-    return {"phase":phase,"lockSha256":hashlib.sha256(lock_raw).hexdigest(),"locked":len(lock)-1,
+    fatal = {"required_package_missing","hidden_lock_missing_package","installed_version_mismatch","unlocked_installed_package","lock_source_or_integrity_review","unsafe_notice","installed_lock_source_or_integrity_mismatch"}
+    return {"phase":phase,"lockSha256":hashlib.sha256(lock_raw).hexdigest(),
+            "lockLfSha256":hashlib.sha256(lock_raw.replace(b"\r\n", b"\n")).hexdigest(),"locked":len(lock)-1,
             "installed":len(entries),"withNotice":sum(bool(x["notices"]) for x in entries),
             "licenseCounts":dict(Counter(str(x["license"]) for x in entries)),"registryHosts":dict(hosts),
             "findings":findings,"entries":entries,"identityChecks":"FAIL" if any(x["kind"] in fatal for x in findings) else "PASS",

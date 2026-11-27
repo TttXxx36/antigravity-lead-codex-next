@@ -281,7 +281,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Four-environment D08 query/Git and cumulative regression PASS; real host NOT_RUN",
-      "next": "D09 candidate development; real Antigravity/Codex host acceptance and formal dependency merges remain blocked",
+      "next": "Exact integrated safety candidate CI PASS; formal host/dependency gates unchanged; later ancestry integration required.",
       "branch": "dev/d08",
       "approval": "2026-11-27 user approved A and verified candidate development",
       "pr": 10,
@@ -301,15 +301,15 @@
         },
         {
           "name": "Standalone safety synchronization exact head",
-          "status": "NOT_RUN",
+          "status": "PASS",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006085006",
           "tested_commit": "c4d75a778c0c70f80a2b3ea2afdb1bd04cfb4e87"
         }
       ],
       "candidate": {
-        "ready": false,
-        "tested_commit": "5ab0c7db084b87701bb3d5d5f60fc512f833dc7f",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45938086882",
+        "ready": true,
+        "tested_commit": "c4d75a778c0c70f80a2b3ea2afdb1bd04cfb4e87",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006085006",
         "limitations": "Actual Antigravity/Codex end-to-end and Windows x64 desktop unverified; no formal merge. Current standalone integrated head c4d75a778c0c70f80a2b3ea2afdb1bd04cfb4e87 Run 46006085006 pending; historical PASS retained."
       }
     },
@@ -322,7 +322,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Initial and follow-up four environments PASS; current artifact and op boundaries exercised",
-      "next": "D10 versioned protocol candidate; actual host/token and formal acceptance remain",
+      "next": "Exact integrated safety candidate CI PASS; formal host/dependency gates unchanged; later ancestry integration required.",
       "branch": "dev/d09",
       "approval": "2026-11-27 user approved A and verified candidate development",
       "pr": 11,
@@ -342,15 +342,15 @@
         },
         {
           "name": "Standalone safety synchronization exact head",
-          "status": "NOT_RUN",
+          "status": "PASS",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006153189",
           "tested_commit": "61ed00c712fc0d5bf9a7f24eb5e4aed7f98fbb78"
         }
       ],
       "candidate": {
-        "ready": false,
-        "tested_commit": "99c0e5544bf03c1702fee7b7deb1a196b9fba502",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45940757723",
+        "ready": true,
+        "tested_commit": "61ed00c712fc0d5bf9a7f24eb5e4aed7f98fbb78",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006153189",
         "limitations": "Actual host and token tests NOT_RUN; old records without result_ref unavailable; metadata-only log cursor and nonpersistent hash; not merged. Current standalone integrated head 61ed00c712fc0d5bf9a7f24eb5e4aed7f98fbb78 Run 46006153189 pending; historical PASS retained."
       }
     },
@@ -363,7 +363,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Four environments protocol and mock run/resume PASS",
-      "next": "D11 candidate; actual structured output and host compatibility remain",
+      "next": "D09 ancestry integration f8f3f9c245daba9688221c2aa1f004434fa55223 / Run 46006790409 pending; prior code PASS preserved.",
       "branch": "dev/d10",
       "approval": "2026-11-27 user authorized A candidate development",
       "pr": 12,
@@ -389,7 +389,7 @@
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "529b55538e0aa51a2b5db4d65167ada2eeb0ca11",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46005016728",
         "limitations": "Actual model and host unverified; v2 opt-in; batch/MCP v1; no formal merge. Current standalone cleanup/ancestry correction exact-head CI verified; original formal limitations and dependency topology review remain."
@@ -629,7 +629,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Corrected exact-head four-environment CI PASS; EPERM regression 36/36 streaming, 32/32 cache; benchmark query reduction stable, macOS rerun p95 slight increase",
-      "next": "Synchronize corrected D16 base into existing D17 candidate; formal host and dependency acceptance remain blocked",
+      "next": "Exact integrated safety candidate CI PASS; formal host/dependency gates unchanged; later ancestry integration required.",
       "branch": "dev/d16",
       "approval": "2026-11-27 user authorized A candidate development; display-only, no real model or production data writes",
       "pr": 18,
@@ -649,15 +649,15 @@
         },
         {
           "name": "Standalone safety synchronization exact head",
-          "status": "NOT_RUN",
+          "status": "PASS",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006220435",
           "tested_commit": "0425f17e921ca09571f74c409c4234c35876ca1c"
         }
       ],
       "candidate": {
-        "ready": false,
-        "tested_commit": "6db070f17039338762e03a375c911873302fa32b",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45982938825",
+        "ready": true,
+        "tested_commit": "0425f17e921ca09571f74c409c4234c35876ca1c",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006220435",
         "limitations": "Synthetic fixtures; original paired p95 improvement in four environments but macOS rerun slight increase; actual host and physical I/O unverified; EPERM fallback only owned child, escaped descendants not confirmed; no merge. Current standalone integrated head 0425f17e921ca09571f74c409c4234c35876ca1c Run 46006220435 pending; historical PASS retained."
       },
       "observations": [
@@ -877,7 +877,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Exact code head 6f2d23b PASS four environments; 34 passed / 6 platform skips in D22 test module; privacy remediation candidate verified; four identical inner RC hashes",
-      "next": "Complete pending D08/D09/D16 runs and sequential ancestry reconciliation, complete license/provenance/CVE review and actual D05 host evidence. No release.",
+      "next": "BUG-008 audit metadata mismatch remediation and exact-head CI pending; actual license/provenance and all formal gates remain.",
       "branch": "dev/d22",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no formal release, merge, permission or real model grant",
       "pr": 24,
@@ -917,6 +917,11 @@
           "name": "Full third-party notices, vulnerability and provenance review",
           "status": "BLOCKED",
           "ref": "docs/evidence/D22-dependency-audit.md"
+        },
+        {
+          "name": "BUG-008 dependency audit hidden-lock provenance regression",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D22-dependency-audit.md"
         }
       ],
       "observations": [
@@ -934,7 +939,7 @@
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "fc6fdc51923c7605072fb97062b21b7c0628f478",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46005586701",
         "limitations": "Four-platform cumulative regression and installed dependency identity inventory PASS; 95/95 runtime notice files each, Linux build 109/112, four notice review items; complete legal and vulnerability/provenance review, actual host/model/production rollback and release permission still blocked. Standalone topology and pending CI separate."
