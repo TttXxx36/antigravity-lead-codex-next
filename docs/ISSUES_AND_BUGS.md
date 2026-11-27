@@ -90,3 +90,6 @@ D10 RISK-07/08：新增显式 v2 协议、revision 与短报告候选，保留 v
 
 
 D10 review follow-up: enforce raw-byte report limit before decoding or stripping whitespace; malformed deeply nested JSON fails closed; document result schema, expose persisted v2 revision in compact managed status, and flag truncated risk lists. Initial CI run 45941194963 superseded by final candidate revision (Ubuntu initial success observed); final head must be independently tested.
+
+## D10 最终候选实测
+[Run 45941283814](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45941283814) completed/success，精确代码 head `5e937fcb4de98d0df60cef144b81e8f619f9e550`；Ubuntu、macOS、Windows Server x64、Windows 11 ARM64 四环境全绿。各环境6项协议测试及1项实际 Mock run/resume revision 回归（28次新增测试），累计 D03–D09 回归通过。首轮 45941194963 因后续修正被取消，不计为通过。真实模型 structured output、真实宿主及实际 Token 未验证；v2 仍显式选择，batch/MCP 默认 v1。D10 候选可复用，正式验收 BLOCKED，PR #12 Draft 未合并。

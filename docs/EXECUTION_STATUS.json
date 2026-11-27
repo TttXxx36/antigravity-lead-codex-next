@@ -337,21 +337,33 @@
       "depends": [
         "D09"
       ],
-      "status": "IN_PROGRESS",
-      "evidence": "D10 v2 protocol candidate; CI pending",
-      "next": "CI then actual model structured-output/host acceptance remains separately gated",
+      "status": "BLOCKED",
+      "evidence": "Four environments protocol and mock run/resume PASS",
+      "next": "D11 candidate; actual structured output and host compatibility remain",
       "branch": "dev/d10",
       "approval": "2026-11-27 user authorized A candidate development",
-      "pr": null,
+      "pr": 12,
       "accepted": false,
       "merged": false,
       "checks": [
         {
-          "name": "D10 protocol and cumulative regression",
-          "status": "NOT_RUN",
-          "ref": "pending CI"
+          "name": "D10 final protocol and cumulative regression",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45941283814",
+          "tested_commit": "5e937fcb4de98d0df60cef144b81e8f619f9e550"
+        },
+        {
+          "name": "Actual model structured output and host compatibility",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D10-protocol.md"
         }
-      ]
+      ],
+      "candidate": {
+        "ready": true,
+        "tested_commit": "5e937fcb4de98d0df60cef144b81e8f619f9e550",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45941283814",
+        "limitations": "Actual model and host unverified; v2 opt-in; batch/MCP v1; no formal merge."
+      }
     },
     {
       "id": "D11",
