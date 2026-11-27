@@ -1,0 +1,45 @@
+name: D04 state integrity
+on:
+  push:
+    branches: [dev/d04]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+permissions:
+  contents: read
+concurrency:
+  group: d04-state-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  state:
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/dev/d04') || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'dev/d04')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: State lock and integrity tests
+        run: python -m unittest discover -s tests -p test_state*.py -v
+      - name: D03 Python regression
+        run: python -m unittest discover -s tests -p test_platform.py -v
+      - name: D03 Node regression
+        run: node --test tests/test-platform.mjs
+      - name: Governance ledger
+        run: python scripts/check_governance.py docs/EXECUTION_STATUS.json
+      - name: Install locked MCP dependencies
+        working-directory: plugins/codex-console
+        run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+      - name: Native synthetic MCP regression
+        run: node --no-warnings tests/test-mcp-console.mjs

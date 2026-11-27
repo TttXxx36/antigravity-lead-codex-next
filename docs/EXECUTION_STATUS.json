@@ -132,15 +132,21 @@
       "depends": [
         "D03"
       ],
-      "status": "PROPOSED",
-      "evidence": "PR #4 有候选原生锁修复",
-      "next": "集成锁、拒绝损坏 JSON、任务 ID 边界、原子预留与崩溃恢复",
+      "status": "IN_PROGRESS",
+      "evidence": "D04 state/lock candidate; CI pending",
+      "next": "Three-platform acceptance",
       "branch": "dev/d04",
-      "approval": null,
+      "approval": "2026-11-27 user approved A and conditional merge",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D04 state integrity",
+          "status": "NOT_RUN",
+          "ref": "pending CI"
+        }
+      ]
     },
     {
       "id": "D05",
