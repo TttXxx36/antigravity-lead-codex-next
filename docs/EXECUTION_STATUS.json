@@ -302,9 +302,9 @@
       "depends": [
         "D08"
       ],
-      "status": "IN_PROGRESS",
-      "evidence": "Initial four environments PASS; result identity/digest and positive op follow-up pending",
-      "next": "Verify follow-up exact head; then D10 candidate",
+      "status": "BLOCKED",
+      "evidence": "Initial and follow-up four environments PASS; current artifact and op boundaries exercised",
+      "next": "D10 versioned protocol candidate; actual host/token and formal acceptance remain",
       "branch": "dev/d09",
       "approval": "2026-11-27 user approved A and verified candidate development",
       "pr": 11,
@@ -312,17 +312,23 @@
       "merged": false,
       "checks": [
         {
-          "name": "initial D09 compact MCP and cumulative CI",
+          "name": "D09 compact MCP and artifact cumulative CI",
           "status": "PASS",
-          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45938576927",
-          "tested_commit": "7bc5d42d0b9ef987a45fa91a881d47a04efe8863"
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45940757723",
+          "tested_commit": "99c0e5544bf03c1702fee7b7deb1a196b9fba502"
         },
         {
-          "name": "D09 artifact boundary follow-up",
-          "status": "NOT_RUN",
-          "ref": "pending CI"
+          "name": "Actual host visibility/UI and real token acceptance",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D09-compact.md"
         }
-      ]
+      ],
+      "candidate": {
+        "ready": true,
+        "tested_commit": "99c0e5544bf03c1702fee7b7deb1a196b9fba502",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45940757723",
+        "limitations": "Actual host and token tests NOT_RUN; old records without result_ref unavailable; metadata-only log cursor and nonpersistent hash; not merged."
+      }
     },
     {
       "id": "D10",
