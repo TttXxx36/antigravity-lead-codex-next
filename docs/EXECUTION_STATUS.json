@@ -792,8 +792,8 @@
       ],
       "candidate": {
         "ready": false,
-        "tested_commit": "cb785a16c940ab8cc18dea4441cf3936b8da35df",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45989218603",
+        "tested_commit": "db7720dbded79acabaf26703e5b92d4eaa1c36a1",
+        "ref": "pending exact-head CI after D20 ancestry integration",
         "limitations": "Actual Git pinned committed pair plus D18 mock worker fixtures; worktree, arbitrary project checks, trusted independent approval and scope compliance not verified. No automatic acceptance/merge."
       }
     },
@@ -805,15 +805,38 @@
         "D18",
         "D19"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "官方能力协商、CLI 兜底、权限对等、复用/断线测试",
+      "status": "BLOCKED",
+      "evidence": "Exact-head four-platform cumulative PASS; 40/40 offline protocol tests; six-read mock reuse benchmark on all four",
+      "next": "D19 updated ancestry integrated; D20 exact-head cumulative CI pending; actual App Server host/permissions/usage parity remain BLOCKED",
       "branch": "dev/d20",
-      "approval": null,
-      "pr": null,
+      "approval": "2026-11-27 user authorized A candidate development D06-D22; no real model, permission or merge grant",
+      "pr": 22,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D20 offline protocol and cumulative CI",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45990023472",
+          "tested_commit": "78043c43833f10fafc48eddf0b6a3398e3e6e520"
+        },
+        {
+          "name": "Native App Server result, permission, usage and performance parity",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D20-app-server.md"
+        },
+        {
+          "name": "D19 updated ancestry integration",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D20-ancestry-integration.md"
+        }
+      ],
+      "candidate": {
+        "ready": false,
+        "tested_commit": "78043c43833f10fafc48eddf0b6a3398e3e6e520",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45990023472",
+        "limitations": "Actual mock subprocess transport/reconnect, strict metadata parser, fixture timings only; no native App Server startup, production task routing, actual task/permission/usage parity or native performance verified. CLI stays default; real model and release need separate authorization."
+      }
     },
     {
       "id": "D21",

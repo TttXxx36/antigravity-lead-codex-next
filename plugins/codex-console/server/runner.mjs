@@ -67,6 +67,7 @@ export class CodexRunner {
       pythonBin: this.pythonBin,
       gitBin: this.gitBin,
       runtimeErrors: [['Codex', this.codexBin], ['Python', this.pythonBin], ['Git', this.gitBin]].filter(([, bin]) => !bin).map(([name]) => name + ' executable not found or invalid override'),
+      appServer: { experimentRequested: process.env.ALC_APP_SERVER_EXPERIMENTAL === '1', executionBackend: 'cli', nativeVerified: false },
       dispatchAvailable: fs.existsSync(DISPATCH_SCRIPT),
       dispatchScript: DISPATCH_SCRIPT,
     };
