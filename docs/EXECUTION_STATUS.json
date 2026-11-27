@@ -563,17 +563,18 @@
       ],
       "status": "IN_PROGRESS",
       "evidence": "Opt-in app query cache and delta endpoints, UI source polling changes, tests; prebuilt bundle and performance acceptance pending",
-      "next": "Verify cumulative CI; rebuild and commit prebuilt UI, paired p95/query/I/O measurements and real host remain pending",
+      "next": "Verify exact current head CI; rebuild/commit dist/app.html, report mtime cache and paired p95/query/I/O; actual host and dependency formal acceptance still pending",
       "branch": "dev/d16",
       "approval": "2026-11-27 user authorized A candidate development; display-only, no real model or production data writes",
-      "pr": null,
+      "pr": 18,
       "accepted": false,
       "merged": false,
       "checks": [
         {
-          "name": "D16 cache/delta candidate CI",
+          "name": "D16 initial candidate CI",
           "status": "NOT_RUN",
-          "ref": "Exact-head CI pending"
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45975415764",
+          "tested_commit": "1f99fb73decf91a088a8cb1098adac69ece1424b"
         }
       ]
     },
