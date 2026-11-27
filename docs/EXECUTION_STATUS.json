@@ -158,15 +158,27 @@
         "D03",
         "D04"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "PowerShell install/doctor、备份回滚、node.exe stdio、Windows 11 实机",
+      "status": "BLOCKED",
+      "evidence": "4 environments PASS including genuine Windows 11 ARM64 OS, SQLite bytes preserved; actual Antigravity desktop host still NOT_RUN",
+      "next": "Actual Antigravity host connection evidence and real local Codex --version; verify exact head, then merge D05; D06 waits.",
       "branch": "dev/d05",
-      "approval": null,
-      "pr": null,
+      "approval": "2026-11-27 user approved A and conditional merge",
+      "pr": 7,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "four-platform hosted regression and Windows Server x64 + Windows 11 ARM64 lifecycle",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45936238126",
+          "tested_commit": "9813f19c222a858f2a4f7cf217702f62252cc540"
+        },
+        {
+          "name": "actual Antigravity desktop host MCP initialize and real Codex version",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D05-WINDOWS11-acceptance.md"
+        }
+      ]
     },
     {
       "id": "D06",

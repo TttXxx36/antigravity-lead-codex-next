@@ -102,3 +102,6 @@ Run via `python3 ~/.gemini/config/skills/multi-agent-dispatch/scripts/dispatch.p
    python3 ~/.gemini/config/skills/multi-agent-dispatch/scripts/dispatch.py status
    python3 ~/.gemini/config/skills/multi-agent-dispatch/scripts/dispatch.py cleanup --task-id <task_id> --delete-branch
    ```
+
+## Native Windows command invocation
+Use PowerShell 7.2+ with installed native executable paths (see repository docs/WINDOWS_INSTALL.md). Resolve GEMINI_CONFIG_DIR, CODEX_HOME and AGY_DISPATCH_STATE_DIR from the installed configuration. Resolve python.exe via PYTHON_BIN or an absolute Application path. Invoke with the call operator and separate arguments, e.g. `& $python $dispatch health` or `& $python $dispatch status`. The Bash examples above remain Unix examples; never use Invoke-Expression or weaken the network/approval gates. Windows auto-approval stays disabled pending D06.

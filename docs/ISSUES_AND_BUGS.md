@@ -8,9 +8,9 @@
 |---|---|---|---|---|---|
 | BUG-001 | P0 | parse_report_file 缺报告且 exit=0 仍给 completed/verification_passed=true | 原版 Linux/macOS 与候选三平台 dispatch-contract.json | D07 | OPEN；必须缺报告不通过 |
 | BUG-002 | P0 | exit=7，fallback 报告 completed，仍返回 completed | 同上 | D07 | OPEN；退出/任务/验证三状态分离 |
-| BUG-003 | P0 | locked_state 读取损坏 JSON 后写入任务会覆盖原损坏数据 | 同上 | D04 | OPEN；拒绝写入、保留原件和备份 |
-| BUG-004 | P0 | Windows 无 fcntl，完整调度器模块 import 失败；原 Python 单测未运行 | Run 45915363640：每个调度器套件 30 NOT_RUN、Python exit 5 | D04 | CANDIDATE_PASS；PR #4 原生 msvcrt + 进程竞争测试，待集成 |
-| BUG-005 | P1 | 原 MCP 集成使用 Bash，Windows native 测试 NOT_RUN | 原 Run Windows summary | D05/D08 | CANDIDATE_PASS；PR #4 改 Node 直启，真实安装仍未测 |
+| BUG-003 | P0 | 损坏 JSON 被静默覆盖 | D04 Run 45934605595 | D04 | FIXED；PR #6 已合并 |
+| BUG-004 | P0 | Windows 无 fcntl，dispatcher import 失败 | D04 Run 45934605595 | D04 | FIXED；原生锁与跨进程回归 PASS，PR #6 合并 |
+| BUG-005 | P1 | MCP 测试依赖 Bash，原版 Windows NOT_RUN | D03/D05 CI | D05/D08 | 原生测试启动已合入 D03；实际安装候选 D05 托管 PASS，真实宿主待验收 |
 
 ## 代码审计线索与后续验收（未声明全部复现）
 
@@ -35,9 +35,9 @@
 | ENV-02 | 本地 github.com DNS 失败、依赖不可用 | 改 GitHub 托管三平台 CI；本地网络问题不等于项目缺陷 |
 | ENV-03 | 原 5 次本地自检超时 | 保留 2 次实测，后续 Actions 各条件 5 次 |
 | ENV-04 | Actions Artifact 14 天留存 | 归档六份 ZIP 摘要、SHA256、链接；保留可下载原件 |
-| ENV-05 | 缺真实 Windows 11/Antigravity/Codex 宿主 | 仍 NOT_RUN；GitHub Windows Server 2025 不代替用户桌面 |
+| ENV-05 | 真实桌面环境证据缺失 | Windows 11 ARM64 OS 已通过；真实 x64 桌面、Antigravity 宿主及真实 Codex 版本仍未验证 |
 | ENV-06 | 缺真实模型用量及预算许可 | UNKNOWN；不宣称节省达标 |
-| ENV-07 | D01/D02/PR #4 未获合并许可 | 保持 Draft；按依赖验收，不强推 |
+| ENV-07 | 历史 D01/D02/PR #4 未获合并许可 | D01/D02 已合并；D03–D21 已获条件许可；PR #4 独立候选保留 |
 
 见 [CI 证据](evidence/CI-RUNS.md)、[剩余路线](REMAINING_WORK.md)。缺陷关闭要求对应修复 commit、反向断言、三平台结果及人工验收；仅有候选不能标 CLOSED。
 
@@ -52,3 +52,8 @@ D03 最终：RISK-01 路径/原生 exe 解析及长路径 fixture 已通过三�
 D04 候选 BUG-003/004、RISK-02：损坏状态拒绝覆盖，基础锁增加限时竞争、原子备份写入、任务 ID/路径校验；待 CI，不标关闭。
 ### D04 最终验收
 BUG-003、BUG-004：FIXED（PR #6 已合并）；RISK-02 针对重复 ID、路径穿越、大小写碰撞、原子预留和崩溃锁释放的回归 PASS，当前受信任状态目录模型下已处理。仍不声称恶意同 UID 改写或断电级事务安全。BUG-001/002 OPEN（D07）。[实测](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45934605595)。
+D05 RISK-03/BUG-005：原生安装及 MCP 配置候选；不删除数据，不自动联网。待托管生命周期与实际桌面验收。
+### D05 实测更新
+RISK-03：候选安装器完成，Windows Server 2025 的原生安装/升级/恢复/卸载/重装、ConsoleOnly、真实本地 MCP initialize、缺依赖及注入失败回滚均 PASS；Linux/macOS 回归 PASS。[Run 45935195557](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45935195557)。ENV-05 仍阻塞真实 Windows 11/Antigravity host 验收；D05 未合并，不声称真实客户端已修复。未发现新的已确认产品 Bug；已加固 ConsoleOnly 缺可选 Python/Git 字段、绝对 exe 覆盖、探测环境和进程清理，均通过最终托管测试。
+### D05 Windows 11 补测
+RISK-03/BUG-005：四环境 Run 45936238126 success；Win11 ARM64、WinServer x64 SQLite 原始字节保持和生命周期通过。BUG-005 原生启动器已合入 D03；真实宿主缺失，D05 尚未合入。初次四环境 push/PR 同组取消是 CI 配置问题，已改 PR-only，最新四 job 通过；不计为产品 Bug。
