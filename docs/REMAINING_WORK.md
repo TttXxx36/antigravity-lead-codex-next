@@ -9,7 +9,7 @@
 | [D00](decisions/D00.md) 独立仓库与上游基线 | P0 | 无 | DONE | 已合并 PR #1；45 文件 SHA/mode 核验 |
 | [D01](decisions/D01.md) 基线测试与可复现基准 | P0 | D00 | DONE | PR #2 已验收合并；原版 Windows FAIL/NOT_RUN 保留 |
 | [D02](decisions/D02.md) 开发与验收治理 | P0 | D00 | DONE | PR #3 已验收合并；治理三平台通过；远程保护设置另获授权 |
-| [D03](decisions/D03.md) 跨平台路径与运行时发现 | V1.1 | D01,D02 | REVIEW | PR #5；三平台平台/MCP smoke PASS；待人工验收，真实客户端/超长 I/O 后续验证 |
+| [D03](decisions/D03.md) 跨平台路径与运行时发现 | V1.1 | D01,D02 | DONE | PR #5 已合并；三平台实际长路径 I/O 与 MCP smoke PASS；真实客户端/桌面由 D05/D08 验收 |
 | [D04](decisions/D04.md) 跨平台锁与状态完整性 | V1.1 | D03 | PROPOSED | PR #4 有候选原生锁修复；集成锁、拒绝损坏 JSON、任务 ID 边界、原子预留与崩溃恢复 |
 | [D05](decisions/D05.md) 安装器和环境诊断 | V1.1 | D03,D04 | PROPOSED | 未实施；PowerShell install/doctor、备份回滚、node.exe stdio、Windows 11 实机 |
 | [D06](decisions/D06.md) 审批门禁与执行边界 | V1.1 | D04,D05 | PROPOSED | PR #4 Windows hook 保守转人工；任务绑定可信授权、batch/resume/MCP 防绕过、危险权限拒绝 |
@@ -61,3 +61,4 @@ D03 前置已满足，优先集成路径/运行时部分；D04 再集成锁。
 当前最新：D03 代码及三平台 smoke 通过，[PR #5](https://github.com/TttXxx36/antigravity-lead-codex-next/pull/5) 待验收。D04–D22 依赖尚未满足，不重复请求已获的方案授权，但需按治理规则确认合并。
 ## 最新授权
 2026-11-27 用户授权 D03–D21 在满足实际验收门槛后依次合并并更新 DONE，无需再次逐卡确认；未满足则修复或记录 BLOCKED。此授权不涵盖 D22 正式发布、真实模型测试、权限扩张或无条件自动合并。 D03 补足超长路径实际 I/O 验收后再合并，D04 继续状态完整性。
+D03 已按条件授权合并，D04 依赖满足。

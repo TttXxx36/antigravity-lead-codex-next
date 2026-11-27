@@ -18,7 +18,7 @@ D00–D02 DONE。2026-11-27 用户明确验收 D01、D02 并授权合并 PR #2�
 
 | 卡片 | 内容 | 依赖 | 状态 |
 |---|---|---|---|
-| [D03](decisions/D03.md) | 跨平台路径与运行时发现 | D01,D02 | PROPOSED |
+| [D03](decisions/D03.md) | 跨平台路径与运行时发现 | D01,D02 | DONE |
 | [D04](decisions/D04.md) | 跨平台锁与状态完整性 | D03 | PROPOSED |
 | [D05](decisions/D05.md) | 安装器和环境诊断 | D03,D04 | PROPOSED |
 | [D06](decisions/D06.md) | 审批门禁与执行边界 | D04,D05 | PROPOSED |
@@ -78,3 +78,5 @@ D00–D02 DONE。2026-11-27 用户明确验收 D01、D02 并授权合并 PR #2�
 | Windows 原生验收 | 未测试 | 真实安装、MCP、派发、恢复、取消、回滚通过 |
 
 详见 [基准与验收](BENCHMARK.md)、[上游来源](UPSTREAM.md)、[执行规范](../AGENTS.md)。
+
+D03 已通过实际验收并合并，D04 开始；D03–D21 条件合并授权已记录于治理文档。

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "as_of": "2026-11-27",
-  "main_commit": "9f504b7a2dfe3a8bf4c6df87d670f42c234e5a82",
+  "main_commit": "c6c6188b078dcf51b3729c2834782ca5033cf3f9",
   "permissions": {
     "automatic_merge": false,
     "release": false,
@@ -107,22 +107,23 @@
         "D01",
         "D02"
       ],
-      "status": "REVIEW",
-      "evidence": "原生路径适配及三平台 smoke PASS；候选锁与 Node 测试启动复用；非真实客户端测试",
-      "next": "人工验收、合并后进入 D04；超长实际 I/O、真实客户端和安装仍待后续验证",
+      "status": "DONE",
+      "evidence": "PR #5 merged; exact head 3-platform long path IO and MCP smoke PASS",
+      "next": "",
       "branch": "dev/d03",
       "approval": "2026-11-27 user approved A for D03–D22, dependency order and Actions",
       "pr": 5,
-      "accepted": false,
-      "merged": false,
+      "accepted": true,
+      "merged": true,
       "checks": [
         {
-          "name": "three-platform Python/Node platform smoke + native synthetic MCP",
+          "name": "three-platform long-path IO, native platform and MCP smoke",
           "status": "PASS",
-          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45933533805",
-          "tested_commit": "b37f1dd0d3d1fb2e0c10d2729def979b1d0660fb"
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45934273615",
+          "tested_commit": "4e10446f189599eb0ebb4c075b8cc9d043d1c48b"
         }
-      ]
+      ],
+      "merge_commit": "c6c6188b078dcf51b3729c2834782ca5033cf3f9"
     },
     {
       "id": "D04",

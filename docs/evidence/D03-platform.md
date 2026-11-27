@@ -18,3 +18,7 @@ Windows-only Python wrapper check 在 Linux/macOS 直接返回，非执行 Windo
 - 真实模型调用 0（测试范围仅 Mock/synthetic；usage UNKNOWN）。未发布、未合并、未改变用户权限或原生 Codex DB。
 
 Job IDs: Windows 140291421928、Linux 140291422172、macOS 140291422081。回滚：未合并时关闭 PR；合并后 revert D03 commit，保留基线与证据。后续文档提交只记录证据，最新 head 复检须以实际 CI 为准。
+
+## 最终补测及合并
+
+[Run 45934273615](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45934273615) success，精确 head `4e10446f189599eb0ebb4c075b8cc9d043d1c48b`，Windows/Linux/macOS 三个 job 均 success。Python/Node 测试新增实际 >260 字符目录及文件创建、UTF-8 读写、删除；Unix Python wrapper 专属测试改为显式 skip。依据用户条件授权合并 PR #5，merge `c6c6188b078dcf51b3729c2834782ca5033cf3f9`；D03 DONE。
