@@ -490,8 +490,8 @@
         "D13"
       ],
       "status": "BLOCKED",
-      "evidence": "Exact-head four-environment cumulative CI PASS; 32/32 D14 streaming tests plus MCP cursor regression",
-      "next": "D15 candidate permitted; real host/UI push, actual cancel/reconnect and full raw-log rotation remain blocked",
+      "evidence": "D14 EPERM standalone backport PASS 4/4, 36/36 streaming tests; cleanup sync pending",
+      "next": "D16 verified EPERM/reaped leader correction backported; exact-head regression pending; actual host gates unchanged.",
       "branch": "dev/d14",
       "approval": "2026-11-27 user authorized A candidate development; no real model or expanded authority",
       "pr": 16,
@@ -508,13 +508,24 @@
           "name": "Actual host/UI, full raw rotation and cancellation",
           "status": "BLOCKED",
           "ref": "docs/evidence/D14-streaming.md"
+        },
+        {
+          "name": "D14 EPERM backport exact-head regression",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004229789",
+          "tested_commit": "ba9a3b5e4f1625cd1b19fefb6ba469a37aff8346"
+        },
+        {
+          "name": "BUG-007 cleanup denial synchronization",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D14-cleanup-integration.md"
         }
       ],
       "candidate": {
-        "ready": true,
-        "tested_commit": "b7bc081c680e94f87a3012d5fa1f0f54d93116b5",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45973849986",
-        "limitations": "Opt-in v2; bounded raw log cap stops rather than rotates; metadata rolling window and per-turn cursors only; real host push/cancel/reconnect and escaped descendants remain unverified; no merge."
+        "ready": false,
+        "tested_commit": "ba9a3b5e4f1625cd1b19fefb6ba469a37aff8346",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004229789",
+        "limitations": "Opt-in v2; bounded raw log cap stops rather than rotates; metadata rolling window and per-turn cursors only; real host push/cancel/reconnect and escaped descendants remain unverified; no merge. Historical PASS applies to old head; EPERM backport requires fresh CI. Verified D06 cleanup denial synchronized; current head needs CI."
       }
     },
     {
@@ -527,7 +538,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Exact-head four environments PASS; 32/32 migration tests; native DB hash preserved, initial Windows fixture cleanup failure corrected",
-      "next": "D16 candidate permitted; actual host migration/recovery and dependency acceptance remain BLOCKED",
+      "next": "D14 updated candidate ancestry integrated, both safety corrections retained; fresh exact-head CI and formal gates pending.",
       "branch": "dev/d15",
       "approval": "2026-11-27 user authorized A candidate development; no production migration or native DB writes",
       "pr": 17,
@@ -544,13 +555,18 @@
           "name": "Actual host migration, quiescence and recovery",
           "status": "BLOCKED",
           "ref": "docs/evidence/D15-storage.md"
+        },
+        {
+          "name": "BUG-007 cleanup denial and D14 EPERM integration",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D15-safety-integration.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "de11dc6f48588192c82cfd25172be44cfc5901f1",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45974689285",
-        "limitations": "Disposable fixtures only; actual host migration, manual process quiescence, power-loss and recovery activation not verified; no production migration or native DB writes."
+        "limitations": "Disposable fixtures only; actual host migration, manual process quiescence, power-loss and recovery activation not verified; no production migration or native DB writes. Verified D06 cleanup denial and D14 EPERM correction synchronized; current head needs CI."
       }
     },
     {
@@ -563,7 +579,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Corrected exact-head four-environment CI PASS; EPERM regression 36/36 streaming, 32/32 cache; benchmark query reduction stable, macOS rerun p95 slight increase",
-      "next": "Synchronize corrected D16 base into existing D17 candidate; formal host and dependency acceptance remain blocked",
+      "next": "Formal dependency and host gates remain BLOCKED",
       "branch": "dev/d16",
       "approval": "2026-11-27 user authorized A candidate development; display-only, no real model or production data writes",
       "pr": 18,
@@ -580,13 +596,24 @@
           "name": "Actual host UI, repeated p95 and physical I/O",
           "status": "BLOCKED",
           "ref": "docs/evidence/D16-cache.md"
+        },
+        {
+          "name": "BUG-007 cleanup denial synchronization",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D16-cleanup-integration.md"
+        },
+        {
+          "name": "D16 exact integrated ancestry and safety regression",
+          "status": "PASS",
+          "tested_commit": "0425f17e921ca09571f74c409c4234c35876ca1c",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006220435"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "6db070f17039338762e03a375c911873302fa32b",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45982938825",
-        "limitations": "Synthetic fixtures; original paired p95 improvement in four environments but macOS rerun slight increase; actual host and physical I/O unverified; EPERM fallback only owned child, escaped descendants not confirmed; no merge."
+        "tested_commit": "0425f17e921ca09571f74c409c4234c35876ca1c",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006220435",
+        "limitations": "Four-platform integrated candidate CI PASS; actual Antigravity host, physical I/O and formal dependencies remain unverified."
       },
       "observations": [
         {
@@ -608,7 +635,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Integrated exact-head 4-platform cumulative PASS; 44/44 scheduler tests incl abrupt owner death, native MCP bypass denial",
-      "next": "D18 candidate permitted; real host, live cancellation, trusted cleanup and dependency formal acceptance blocked",
+      "next": "D16 verified ancestry integrated with D17 preview preserved; fresh exact-head CI and formal gates pending",
       "branch": "dev/d17",
       "approval": "2026-11-27 user authorized A candidate development; no production worker/model or cleanup authorization",
       "pr": 19,
@@ -625,6 +652,11 @@
           "name": "Actual host scheduler, cancellation and trusted cleanup",
           "status": "BLOCKED",
           "ref": "docs/evidence/D17-scheduler.md"
+        },
+        {
+          "name": "D16 ancestry integration preserving read-only cleanup preview",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D17-ancestry-integration.md"
         }
       ],
       "observations": [
@@ -636,7 +668,7 @@
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "838787ad94f2cbadb00cb222a21aa1b5a720b9e5",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45983586382",
         "limitations": "Real subprocess/Git/SQLite mock fixtures; actual Antigravity host, live cancellation/escaped descendant reconciliation, trusted quota/cleanup approval and dependencies unverified; cleanup preview only."
