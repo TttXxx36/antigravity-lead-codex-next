@@ -2776,6 +2776,36 @@ def _execute_single_task(
     return result
 
 
+
+# D20 feature flag advertises an experiment, not authority to dispatch.
+def app_server_plan(task_id=None):
+    enabled=os.environ.get("ALC_APP_SERVER_EXPERIMENTAL")=="1"
+    result={"requested":enabled,"executionBackend":"cli","nativeProtocol":"NOT_RUN",
+            "nativePolicyParity":"NOT_RUN","nativeTaskParity":"NOT_RUN","nativePerformance":"NOT_RUN",
+            "reason":"native_parity_unverified" if enabled else "cli_default",
+            "automaticReplay":False,"mergeAuthorized":False,"accepted":False}
+    if task_id is not None:
+        tid=validate_task_id(task_id)
+        result["taskId"]=tid
+        if STATE_FILE.exists():
+            with locked_state() as state:
+                rec=orchestrator_lookup(state,tid)
+                pending=any(op["task_id"].casefold()==tid.casefold() and op["status"] in ("pending","uncertain") for op in request_records(state).values())
+                active=any(t["task_id"].casefold()==tid.casefold() and t["status"] in SCHEDULER_LIVE for t in scheduler_registry(state)["tickets"].values())
+                lease=bool(rec and rec["events"][-1]["lease"] is not None)
+                if pending or active or lease:
+                    result.update(executionBackend="blocked",reason="reconciliation_required")
+    return result
+
+
+def app_server_status_command(args):
+    result=app_server_plan(args.task_id)
+    # Discovery of an executable is not an actual protocol negotiation.
+    result["nativeExecutableFound"]=get_codex_bin() is not None
+    print(json.dumps(result,ensure_ascii=True,separators=(",",":")))
+    return 0 if result["executionBackend"]=="cli" else 1
+
+
 def cmd_health(_args: argparse.Namespace) -> int:
     candidates = list_codex_candidates()
     codex_bin = get_codex_bin()
@@ -2802,6 +2832,7 @@ def cmd_health(_args: argparse.Namespace) -> int:
         "gemini_config_dir": str(GEMINI_CONFIG_DIR),
         "runtime_errors": [f"{name} executable not found or invalid override" for name, value in (("codex", codex_bin), ("git", git_bin), ("node", node_bin)) if not value],
         "default_quality_mode": "smart",
+        "app_server": app_server_plan(),
         "codex": {"bin": codex_bin, "version": codex_ver, "candidates": candidates},
         "node": {"bin": node_bin, "version": node_ver},
         "git": {"bin": git_bin, "version": git_ver},
@@ -4384,6 +4415,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_st = sub.add_parser("status", help="Inspect tracked task metadata and round-robin state.")
     p_st.add_argument("--task-id", default=None)
 
+    p_app=sub.add_parser("app-server-status",allow_abbrev=False,help="D20 experimental adapter plan; no native server or worker launch")
+    p_app.add_argument("--task-id")
     p_risk=sub.add_parser("orchestrator-risk-review",allow_abbrev=False,help="D19 pinned commit-pair checks; no project test execution or acceptance")
     p_risk.add_argument("--task-id",required=True)
     p_risk.add_argument("--expected-revision",type=int,required=True)
@@ -4433,6 +4466,8 @@ def main() -> int:
         "scheduler-cancel": scheduler_status_cmd,
     }
     try:
+        if args.subcommand=='app-server-status':
+            return app_server_status_command(args)
         if args.subcommand in ('orchestrator-risk-review','orchestrator-risk-status'):
             return risk_review_command(args)
         if args.subcommand.startswith('orchestrator-'):

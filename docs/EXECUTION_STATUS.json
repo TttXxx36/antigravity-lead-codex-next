@@ -730,15 +730,21 @@
         "D18",
         "D19"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "官方能力协商、CLI 兜底、权限对等、复用/断线测试",
+      "status": "IN_PROGRESS",
+      "evidence": "Experimental bounded read-only app-server transport, exact version/identity, reconnect, permission/usage receipts; CLI remains default; CI pending",
+      "next": "Verify actual local mock protocol/negative fixtures and cumulative four-platform CI",
       "branch": "dev/d20",
-      "approval": null,
+      "approval": "2026-11-27 user authorized A candidate development D06-D22; no real model, permission or merge grant",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D20 offline protocol and cumulative CI",
+          "status": "NOT_RUN",
+          "ref": "Latest candidate CI pending"
+        }
+      ]
     },
     {
       "id": "D21",
