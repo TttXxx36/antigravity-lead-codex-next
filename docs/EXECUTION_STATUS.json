@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "as_of": "2026-11-27",
+  "as_of": "2026-11-28",
   "main_commit": "114e0c205f326b4af0935656ef482bba8270b284",
   "permissions": {
     "automatic_merge": false,
@@ -985,8 +985,8 @@
         "D21"
       ],
       "status": "BLOCKED",
-      "evidence": "Exact code head 6f2d23b PASS four environments; 34 passed / 6 platform skips in D22 test module; privacy remediation candidate verified; four identical inner RC hashes",
-      "next": "Recheck committed Zod lock/bundle with immutable npm ci, cumulative CI, audit/signatures/SBOM. D05 real host and D22 formal gates remain BLOCKED.",
+      "evidence": "Exact source d40e45320ed028581d2246fe560c909256b2644e Run 46025354306 four PASS, independent Ubuntu RC/audit verified; Zod 4.6.7 audit zero vulnerabilities; BUG-009 SBOM uniqueness FAIL",
+      "next": "Resolve BUG-009, verify SBOM uniqueness and path-backed edges, preserve raw evidence; complete binary notice review; D05 actual host and formal gates remain BLOCKED.",
       "branch": "dev/d22",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no formal release, merge, permission or real model grant",
       "pr": 24,
@@ -1034,23 +1034,6 @@
           "tested_commit": "17519126ef8f5ef6ce64ee2cc53b3b921cac3068"
         },
         {
-          "name": "D21 updated ancestry integration",
-          "status": "NOT_RUN",
-          "ref": "docs/evidence/D22-ancestry-integration.md"
-        },
-        {
-          "name": "npm audit all dependencies — Zod GHSA-mrhx-c7xc-m3w5 HIGH",
-          "status": "FAIL",
-          "tested_commit": "eca3bee267fc72989e31786f2101fa3e957fbdbe",
-          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46015133159"
-        },
-        {
-          "name": "npm audit production dependencies — Zod HIGH",
-          "status": "FAIL",
-          "tested_commit": "eca3bee267fc72989e31786f2101fa3e957fbdbe",
-          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46015133159"
-        },
-        {
           "name": "npm audit signatures — 112 verified, 26 attestations",
           "status": "PASS",
           "tested_commit": "eca3bee267fc72989e31786f2101fa3e957fbdbe",
@@ -1063,9 +1046,40 @@
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46015133159"
         },
         {
-          "name": "Zod 4.6.7 compatibility and lock update",
-          "status": "NOT_RUN",
-          "ref": "docs/evidence/D22-supply-chain-review.md"
+          "name": "D21 updated ancestry integration",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46025354306",
+          "tested_commit": "d40e45320ed028581d2246fe560c909256b2644e"
+        },
+        {
+          "name": "Zod 4.6.7 compatibility and immutable lock/bundle cumulative CI",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46025354306",
+          "tested_commit": "d40e45320ed028581d2246fe560c909256b2644e"
+        },
+        {
+          "name": "npm audit all and production — zero vulnerabilities",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46025354306",
+          "tested_commit": "d40e45320ed028581d2246fe560c909256b2644e"
+        },
+        {
+          "name": "npm registry signatures 112 and attestations 26; SBOM generation exit 0",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46025354306",
+          "tested_commit": "d40e45320ed028581d2246fe560c909256b2644e"
+        },
+        {
+          "name": "Independent RC archive/manifest 140 files and canonical verification",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46025354306",
+          "tested_commit": "d40e45320ed028581d2246fe560c909256b2644e"
+        },
+        {
+          "name": "BUG-009 CycloneDX SBOM unique bom-ref validation",
+          "status": "FAIL",
+          "ref": "docs/evidence/D22-supply-chain-review.md",
+          "tested_commit": "d40e45320ed028581d2246fe560c909256b2644e"
         }
       ],
       "observations": [
@@ -1086,13 +1100,25 @@
           "status": "FAIL",
           "tested_commit": "0245d5404e19c1d486d3c8015f5f3fb620d324c3",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46017099856"
+        },
+        {
+          "name": "npm audit all dependencies — Zod GHSA-mrhx-c7xc-m3w5 HIGH",
+          "status": "FAIL",
+          "tested_commit": "eca3bee267fc72989e31786f2101fa3e957fbdbe",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46015133159"
+        },
+        {
+          "name": "npm audit production dependencies — Zod HIGH",
+          "status": "FAIL",
+          "tested_commit": "eca3bee267fc72989e31786f2101fa3e957fbdbe",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46015133159"
         }
       ],
       "candidate": {
         "ready": false,
-        "tested_commit": "eca3bee267fc72989e31786f2101fa3e957fbdbe",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46015133159",
-        "limitations": "BUG-008 candidate PASS (18 pass/2 platform skips); Zod 4.6.7 trial npm audit all/runtime zero vulnerabilities but Linux tracked bundle mismatch. Committed lock and exact CI-built bundle need fresh four-platform CI. Three binary distribution notices and actual host/release gates remain."
+        "tested_commit": "d40e45320ed028581d2246fe560c909256b2644e",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46025354306",
+        "limitations": "Exact Zod remediation and cumulative CI PASS; independent RC PASS. BUG-009 duplicate SBOM bom-ref structural FAIL; three binary notice reviews OPEN; actual host and release gates BLOCKED."
       }
     }
   ],
