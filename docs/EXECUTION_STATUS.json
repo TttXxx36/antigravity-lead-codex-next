@@ -1,7 +1,7 @@
 {
   "version": 1,
   "as_of": "2026-11-27",
-  "main_commit": "c6c6188b078dcf51b3729c2834782ca5033cf3f9",
+  "main_commit": "1ad712a9ae3ab8d3e11e3616c1e8a995fe4423fb",
   "permissions": {
     "automatic_merge": false,
     "release": false,
@@ -132,21 +132,23 @@
       "depends": [
         "D03"
       ],
-      "status": "IN_PROGRESS",
-      "evidence": "D04 state/lock candidate; CI pending",
-      "next": "Three-platform acceptance",
+      "status": "DONE",
+      "evidence": "PR #6 merged; D04 39/39 tests and native MCP/platform regression",
+      "next": "",
       "branch": "dev/d04",
       "approval": "2026-11-27 user approved A and conditional merge",
-      "pr": null,
-      "accepted": false,
-      "merged": false,
+      "pr": 6,
+      "accepted": true,
+      "merged": true,
       "checks": [
         {
-          "name": "D04 state integrity",
-          "status": "NOT_RUN",
-          "ref": "pending CI"
+          "name": "three-platform D04 state integrity + D03 regressions",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45934605595",
+          "tested_commit": "a3b44b08b58451f41d27def9dcf87ee2428e7900"
         }
-      ]
+      ],
+      "merge_commit": "1ad712a9ae3ab8d3e11e3616c1e8a995fe4423fb"
     },
     {
       "id": "D05",
