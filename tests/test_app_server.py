@@ -84,6 +84,25 @@ class AppServerTests(unittest.TestCase):
                 with self.assertRaises(a.ProtocolError):s.connection._send({"method":name})
             self.assertEqual(s.read("thread-fixture")["status"],"idle")
         self.assertEqual(self.methods(),["initialize","initialized","thread/read"])
+    def test_rpc_envelope_rejects_raw_turns_and_extra_fields(self):
+        with self.session() as s:
+            prior=s.connection.seq
+            for params in ({"threadId":"thread-fixture","includeTurns":True},
+                           {"threadId":"thread-fixture"},
+                           {"threadId":"thread-fixture","includeTurns":0},
+                           {"threadId":"thread-fixture","includeTurns":False,"extra":True},
+                           {"threadId":"bad/id","includeTurns":False}):
+                with self.assertRaises(a.ProtocolError):s.connection._call("thread/read",params)
+            for msg in ({"method":"thread/read","id":2,"params":{"threadId":"thread-fixture","includeTurns":True}},
+                        {"method":"initialized","params":{}},
+                        {"method":"initialize","id":1,"params":{**a.PROBE_INITIALIZE,"extra":True}},
+                        {"method":"initialize","id":1,"params":{**a.PROBE_INITIALIZE,"capabilities":{"experimentalApi":0}}},
+                        {"method":"thread/read","id":True,"params":{"threadId":"thread-fixture","includeTurns":False}}):
+                with self.assertRaises(a.ProtocolError):s.connection._send(msg)
+            self.assertEqual(s.connection.seq,prior)
+            self.assertEqual(s.read("thread-fixture")["status"],"idle")
+        self.assertEqual(self.methods(),["initialize","initialized","thread/read"])
+
     def test_policy_receipts_strict_parity_never_grant(self):
         base=dict(cwd=str(self.root),approvalPolicy="never",model="mock",reasoningEffort="low",sandbox={"type":"readOnly","networkAccess":False})
         self.assertTrue(a.policy_matches(base,self.root,"read-only","mock","low"))

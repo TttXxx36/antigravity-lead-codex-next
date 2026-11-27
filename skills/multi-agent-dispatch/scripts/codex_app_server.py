@@ -105,6 +105,32 @@ def terminal_claim(event,thread_id,turn_id):
     return {"threadId":thread_id,"turnId":turn_id,"workerStatus":status,"accepted":False,"mergeAuthorized":False}
 
 
+PROBE_INITIALIZE={"clientInfo":{"name":"antigravity_lead","title":"Antigravity Lead probe","version":"1.0.0"},"capabilities":{"experimentalApi":False}}
+
+
+def validate_probe_rpc(msg):
+    """Validate the full outbound envelope, not only the method name."""
+    if not isinstance(msg,dict):
+        raise ProtocolError("D20: outbound RPC object required")
+    method=msg.get("method")
+    if method=="initialized":
+        if set(msg)!={"method"}:
+            raise ProtocolError("D20: invalid initialized notification")
+        return
+    if (method not in ("initialize","thread/read") or set(msg)!={"method","id","params"}
+        or type(msg["id"]) is not int or not 1<=msg["id"]<=MAX_REQUESTS):
+        raise ProtocolError("D20: outbound RPC unavailable")
+    params=msg["params"]
+    if method=="initialize":
+        if (msg["id"]!=1 or params!=PROBE_INITIALIZE or not isinstance(params,dict)
+            or params["capabilities"]["experimentalApi"] is not False):
+            raise ProtocolError("D20: initialize receipt scope invalid")
+    elif (not isinstance(params,dict) or set(params)!={"threadId","includeTurns"}
+        or not isinstance(params["threadId"],str) or not IDENTITY.fullmatch(params["threadId"])
+        or params["includeTurns"] is not False):
+        raise ProtocolError("D20: metadata-only thread/read required")
+
+
 class ProbeConnection:
     """Single synchronous owner, bounded binary stdio; no generic RPC entrypoint."""
     def __init__(self,argv,cwd,env,expected_version,timeout=3,usage=None):
@@ -117,7 +143,7 @@ class ProbeConnection:
             self.proc=subprocess.Popen(list(argv),cwd=str(cwd),env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
             self.threads=[threading.Thread(target=self._reader,daemon=True),threading.Thread(target=self._stderr,daemon=True)]
             for t in self.threads:t.start()
-            result=self._call("initialize",{"clientInfo":{"name":"antigravity_lead","title":"Antigravity Lead probe","version":"1.0.0"},"capabilities":{"experimentalApi":False}})
+            result=self._call("initialize",PROBE_INITIALIZE)
             if (version_of(result.get("userAgent"))!=expected_version or not isinstance(result.get("platformFamily"),str)
                 or not isinstance(result.get("platformOs"),str) or not isinstance(result.get("codexHome"),str)):
                 raise ProtocolError("D20: incompatible initialize receipt")
@@ -151,8 +177,7 @@ class ProbeConnection:
             except OSError:pass
     def _send(self,msg):
         # No turn/start, thread/start, resume, exec, account, or approval replies.
-        if msg.get("method") not in ("initialize","initialized","thread/read"):
-            raise ProtocolError("D20: mutation RPC unavailable")
+        validate_probe_rpc(msg)
         if self.closed or self.fault.is_set():raise ProtocolError("D20: disconnected")
         payload=json.dumps(msg,ensure_ascii=True,separators=(",",":"),allow_nan=False).encode("ascii")+b"\n"
         if len(payload)>4096:raise ProtocolError("D20: oversized request")
@@ -166,7 +191,10 @@ class ProbeConnection:
     def _call(self,method,params):
         if method not in ("initialize","thread/read") or self.seq>=MAX_REQUESTS:raise ProtocolError("D20: request unavailable or limit")
         if (method=="initialize" and self.seq!=0) or (method=="thread/read" and not self.ready):raise ProtocolError("D20: handshake required")
-        self.seq+=1;ident=self.seq;self._send({"id":ident,"method":method,"params":params})
+        ident=self.seq+1
+        msg={"id":ident,"method":method,"params":params}
+        validate_probe_rpc(msg)
+        self.seq=ident;self._send(msg)
         deadline=time.monotonic()+self.timeout
         while time.monotonic()<deadline:
             if self.fault.is_set():raise ProtocolError("D20: broken stream")
