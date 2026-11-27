@@ -1,0 +1,2 @@
+# D13 candidate ancestry integration
+2026-11-27: integrate D12 906968dca6d930027985b4f9af1039af0227b8c2 / Run 46010810757 was still running during integration; ancestry graph is clean and D12 cleanup denial function/test exactly match D11 verified implementation. Preserve D13 durable request ID and loop termination logic; apply only D12 verified MCP tool description correction to D13 index. D13 exact-head cumulative CI required. No formal merge; real host/risk/Token gates unchanged.
