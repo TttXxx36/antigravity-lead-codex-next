@@ -563,15 +563,49 @@
         "D07",
         "D13"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "流式 JSONL、心跳/seq、内存有界、断线恢复",
+      "status": "BLOCKED",
+      "evidence": "D14 EPERM standalone backport PASS 4/4, 36/36 streaming tests; cleanup sync pending",
+      "next": "D13 verified ancestry integrated; D14 exact-head cumulative CI pending; host/real streaming gates remain BLOCKED",
       "branch": "dev/d14",
-      "approval": null,
-      "pr": null,
+      "approval": "2026-11-27 user authorized A candidate development; no real model or expanded authority",
+      "pr": 16,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D14 streaming and cumulative regression",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45973849986",
+          "tested_commit": "b7bc081c680e94f87a3012d5fa1f0f54d93116b5"
+        },
+        {
+          "name": "Actual host/UI, full raw rotation and cancellation",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D14-streaming.md"
+        },
+        {
+          "name": "D14 EPERM backport exact-head regression",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004229789",
+          "tested_commit": "ba9a3b5e4f1625cd1b19fefb6ba469a37aff8346"
+        },
+        {
+          "name": "BUG-007 cleanup denial synchronization",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D14-cleanup-integration.md"
+        },
+        {
+          "name": "D13 ancestry integration",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D14-ancestry-integration.md"
+        }
+      ],
+      "candidate": {
+        "ready": false,
+        "tested_commit": "ba9a3b5e4f1625cd1b19fefb6ba469a37aff8346",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004229789",
+        "limitations": "Opt-in v2; bounded raw log cap stops rather than rotates; metadata rolling window and per-turn cursors only; real host push/cancel/reconnect and escaped descendants remain unverified; no merge. Historical PASS applies to old head; EPERM backport requires fresh CI. Verified D06 cleanup denial synchronized; current head needs CI."
+      }
     },
     {
       "id": "D15",

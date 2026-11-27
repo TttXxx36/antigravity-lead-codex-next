@@ -17,6 +17,8 @@ import hashlib
 import json
 import os
 import ntpath
+import queue
+import threading
 import re
 import shutil
 import subprocess
@@ -255,7 +257,7 @@ def atomic_write_bytes(target: Path, payload: bytes) -> None:
         temp.unlink(missing_ok=True)
 
 
-def decode_state(raw: bytes) -> dict[str, Any]:
+def strict_state_json(raw: bytes) -> Any:
     def unique_keys(pairs):
         result = {}
         for key, value in pairs:
@@ -267,7 +269,11 @@ def decode_state(raw: bytes) -> dict[str, Any]:
     def reject_constant(value):
         raise ValueError("Non-finite state JSON number")
 
-    data = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_keys, parse_constant=reject_constant)
+    return json.loads(raw.decode("utf-8"), object_pairs_hook=unique_keys, parse_constant=reject_constant)
+
+
+def decode_state(raw: bytes) -> dict[str, Any]:
+    data = strict_state_json(raw)
     if not isinstance(data, dict) or not isinstance(data.get("tasks"), dict):
         raise ValueError("state must contain a tasks object")
     rr = data.get("rr_counter", 0)
@@ -1444,7 +1450,8 @@ def parse_codex_events(events_text: str) -> dict[str, Any]:
             usage = ev["usage"]
 
         if ev_type in ("error", "turn.failed"):
-            msg = ev.get("message") or (ev.get("error") or {}).get("message")
+            detail = ev.get("error")
+            msg = ev.get("message") or (detail.get("message") if isinstance(detail, dict) else None)
             if isinstance(msg, str) and msg.strip():
                 errors.append(msg.strip())
 
@@ -1565,6 +1572,8 @@ def validate_resume_binding(record: dict[str, Any], args: argparse.Namespace) ->
         raise ValueError("D06: resume sandbox escalation denied")
     if record.get("status") in ("reserved", "running", "interrupted"):
         raise ValueError("D06: incomplete task cannot be resumed")
+    if record.get("stream_events") is True and record.get("stream_integrity") != "complete":
+        raise ValueError("D14: incomplete stream requires reconciliation; no resume")
 
 
 def build_codex_exec_cmd(
@@ -1667,10 +1676,23 @@ def terminate_owned_process_tree(proc: subprocess.Popen) -> None:
             if proc.poll() is None:
                 proc.kill()
     else:
+        # Never signal a numeric process group after Popen has reaped its
+        # leader: the ID could be reused. A short-lived zombie on macOS may
+        # also cause killpg to return EPERM during the exit race.
+        if proc.returncode is not None:
+            return
         try:
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
+        except PermissionError:
+            # Reap an exiting owned child. If still alive, only target that
+            # Popen child; descendants are unverified. All callers are on
+            # failure/interruption paths, never infer success from this.
+            try:
+                proc.wait(timeout=.2)
+            except subprocess.TimeoutExpired:
+                proc.kill()
 
 
 def run_subprocess_with_timeout(
@@ -1717,6 +1739,409 @@ def run_subprocess_with_timeout(
         terminate_owned_process_tree(proc)
         raise
 
+
+# D14: opt-in bounded streaming. Only fixed metadata is published; raw bytes
+# remain in local run artifacts. An interrupted producer never gets replayed.
+STREAM_STDOUT_LIMIT = 4 * 1024 * 1024
+STREAM_STDERR_LIMIT = 1024 * 1024
+STREAM_LINE_LIMIT = 64 * 1024
+STREAM_WINDOW = 64
+STREAM_SEGMENT_BYTES = 256 * 1024
+STREAM_SAFE_SEQ = 2**53 - 1
+STREAM_TERMINAL = ("process_exit", "timed_out", "stream_failed", "launch_failed", "interrupted")
+
+
+class RotatingStreamSink:
+    """Append-only bounded segments plus the legacy bounded compatibility mirror.
+
+    The total invocation cap is still enforced by accept(); no old segment is
+    deleted, reused or silently dropped. A failed write cannot publish success.
+    """
+    def __init__(self, directory, name, mirror):
+        self.directory, self.name, self.mirror = directory, name, mirror
+        self.parts, self.part, self.digest, self.size = [], None, None, 0
+        if type(STREAM_SEGMENT_BYTES) is not int or STREAM_SEGMENT_BYTES <= 0:
+            raise ValueError("D14: invalid segment size")
+
+    def __enter__(self):
+        return self
+
+    def _close_part(self):
+        if self.part is None:
+            return
+        stream = self.part
+        try:
+            stream.flush()
+            os.fsync(stream.fileno())
+            self.parts.append({"name": Path(stream.name).name, "bytes": self.size,
+                               "sha256": self.digest.hexdigest()})
+        finally:
+            self.part = None
+            stream.close()
+
+    def write(self, data):
+        self.mirror.write(data)
+        offset = 0
+        while offset < len(data):
+            if self.part is None:
+                target = self.directory / (self.name + ".part-%04d" % (len(self.parts)+1))
+                reject_link(target)
+                self.part = target.open("xb")
+                self.digest, self.size = hashlib.sha256(), 0
+            end = offset + min(len(data)-offset, STREAM_SEGMENT_BYTES-self.size)
+            portion = data[offset:end]
+            if self.part.write(portion) != len(portion):
+                raise OSError("D14: short segment write")
+            self.digest.update(portion)
+            self.size += len(portion)
+            offset = end
+            if self.size == STREAM_SEGMENT_BYTES:
+                self._close_part()
+
+    def flush(self):
+        self.mirror.flush()
+        if self.part is not None:
+            self.part.flush()
+
+    def finish(self):
+        self._close_part()
+        self.mirror.flush()
+        os.fsync(self.mirror.fileno())
+        return list(self.parts)
+
+    def __exit__(self, *_):
+        self.finish()
+
+
+def stream_segment_manifest(run_dir, stdout, stderr):
+    target = run_dir / "stream-segments.json"
+    reject_link(target)
+    if target.exists():
+        raise StateIntegrityError("D14: existing segment manifest")
+    data = {"version": 1, "segmentBytes": STREAM_SEGMENT_BYTES,
+            "stdout": stdout.finish(), "stderr": stderr.finish()}
+    atomic_write_bytes(target, (json.dumps(data, separators=(",", ":"))+"\n").encode("utf-8"))
+
+
+class StreamJournal:
+    def __init__(self, directory, task_id, turn_id, sequence_base=0, sequence_scope="task"):
+        if type(sequence_base) is not int or not 0 <= sequence_base < STREAM_SAFE_SEQ or sequence_scope not in ("task","since_upgrade"):
+            raise StateIntegrityError("D14: invalid task sequence base")
+        if turn_id is None and (sequence_base != 0 or sequence_scope != "task"):
+            raise StateIntegrityError("D14: invalid initial sequence")
+        self.sequence_base, self.sequence_scope = sequence_base, sequence_scope
+        self.path = directory / "stream-state.json"
+        reject_link(self.path)
+        if self.path.exists():
+            raise StateIntegrityError("D14: existing stream journal")
+        self.task_id = validate_task_id(task_id)
+        self.turn_id = validate_task_id(turn_id) if turn_id is not None else None
+        self.seq = 0
+        self.entries = []
+
+    def emit(self, kind, stdout_bytes=0, stderr_bytes=0, lines=0):
+        if self.sequence_base + self.seq >= STREAM_SAFE_SEQ:
+            raise StateIntegrityError("D14: task sequence exhausted")
+        self.seq += 1
+        self.entries.append({"seq": self.seq, "taskSeq": self.sequence_base+self.seq, "kind": kind,
+            "at": time.time_ns() // 1000000, "stdoutBytes": stdout_bytes,
+            "stderrBytes": stderr_bytes, "lines": lines})
+        self.entries = self.entries[-STREAM_WINDOW:]
+        payload = {"version": 2, "taskId": self.task_id,
+                   "turnId": self.turn_id or "initial", "sequenceBase": self.sequence_base,
+                   "sequenceScope": self.sequence_scope, "entries": self.entries}
+        atomic_write_bytes(self.path, (json.dumps(payload, separators=(",", ":")) + "\n").encode("utf-8"))
+
+
+def stream_checkpoint(directory, task_id, turn_id):
+    """Read a bounded terminal snapshot; legacy v1 is an explicit upgrade epoch."""
+    target = directory / "stream-state.json"
+    reject_link(target)
+    if not target.is_file():
+        raise StateIntegrityError("D14: missing stream journal")
+    with target.open("rb") as f:
+        raw = f.read(16385)
+    if len(raw) > 16384:
+        raise StateIntegrityError("D14: oversized stream journal")
+    value = strict_state_json(raw)
+    if (not isinstance(value,dict) or type(value.get("version")) is not int
+        or value["version"] not in (1,2) or value.get("taskId") != task_id
+        or value.get("turnId") != (turn_id or "initial")):
+        raise StateIntegrityError("D14: stream journal identity")
+    entries = value.get("entries")
+    if not isinstance(entries,list) or not 1<=len(entries)<=STREAM_WINDOW:
+        raise StateIntegrityError("D14: invalid journal window")
+    version = value["version"]
+    base = value.get("sequenceBase",0)
+    scope = value.get("sequenceScope","since_upgrade")
+    if (version==2 and (type(base) is not int or not 0<=base<STREAM_SAFE_SEQ
+        or scope not in ("task","since_upgrade") or (turn_id is None and (base!=0 or scope!="task")))):
+        raise StateIntegrityError("D14: invalid journal sequence scope")
+    previous = None
+    for e in entries:
+        if (not isinstance(e,dict) or type(e.get("seq")) is not int or not 1<=e["seq"]<=STREAM_SAFE_SEQ
+            or e.get("kind") not in ("queued","running","progress","heartbeat",*STREAM_TERMINAL)
+            or (previous is not None and (e["seq"]!=previous["seq"]+1 or previous["kind"] in STREAM_TERMINAL))
+            or (version==2 and (type(e.get("taskSeq")) is not int or e["taskSeq"]!=base+e["seq"] or e["taskSeq"]>STREAM_SAFE_SEQ))):
+            raise StateIntegrityError("D14: invalid journal event sequence")
+        previous = e
+    if previous["kind"] not in STREAM_TERMINAL:
+        raise StateIntegrityError("D14: journal has no terminal receipt")
+    return {"version":version,"lastTaskSeq":previous["taskSeq"] if version==2 else 0,
+            "sequenceScope":scope if version==2 else "since_upgrade",
+            "terminal":previous["kind"],"sha256":hashlib.sha256(raw).hexdigest()}
+
+
+def prior_stream_sequence(record, task_id):
+    ref = record.get("result_ref")
+    if not isinstance(ref,dict) or "turn" not in ref:
+        raise StateIntegrityError("D14: missing prior result reference")
+    turn = ref["turn"]
+    root = bounded_child(RUNS_DIR, task_id)
+    directory = root if turn is None else bounded_child(root, validate_task_id(turn))
+    checkpoint = stream_checkpoint(directory,task_id,turn)
+    if checkpoint["terminal"] != "process_exit":
+        raise StateIntegrityError("D14: prior journal is not a complete process exit")
+    if checkpoint["version"] == 2:
+        if record.get("stream_checkpoint") != checkpoint:
+            raise StateIntegrityError("D14: prior stream checkpoint changed")
+    elif "stream_checkpoint" in record:
+        raise StateIntegrityError("D14: prior stream checkpoint downgraded")
+    return checkpoint["lastTaskSeq"], checkpoint["sequenceScope"]
+
+
+def streamed_subprocess(cmd, *, cwd, stdin_text, timeout, run_dir, task_id, turn_id=None, env=None,
+                        sequence_base=0, sequence_scope="task"):
+    """Bounded concurrent pipe drain with a replayable, metadata-only journal.
+
+    Raw artifacts are capped per invocation, not silently truncated to success.
+    On quota, malformed JSONL, pipe failure or deadline, terminate only the owned
+    process tree. Uncertain termination cannot report task success.
+    """
+    if type(timeout) is not int or timeout <= 0:
+        raise ValueError("D14: positive timeout required")
+    reject_link(run_dir)
+    journal = StreamJournal(run_dir, task_id, turn_id, sequence_base, sequence_scope)
+    journal.emit("queued")
+    chunks = queue.Queue(maxsize=32)
+    stop = threading.Event()
+    counts = {"stdout": 0, "stderr": 0}
+    limits = {"stdout": STREAM_STDOUT_LIMIT, "stderr": STREAM_STDERR_LIMIT}
+    output = bytearray()
+    errors = bytearray()
+    line = bytearray()
+    lines = 0
+    proc = None
+    eof = set()
+    failure = None
+    timed_out = False
+
+    def enqueue(item):
+        while not stop.is_set():
+            try:
+                chunks.put(item, timeout=.1)
+                return
+            except queue.Full:
+                continue
+
+    def reader(name, pipe):
+        try:
+            while not stop.is_set():
+                data = pipe.read1(8192)
+                if not data:
+                    enqueue((name, None))
+                    return
+                enqueue((name, data))
+        except (OSError, ValueError):
+            enqueue(("pipe_error", None))
+        finally:
+            pipe.close()
+
+    def writer(pipe):
+        try:
+            if stdin_text is not None:
+                pipe.write(stdin_text.encode("utf-8"))
+                pipe.flush()
+        except (OSError, ValueError, UnicodeError):
+            enqueue(("stdin_error", None))
+        finally:
+            try:
+                pipe.close()
+            except OSError:
+                pass
+
+    def parse_line(raw):
+        nonlocal lines
+        if len(raw) > STREAM_LINE_LIMIT:
+            raise ValueError("line_limit")
+        if not raw.strip():
+            return
+        def unique(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_key")
+                result[key] = value
+            return result
+        def reject_constant(_):
+            raise ValueError("nonfinite_number")
+        value = json.loads(raw.decode("utf-8", errors="strict"),
+                           object_pairs_hook=unique, parse_constant=reject_constant)
+        if not isinstance(value, dict):
+            raise ValueError("invalid_jsonl")
+        lines += 1
+
+    def accept(name, data, sink):
+        nonlocal line
+        remaining = limits[name] - counts[name]
+        portion = data[:remaining]
+        sink.write(portion)
+        sink.flush()
+        counts[name] += len(portion)
+        (output if name == "stdout" else errors).extend(portion)
+        if len(data) > remaining:
+            raise ValueError("output_limit")
+        if name == "stdout":
+            line.extend(portion)
+            while True:
+                at = line.find(b"\n")
+                if at < 0:
+                    break
+                parse_line(line[:at])
+                del line[:at+1]
+            if len(line) > STREAM_LINE_LIMIT:
+                raise ValueError("line_limit")
+
+    stdout_file, stderr_file = run_dir / "events.jsonl", run_dir / "stderr.log"
+    for target in (stdout_file, stderr_file):
+        reject_link(target)
+    with stdout_file.open("xb") as stdout_mirror, stderr_file.open("xb") as stderr_mirror, \
+         RotatingStreamSink(run_dir,"events.jsonl",stdout_mirror) as stdout_sink, \
+         RotatingStreamSink(run_dir,"stderr.log",stderr_mirror) as stderr_sink:
+        try:
+            proc = subprocess.Popen(cmd, cwd=str(cwd), env=env,
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                start_new_session=(os.name != "nt"),
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
+        except OSError as exc:
+            stream_segment_manifest(run_dir,stdout_sink,stderr_sink)
+            journal.emit("launch_failed")
+            return 127, "", "[dispatcher] Launch failed: " + type(exc).__name__, False
+        started = time.monotonic()
+        last_publish = started
+        last_counts = (0, 0)
+        threads = [
+            threading.Thread(target=reader, args=("stdout", proc.stdout), daemon=True),
+            threading.Thread(target=reader, args=("stderr", proc.stderr), daemon=True),
+            threading.Thread(target=writer, args=(proc.stdin,), daemon=True)]
+        try:
+            journal.emit("running")
+            for thread in threads:
+                thread.start()
+            while True:
+                now = time.monotonic()
+                if now - started >= timeout:
+                    timed_out = True
+                    failure = "timeout"
+                    break
+                try:
+                    name, data = chunks.get(timeout=min(.1, max(.001, timeout-(now-started))))
+                except queue.Empty:
+                    name, data = None, None
+                if name in ("pipe_error", "stdin_error"):
+                    failure = name
+                    break
+                if name in ("stdout", "stderr"):
+                    if data is None:
+                        eof.add(name)
+                    else:
+                        try:
+                            accept(name, data, stdout_sink if name=="stdout" else stderr_sink)
+                        except (ValueError, UnicodeError, RecursionError):
+                            failure = "invalid_or_oversized_output"
+                            break
+                now = time.monotonic()
+                totals = (counts["stdout"], counts["stderr"])
+                if now-last_publish >= 1 or (totals != last_counts and now-last_publish >= .25):
+                    journal.emit("progress" if totals != last_counts else "heartbeat", *totals, lines)
+                    last_publish, last_counts = now, totals
+                if len(eof)==2 and proc.poll() is not None and not threads[2].is_alive() and chunks.empty():
+                    if line:
+                        try:
+                            parse_line(line)
+                        except (ValueError, UnicodeError, RecursionError):
+                            failure = "invalid_or_oversized_output"
+                    break
+            if failure is not None:
+                terminate_owned_process_tree(proc)
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=5)
+            else:
+                proc.wait(timeout=5)
+            stream_segment_manifest(run_dir,stdout_sink,stderr_sink)
+            journal.emit("timed_out" if timed_out else "stream_failed" if failure else "process_exit",
+                         counts["stdout"], counts["stderr"], lines)
+        except BaseException:
+            try:
+                terminate_owned_process_tree(proc)
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    if proc.poll() is None:
+                        proc.kill()
+                    proc.wait(timeout=5)
+            finally:
+                try:
+                    journal.emit("interrupted", counts["stdout"], counts["stderr"], lines)
+                except (OSError, StateIntegrityError):
+                    pass
+            raise
+        finally:
+            stop.set()
+            # Do not close a pipe from another thread while a read is blocked.
+            # Daemon readers cannot block CLI shutdown if an escaped child holds it.
+            for thread, pipe in zip(threads, (proc.stdout, proc.stderr, proc.stdin)):
+                if thread.ident is not None:
+                    thread.join(timeout=.2)
+                else:
+                    pipe.close()
+        if failure:
+            # Incomplete streams cannot be used for session/usage inference.
+            return (124 if timed_out else 125), "", "[dispatcher] D14 " + failure, timed_out
+        return proc.returncode, output.decode("utf-8"), errors.decode("utf-8", "replace"), False
+
+
+def mark_stream_interrupted(task_id, turn_id):
+    # A failure between process launch and durable settlement cannot reopen the
+    # task or claim zero use. Retain the active turn for forensic reconciliation.
+    with locked_state() as state:
+        record = state["tasks"].get(task_id)
+        if not record or record.get("status") != "running" or record.get("active_turn_id") != turn_id:
+            raise StateIntegrityError("D14: stream reservation changed")
+        store = record.get("usage_store", new_usage_store(prior_unknown=True))
+        record.update(status="interrupted", stream_integrity="incomplete",
+                      usage_store={**store, "prior_unknown": True}, updated_at=utc_now())
+
+
+def invoke_worker(cmd, *, cwd, stdin_text, timeout, run_dir, task_id, turn_id=None, stream_events=False,
+                  sequence_base=0, sequence_scope="task"):
+    if stream_events:
+        try:
+            return streamed_subprocess(cmd, cwd=cwd, stdin_text=stdin_text, timeout=timeout,
+                                       run_dir=run_dir, task_id=task_id, turn_id=turn_id,
+                                       sequence_base=sequence_base, sequence_scope=sequence_scope)
+        except BaseException:
+            mark_stream_interrupted(task_id, turn_id)
+            raise
+    rc, out, err, timed_out = run_subprocess_with_timeout(cmd, cwd=cwd, stdin_text=stdin_text, timeout=timeout)
+    (run_dir / "events.jsonl").write_text(out, encoding="utf-8")
+    (run_dir / "stderr.log").write_text(err, encoding="utf-8")
+    return rc, out, err, timed_out
+
+
 def execute_single_task(
     *,
     prompt: str,
@@ -1740,7 +2165,10 @@ def execute_single_task(
     budget: dict[str,Any] | None = None,
     use_budget_route: bool = False,
     request_id: str | None = None,
+    stream_events: bool = False,
 ) -> dict[str, Any]:
+    if type(stream_events) is not bool or (stream_events and not protocol_v2):
+        raise ValueError('D14: streaming requires explicit v2 protocol')
     limits=make_budget() if budget is None else make_budget(budget['turns'],budget['tokens'],budget['seconds'])
     store=new_usage_store()
     timeout=budget_timeout(limits,store,timeout)
@@ -1820,7 +2248,7 @@ def execute_single_task(
     run_dir = reserve_run_dir(tid, {"backend": backend, "model": model_used, "effort": effort_used,
         "difficulty": routing["effective_difficulty"], "repo_root": git_info["repo_root"],
         "original_cwd": str(cwd), "workdir": str(cwd), "session_id": None, "network": network,
-        "sandbox": sandbox, "isolation": eff_isolation, "created_at": utc_now(), "updated_at": utc_now(), **protocol_meta(envelope), **context_state_fields(board), "budget":limits,"usage_store":store,"budget_route":use_budget_route}, request_id=request_id)
+        "sandbox": sandbox, "isolation": eff_isolation, "created_at": utc_now(), "updated_at": utc_now(), **protocol_meta(envelope), **context_state_fields(board), "budget":limits,"usage_store":store,"budget_route":use_budget_route,"stream_events":stream_events}, request_id=request_id)
     (run_dir / "prompt.txt").write_text(worker_prompt, encoding="utf-8")
 
     workdir = cwd
@@ -1842,13 +2270,19 @@ def execute_single_task(
         report_path=report_path,
         is_git_repo=git_info["is_git_repo"], protocol_v2=protocol_v2,
     )
+    if stream_events:
+        with locked_state() as state:
+            current = state["tasks"][tid]
+            if current.get("status") != "reserved":
+                raise StateIntegrityError("D14: reservation changed")
+            current.update(status="running", updated_at=utc_now(), workdir=str(workdir),
+                           worktree_path=worktree_path, branch=branch_name)
     started = time.monotonic_ns()
-    rc, stdout_text, stderr_text, timed_out = run_subprocess_with_timeout(
-        cmd, cwd=workdir, stdin_text=worker_prompt, timeout=timeout
+    rc, stdout_text, stderr_text, timed_out = invoke_worker(
+        cmd, cwd=workdir, stdin_text=worker_prompt, timeout=timeout,
+        run_dir=run_dir, task_id=tid, stream_events=stream_events
     )
     duration_ms = (time.monotonic_ns() - started) // 1000000
-    (run_dir / "events.jsonl").write_text(stdout_text, encoding="utf-8")
-    (run_dir / "stderr.log").write_text(stderr_text, encoding="utf-8")
     parsed_events = parse_codex_events(stdout_text)
     report = parse_report_file(
         report_path,
@@ -1857,8 +2291,13 @@ def execute_single_task(
         rc,
         event_errors=parsed_events["errors"], protocol_v2=protocol_v2,
     )
-    session_id = context_session(stdout_text,None,False) if board is not None else parsed_events["session_id"]
-    sample=invocation_usage(stdout_text)
+    try:
+        session_id = context_session(stdout_text,None,False) if board is not None else parsed_events["session_id"]
+    except (ValueError, StateIntegrityError):
+        if stream_events:
+            mark_stream_interrupted(tid, None)
+        raise
+    sample=invocation_usage("" if stream_events and rc != 0 else stdout_text)
     usage={k:v for k,v in sample["counts"].items() if v is not None} or None
     store=finish_usage(store,sample,duration_ms,"initial")
 
@@ -1891,7 +2330,8 @@ def execute_single_task(
         "updated_at": now,
         "run_dir": str(run_dir),
         **protocol_meta(envelope),
-        "budget":limits,"usage_store":store,"budget_route":use_budget_route,
+        "budget":limits,"usage_store":store,"budget_route":use_budget_route,"stream_events":stream_events,
+        **({"stream_integrity": "incomplete" if rc in (124,125,127) else "complete"} if stream_events else {}),
     }
 
     result = {
@@ -1921,6 +2361,8 @@ def execute_single_task(
     result_bytes = (json.dumps(result, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     atomic_write_bytes(run_dir / "result.json", result_bytes)
     task_record["result_ref"] = {"turn": None, "sha256": hashlib.sha256(result_bytes).hexdigest()}
+    if stream_events:
+        task_record["stream_checkpoint"] = stream_checkpoint(run_dir,tid,None)
     if board is not None:
         board["last_result_ref"] = task_record["result_ref"]
         task_record.update(context_state_fields(board))
@@ -1929,7 +2371,7 @@ def execute_single_task(
             context_assert_session_owner(state,tid,session_id,board)
         else:
             context_protect_legacy_session(state,tid,session_id)
-        if state["tasks"].get(tid, {}).get("status") != "reserved":
+        if state["tasks"].get(tid, {}).get("status") != ("running" if stream_events else "reserved"):
             raise StateIntegrityError("Task reservation missing or changed")
         state["tasks"][tid] = task_record
 
@@ -2086,6 +2528,8 @@ def guarded_dispatch(args: argparse.Namespace, handler) -> int:
         if not isinstance(args.prompt, str) or len(args.prompt.encode("utf-8")) > PROTOCOL_LIMIT:
             raise ValueError("D13: request exceeds protocol bound")
     params = {k: v for k, v in vars(args).items() if k not in ("request_id",) and not k.startswith("_")}
+    if params.get("stream_events") is False:
+        params.pop("stream_events")  # preserve D13 request digest on upgrade
     if params.get("cwd") is not None:
         params["cwd"] = str(configured_path(params["cwd"]))
     digest = request_hash(params)
@@ -2218,7 +2662,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         dry_run=args.dry_run,
         protocol_v2=args.protocol_v2, blackboard=args.blackboard,
         budget=make_budget(args.max_turns,args.max_tokens,args.max_seconds),use_budget_route=args.budget_route,
-        request_id=getattr(args, 'request_id', None),
+        request_id=getattr(args, 'request_id', None), stream_events=getattr(args, 'stream_events', False),
     )
     print(json.dumps(result.get("protocol_result",result), ensure_ascii=False, separators=(",",":") if args.protocol_v2 else None, indent=None if args.protocol_v2 else 2))
     return task_exit_code(result)
@@ -2324,6 +2768,9 @@ def _cmd_resume(args: argparse.Namespace) -> int:
     limits=task_record.get("budget",make_budget())
     store=task_record.get("usage_store",new_usage_store(prior_unknown=True))
     effective_timeout=budget_timeout(limits,store,args.timeout)
+    stream_events=task_record.get("stream_events",False)
+    if type(stream_events) is not bool or (stream_events and not args.protocol_v2):
+        raise StateIntegrityError("D14: persisted streaming mode or protocol invalid")
     board = None
     if task_record.get("context_board") is not None:
         if not args.protocol_v2:
@@ -2448,6 +2895,7 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         if current.get("usage_store",new_usage_store(prior_unknown=True)) != store or current.get("budget",make_budget()) != limits:
             raise StateIntegrityError("D12: usage or budget changed before reservation")
         budget_timeout(limits,store,effective_timeout)
+        sequence_base, sequence_scope = prior_stream_sequence(current,resume_tid) if stream_events else (0,"task")
         if envelope is not None:
             if current.get("protocol_rev") != envelope["base_rev"] or current.get("protocol_version") != 2:
                 raise StateIntegrityError("D10: revision changed before reservation")
@@ -2464,12 +2912,12 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         current["updated_at"] = utc_now()
     cmd = resume_command()
     started = time.monotonic_ns()
-    rc, stdout_text, stderr_text, timed_out = run_subprocess_with_timeout(
-        cmd, cwd=workdir, stdin_text=worker_prompt, timeout=effective_timeout
+    rc, stdout_text, stderr_text, timed_out = invoke_worker(
+        cmd, cwd=workdir, stdin_text=worker_prompt, timeout=effective_timeout,
+        run_dir=run_dir, task_id=resume_tid, turn_id=turn_id, stream_events=stream_events,
+        sequence_base=sequence_base, sequence_scope=sequence_scope
     )
     duration_ms = (time.monotonic_ns() - started) // 1000000
-    (run_dir / "events.jsonl").write_text(stdout_text, encoding="utf-8")
-    (run_dir / "stderr.log").write_text(stderr_text, encoding="utf-8")
     parsed_events = parse_codex_events(stdout_text)
     report = parse_report_file(
         report_path,
@@ -2478,8 +2926,13 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         rc,
         event_errors=parsed_events["errors"], protocol_v2=args.protocol_v2,
     )
-    new_session_id = context_session(stdout_text,session_id,args.rebuild_context) if board is not None else (parsed_events["session_id"] or session_id)
-    sample=invocation_usage(stdout_text)
+    try:
+        new_session_id = context_session(stdout_text,session_id,args.rebuild_context) if board is not None else (parsed_events["session_id"] or session_id)
+    except (ValueError, StateIntegrityError):
+        if stream_events:
+            mark_stream_interrupted(resume_tid, turn_id)
+        raise
+    sample=invocation_usage("" if stream_events and rc != 0 else stdout_text)
     usage={k:v for k,v in sample["counts"].items() if v is not None} or None
     store=finish_usage(store,sample,duration_ms,turn_id)
 
@@ -2525,6 +2978,9 @@ def _cmd_resume(args: argparse.Namespace) -> int:
             current.update(context_state_fields(board))
         else:
             context_protect_legacy_session(state,resume_tid,new_session_id)
+        if stream_events:
+            current["stream_integrity"] = "incomplete" if rc in (124,125,127) else "complete"
+            current["stream_checkpoint"] = stream_checkpoint(run_dir,resume_tid,turn_id)
         current.pop("active_turn_id", None)
     print(json.dumps(result.get("protocol_result",result), ensure_ascii=False, separators=(",",":") if envelope else None, indent=None if envelope else 2))
     return task_exit_code(result)
@@ -2758,6 +3214,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--files", nargs="*", default=None, help="Optional target file hints.")
     p_run.add_argument("--task-id", default=None)
     p_run.add_argument("--request-id", default=None, help="Persistent D13 operation ID (v2 only).")
+    p_run.add_argument("--stream-events", action="store_true", help="D14 bounded streaming (explicit v2 only; inherited by resume).")
     p_run.add_argument("--max-turns", type=int, default=None)
     p_run.add_argument("--max-tokens", type=int, default=None)
     p_run.add_argument("--max-seconds", type=int, default=None)
