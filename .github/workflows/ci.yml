@@ -91,9 +91,22 @@ jobs:
         run: python scripts/check_governance.py docs/EXECUTION_STATUS.json
       - name: Dependency notice audit offline regression
         run: python -m unittest discover -s tests -p test_dependency_notices.py -v
+      - name: Prepare Zod 4.6.7 security-fix lock candidate (no lifecycle scripts)
+        working-directory: plugins/codex-console
+        run: npm install zod@4.6.7 --save --package-lock-only --ignore-scripts --no-audit --no-fund --registry=https://registry.npmmirror.com
+      - name: Retain generated Zod security-fix manifests
+        if: runner.os == 'Linux'
+        working-directory: plugins/codex-console
+        run: |
+          mkdir -p ../../dependency-audit
+          cp package.json ../../dependency-audit/package.json.zod4-candidate.json
+          cp package-lock.json ../../dependency-audit/package-lock.zod4-candidate.json
       - name: Prepare locked runtime dependencies
         working-directory: plugins/codex-console
         run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+      - name: Verify patched Zod runtime version
+        working-directory: plugins/codex-console
+        run: npm ls zod --depth=0
       - name: Audit installed locked runtime dependency notices (offline)
         run: python scripts/audit_dependency_notices.py --root plugins/codex-console --phase runtime --out dependency-audit/runtime.json
       - name: Build updated UI source (Linux, no publish)

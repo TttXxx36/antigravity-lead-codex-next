@@ -21,3 +21,14 @@ The D22 workflow now collects full/runtime npm advisory JSON, npm registry signa
 2. Confirm registry signature/provenance coverage for the locked package set; identify unsigned packages or unsupported endpoints.
 3. Inspect published tarballs or upstream release process for the three MIT platform packages to verify license notice distribution.
 4. Complete legal notice aggregation and provenance review before D22 acceptance. No D22 formal merge or release authorized by this record.
+
+
+## HIGH vulnerability triage
+
+- Exact installed version: `zod@3.25.76`; direct dependency `^3.25.0`.
+- npm advisory: [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), CVSS 7.5 HIGH, CWE-770; both full and production-only audits report one HIGH and no other severities.
+- npm recommends `zod@4.6.7`, marked SemVer-major. Current application uses only `z.string`, `z.number`, `z.boolean`, `z.enum`, and common validators. MCP SDK/ext-apps and zod-to-json-schema peer ranges allow Zod 4. This does not replace full tests.
+- Registry signatures: 112/112 verified; 26 attestations verified. CycloneDX SBOM: 112 components and 113 dependency nodes.
+- D22 workflow now generates a temporary Zod 4.6.7 lock candidate with `--ignore-scripts`, captures the manifests, installs it on each matrix platform, checks `npm ls zod`, then runs the full regression and repeats npm audit. Repository package files remain unchanged until the generated lock is reviewed.
+
+**Release blocker:** do not merge D22 while the HIGH Zod advisory remains. Require 0 high/critical in both all-dependency and production-only audits, all four CI jobs PASS on the committed Zod 4 lock, signatures/provenance reviewed, and the three platform package notice distributions closed.

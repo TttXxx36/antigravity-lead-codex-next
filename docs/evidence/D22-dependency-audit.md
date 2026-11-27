@@ -62,3 +62,14 @@ Evidence source: exact D22 candidate `17519126ef8f5ef6ce64ee2cc53b3b921cac3068`,
 Run 46007057302 did not run vulnerability or registry-signature audits. The updated D22 workflow adds Linux-only, read-only evidence collection for full `npm audit --json`, production-only `npm audit --omit=dev --json`, `npm audit signatures` against the official npm registry, and a CycloneDX `npm sbom`. Raw stdout/stderr and command exit codes are retained in the existing dependency-audit artifact. The step does not run `npm audit fix`, change the lockfile, or fail merely because advisories are reported; the reports must be reviewed and any high/critical finding remains a release blocker. Signature/SBOM command failure or registry incompatibility is INCONCLUSIVE, not PASS.
 
 BUG-008's installed hidden-lock `resolved`/`integrity` comparison passed 4/4 in Run 46007057302. That is lock-metadata consistency, not a registry provenance attestation or malware scan. Await the new exact-head artifacts before stating vulnerability or provenance status.
+
+
+## 2026-11-27 official npm vulnerability audit — HIGH release blocker
+
+[Run 46015133159](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46015133159), exact checkout `eca3bee267fc72989e31786f2101fa3e957fbdbe`. Linux job generated both full and production-only npm audit JSON. Each reports exactly one HIGH, zero critical/moderate/low/info: direct production dependency `zod@3.25.76`, GHSA `GHSA-mrhx-c7xc-m3w5`, CVSS 7.5, CWE-770, affected range `<4.6.6`; fixed release reported by npm is `4.6.7`. This is a major-version upgrade from the declared `^3.25.0`, not a safe patch bump. Do not mark D22 candidate ready or merge until fixed and re-audited.
+
+Registry/provenance evidence from the same run: `npm audit signatures` exit 0, 112/112 package signatures verified, 26 verified attestations. CycloneDX SBOM command exit 0 and produced 112 components / 113 dependency nodes. These PASS results do not override the HIGH vulnerability.
+
+Compatibility review: current application uses Zod only for string/number/boolean/enum validators; `@modelcontextprotocol/sdk@1.32.2`, `@modelcontextprotocol/ext-apps@1.7.5`, and `zod-to-json-schema@3.25.2` declare Zod 4-compatible peer/dependency ranges. This is a source-level compatibility indication only; execute full four-platform regression on the generated Zod 4.6.7 lock before commit.
+
+The workflow now generates an isolated `zod@4.6.7` lock candidate with lifecycle scripts disabled and retains `package.json`/`package-lock.json` in the Linux dependency-audit artifact. It then installs from that candidate and runs `npm ls zod`, all existing tests, audit/signature/SBOM collection. The repository package files are not yet updated; the generated artifact must be reviewed and then committed explicitly. No `npm audit fix`, no auto-commit, no permission increase.

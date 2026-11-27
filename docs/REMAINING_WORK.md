@@ -372,3 +372,14 @@ New offline dependency inventory in CI uses existing locked installs, no added n
 
 ## D22 updated D21 ancestry integration (2026-11-27)
 D21 updated candidate `44b0fbe98dd2470f7095576757d1cbc96f89f947` carries D20 ancestry and corrected managed-session MCP metadata. Preserve D22 BUG-008 hidden-lock source/integrity verification. Prior Run 46007057302 validates BUG-008 4/4; latest D22 head requires new cumulative CI. npm advisory/signature/SBOM evidence is being added; no formal merge or release.
+
+
+## 2026-11-27 official npm vulnerability audit — HIGH release blocker
+
+[Run 46015133159](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46015133159), exact checkout `eca3bee267fc72989e31786f2101fa3e957fbdbe`. Linux job generated both full and production-only npm audit JSON. Each reports exactly one HIGH, zero critical/moderate/low/info: direct production dependency `zod@3.25.76`, GHSA `GHSA-mrhx-c7xc-m3w5`, CVSS 7.5, CWE-770, affected range `<4.6.6`; fixed release reported by npm is `4.6.7`. This is a major-version upgrade from the declared `^3.25.0`, not a safe patch bump. Do not mark D22 candidate ready or merge until fixed and re-audited.
+
+Registry/provenance evidence from the same run: `npm audit signatures` exit 0, 112/112 package signatures verified, 26 verified attestations. CycloneDX SBOM command exit 0 and produced 112 components / 113 dependency nodes. These PASS results do not override the HIGH vulnerability.
+
+Compatibility review: current application uses Zod only for string/number/boolean/enum validators; `@modelcontextprotocol/sdk@1.32.2`, `@modelcontextprotocol/ext-apps@1.7.5`, and `zod-to-json-schema@3.25.2` declare Zod 4-compatible peer/dependency ranges. This is a source-level compatibility indication only; execute full four-platform regression on the generated Zod 4.6.7 lock before commit.
+
+The workflow now generates an isolated `zod@4.6.7` lock candidate with lifecycle scripts disabled and retains `package.json`/`package-lock.json` in the Linux dependency-audit artifact. It then installs from that candidate and runs `npm ls zod`, all existing tests, audit/signature/SBOM collection. The repository package files are not yet updated; the generated artifact must be reviewed and then committed explicitly. No `npm audit fix`, no auto-commit, no permission increase.
