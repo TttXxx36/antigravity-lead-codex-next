@@ -391,13 +391,18 @@
           "name": "Actual session continuity and token acceptance",
           "status": "BLOCKED",
           "ref": "docs/evidence/D11-context.md"
+        },
+        {
+          "name": "BUG-007 cleanup denial synchronization",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D11-cleanup-integration.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "09ff29699f4b459281cce41e60a55c9931d7394e",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45945706823",
-        "limitations": "Real host/session continuity, token measurements and formal dependencies pending; opt-in only."
+        "limitations": "Real host/session continuity, token measurements and formal dependencies pending; opt-in only. Verified D06 cleanup denial synchronized; current head needs CI."
       }
     },
     {
