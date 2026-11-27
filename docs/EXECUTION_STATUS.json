@@ -213,12 +213,18 @@
           "name": "trusted host scoped grants and real OS execution boundary",
           "status": "BLOCKED",
           "ref": "docs/evidence/D06-policy.md"
+        },
+        {
+          "name": "Latest integrated or evidence-only candidate regression",
+          "status": "PASS",
+          "tested_commit": "234c8388b093b5dedf1d7c0cc65e42e7d1d1a710",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004837384"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "b652c5877df2e5a91d5191e1f21fab8c208b3015",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937059171",
+        "tested_commit": "234c8388b093b5dedf1d7c0cc65e42e7d1d1a710",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004837384",
         "limitations": "No positive trusted grant issuance or real OS sandbox proof; network, unmanaged queue/resume, live quota disabled; no production merge."
       }
     },
@@ -249,12 +255,18 @@
           "name": "actual host process-tree and crash acceptance",
           "status": "BLOCKED",
           "ref": "docs/evidence/D07-outcomes.md"
+        },
+        {
+          "name": "Latest integrated or evidence-only candidate regression",
+          "status": "PASS",
+          "tested_commit": "943f1c0606ad47b9602d49d5ea38765c24ea7639",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006007007"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "8e472999c84f1a41dd188a5766d6bd4de7bd02a5",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937506260",
+        "tested_commit": "943f1c0606ad47b9602d49d5ea38765c24ea7639",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006007007",
         "limitations": "Real Codex/Antigravity worker tree, escaped descendants and real power-loss not verified; no formal merge."
       }
     },
@@ -286,12 +298,18 @@
           "name": "Real host end-to-end",
           "status": "BLOCKED",
           "ref": "docs/evidence/D08-history.md"
+        },
+        {
+          "name": "Latest integrated or evidence-only candidate regression",
+          "status": "PASS",
+          "tested_commit": "c4d75a778c0c70f80a2b3ea2afdb1bd04cfb4e87",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006085006"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "5ab0c7db084b87701bb3d5d5f60fc512f833dc7f",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45938086882",
+        "tested_commit": "c4d75a778c0c70f80a2b3ea2afdb1bd04cfb4e87",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006085006",
         "limitations": "Actual Antigravity/Codex end-to-end and Windows x64 desktop unverified; no formal merge."
       }
     },
@@ -321,12 +339,18 @@
           "name": "Actual host visibility/UI and real token acceptance",
           "status": "BLOCKED",
           "ref": "docs/evidence/D09-compact.md"
+        },
+        {
+          "name": "Latest integrated or evidence-only candidate regression",
+          "status": "PASS",
+          "tested_commit": "61ed00c712fc0d5bf9a7f24eb5e4aed7f98fbb78",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006153189"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "99c0e5544bf03c1702fee7b7deb1a196b9fba502",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45940757723",
+        "tested_commit": "61ed00c712fc0d5bf9a7f24eb5e4aed7f98fbb78",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006153189",
         "limitations": "Actual host and token tests NOT_RUN; old records without result_ref unavailable; metadata-only log cursor and nonpersistent hash; not merged."
       }
     },
@@ -356,12 +380,18 @@
           "name": "Actual model structured output and host compatibility",
           "status": "BLOCKED",
           "ref": "docs/evidence/D10-protocol.md"
+        },
+        {
+          "name": "Latest integrated or evidence-only candidate regression",
+          "status": "PASS",
+          "tested_commit": "f8f3f9c245daba9688221c2aa1f004434fa55223",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006790409"
         }
       ],
       "candidate": {
         "ready": true,
-        "tested_commit": "5e937fcb4de98d0df60cef144b81e8f619f9e550",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45941283814",
+        "tested_commit": "f8f3f9c245daba9688221c2aa1f004434fa55223",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46006790409",
         "limitations": "Actual model and host unverified; v2 opt-in; batch/MCP v1; no formal merge."
       }
     },
@@ -956,7 +986,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Exact code head 6f2d23b PASS four environments; 34 passed / 6 platform skips in D22 test module; privacy remediation candidate verified; four identical inner RC hashes",
-      "next": "Block D22: upgrade Zod 3.25.76 to 4.6.7 (major, compatibility regression CI), re-run npm audit/signatures/SBOM, verify three binary-package notice distributions; no formal merge/release.",
+      "next": "Recheck committed Zod lock/bundle with immutable npm ci, cumulative CI, audit/signatures/SBOM. D05 real host and D22 formal gates remain BLOCKED.",
       "branch": "dev/d22",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no formal release, merge, permission or real model grant",
       "pr": 24,
@@ -999,8 +1029,9 @@
         },
         {
           "name": "BUG-008 dependency audit hidden-lock provenance regression",
-          "status": "NOT_RUN",
-          "ref": "docs/evidence/D22-dependency-audit.md"
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46007057302",
+          "tested_commit": "17519126ef8f5ef6ce64ee2cc53b3b921cac3068"
         },
         {
           "name": "D21 updated ancestry integration",
@@ -1049,13 +1080,19 @@
           "status": "FAIL",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46000617038",
           "tested_commit": "f38e8498acea39ca7d09e94582974ef656f879f2"
+        },
+        {
+          "name": "Temporary Zod 4 upgrade: Linux tracked UI bundle mismatch (three other jobs success)",
+          "status": "FAIL",
+          "tested_commit": "0245d5404e19c1d486d3c8015f5f3fb620d324c3",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46017099856"
         }
       ],
       "candidate": {
         "ready": false,
         "tested_commit": "eca3bee267fc72989e31786f2101fa3e957fbdbe",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46015133159",
-        "limitations": "BUG-008 4/4 passed; npm audit found one direct production HIGH Zod 3.25.76 vulnerability. Zod 4.6.7 major upgrade candidate pending tests. Three platform binary license notices remain unresolved; D05 host/model/release gates remain."
+        "limitations": "BUG-008 candidate PASS (18 pass/2 platform skips); Zod 4.6.7 trial npm audit all/runtime zero vulnerabilities but Linux tracked bundle mismatch. Committed lock and exact CI-built bundle need fresh four-platform CI. Three binary distribution notices and actual host/release gates remain."
       }
     }
   ],
