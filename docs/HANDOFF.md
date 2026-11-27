@@ -84,3 +84,10 @@ D03–D08 Windows 与正确性；D09–D13 低 Token 通信；D14–D17 性能�
 ## 6. 统一返回格式
 
 每项 Hxx 返回 PASS / FAIL / NOT_RUN / BLOCKED，记录实际证据路径、命令、退出码、平台、源码 SHA、未完成原因、风险、下一步。PASS 只能用于实际执行并满足判定条件的测试。D01 用量数据未知时保持 unknown/null；基准运行禁止真实模型调用（这不限制用户使用 Codex 作为开发代理本身）。不得声称已在 Windows/macOS 实测、已节省 Token 或全部验收，除非有对应证据。每个 PR 单独提供变更及证据、等待用户审核；不要合并或进入 D03。
+
+## 2026-11-27 最新接续（优先于上述历史状态）
+
+- 原版 D01 已跑三平台 Actions，固定源校验、完整模块、MCP、五次重复结果见 [CI-RUNS](evidence/CI-RUNS.md)；Windows 原版失败完整保留。H01/H03/H04/H06/H07 已取得托管基线证据，H02/H05/H08 仍需最终审查和验收，不能假称 Windows 原版成功。
+- [PR #4](https://github.com/TttXxx36/antigravity-lead-codex-next/pull/4) 独立修复候选三平台全绿，不混入原版 D01；真实用户桌面待测。
+- D02 治理规范、PR 模板、台账、检查器、15 项单测及三平台工作流已提交待验证；H09–H14 的实现/规划已准备，H12 CI 待实际结果、H13 不实际更改保护规则、H14 待用户审查。
+- 全部 23 卡当前状态、剩余验收见 [REMAINING_WORK](REMAINING_WORK.md)，问题与 Bug 见 [ISSUES_AND_BUGS](ISSUES_AND_BUGS.md)。用户要求沿路线持续推进，前置验收/合并及权限门禁仍适用。新状态以实际最新 PR/head 为准。
