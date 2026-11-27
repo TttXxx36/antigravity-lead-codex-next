@@ -42,6 +42,8 @@ jobs:
           git rev-parse HEAD
       - name: Durable request and loop guard regression
         run: python -m unittest discover -s tests -p test_request_gate.py -v
+      - name: Console durable request regression
+        run: node --no-warnings --test tests/test-request-db.mjs
       - name: Usage and budget regression
         run: python -m unittest discover -s tests -p test_budget.py -v
       - name: Task-local context regression
