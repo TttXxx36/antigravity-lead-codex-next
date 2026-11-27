@@ -10,7 +10,7 @@ import { ConsoleDB } from './console-db.mjs';
 import { CodexStore } from './codex-store.mjs';
 import { CodexRunner, DIAGNOSE_BLOCKER_PROMPT, buildExecEnv } from './runner.mjs';
 import { QuotaTracker } from './quota.mjs';
-import { QueryCache, DisplayReportCache, displayStamp, revisionEnvelope } from './query-cache.mjs';
+import { QueryCache, DisplayReportCache, createDisplayStamp, revisionEnvelope } from './query-cache.mjs';
 import { runtimePaths } from './platform.mjs';
 import { compactReply, compactError, compactStatus, compactDelta, compactOperation } from './compact.mjs';
 
@@ -46,7 +46,7 @@ const queryDeltaEnabled=process.env.ALC_QUERY_CACHE==='1';
 const displayCache=new QueryCache();
 const reportCache=new DisplayReportCache(runtimePaths().dispatchStateDir);
 const quotaCache=new QueryCache({ttlMs:15000,maxEntries:1,maxBytes:65536});
-const viewStamp=()=>displayStamp([store.stateDbPath,store.goalsDbPath,store.queueDbPath,store.historyDbPath,consoleDb.dbPath],runtimePaths().dispatchStateDir);
+const viewStamp=createDisplayStamp([store.stateDbPath,store.goalsDbPath,store.queueDbPath,store.historyDbPath,consoleDb.dbPath],runtimePaths().dispatchStateDir);
 const localQuota=force=>quotaCache.get('quota',{stamp:()=> 'local-rollout',load:()=>quotaTracker.getFastQuota(),force});
 const displaySnapshot=async(limit,force=false)=>({
   ...await displayCache.get('snapshot:'+limit,{stamp:viewStamp,load:()=>store.getSnapshot({limit,reportCache}),force,cacheable:v=>v.connected&&!v.health?.errors?.length}),

@@ -85,12 +85,12 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm run build:ui
-      - name: Export generated D16 UI bundle for verified commit
-        if: runner.os == 'Linux' && github.head_ref == 'dev/d16'
+      - name: Verify tracked UI bundle matches reproducible build
+        if: runner.os == 'Linux'
         working-directory: plugins/codex-console
         run: |
-          echo "D16_UI_BLOB $(git hash-object dist/app.html)"
-          python -c "import base64,pathlib; s=base64.b64encode(pathlib.Path('dist/app.html').read_bytes()).decode('ascii'); [print('D16_UI_CHUNK %04d %s' % (i//4096,s[i:i+4096])) for i in range(0,len(s),4096)]"
+          git hash-object dist/app.html
+          git diff --exit-code -- dist/app.html
       - name: Native MCP synthetic regression
         run: node --no-warnings tests/test-mcp-console.mjs
       - name: Windows installation lifecycle (mock native executable)

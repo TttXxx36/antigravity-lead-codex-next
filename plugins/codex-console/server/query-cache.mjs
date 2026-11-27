@@ -46,26 +46,43 @@ export function fileStamp(file){
 
 // SQLite WAL is part of the source identity. Never open or modify native DBs here.
 // Unknown/unbounded marker metadata disables cache; periodic TTL bounds artifact lag.
-export function displayStamp(dbPaths,dispatchDir){
+export function displayStamp(dbPaths,dispatchDir,memo=null,metrics=null){
   try{
     const files=[...dbPaths.flatMap(f=>[f,f+'-wal',f+'-journal']),path.join(dispatchDir,'state.json')];
     const marker=files.at(-1);
-    if(!fs.existsSync(marker))return JSON.stringify(files.map(fileStamp));
-    const st=fs.lstatSync(marker);
-    if(st.isSymbolicLink()||!st.isFile())return null;
-    if(st.size<=4096){
-      const value=JSON.parse(fs.readFileSync(marker,'utf8'));
-      if(value.storage){
+    const identity=fileStamp(marker),key=JSON.stringify(identity);
+    if(identity[0]!=='missing'&&BigInt(identity[2])<=4096n){
+      let value;
+      if(memo?.key===key)value=memo.value;
+      else{
+        const fd=fs.openSync(marker,'r');
+        let raw;
+        try{
+          const buf=Buffer.alloc(4097);let n=0;
+          while(n<buf.length){const m=fs.readSync(fd,buf,n,buf.length-n,null);if(!m)break;n+=m;}
+          raw=buf.subarray(0,n);
+        }finally{fs.closeSync(fd);}
+        if(metrics){metrics.fileReads++;metrics.fileBytes+=raw.length;}
+        if(raw.length>4096||JSON.stringify(fileStamp(marker))!==key)return null;
+        value=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(raw));
+        if(memo){memo.key=key;memo.value=value;}
+      }
+      if(!value||typeof value!=='object'||Array.isArray(value))return null;
+      if(Object.hasOwn(value,'storage')){
         if(value.storage!=='sqlite-v1'||!/^dispatch-state-[a-f0-9]{32}\.sqlite$/.test(value.database))return null;
         const f=path.join(dispatchDir,value.database);files.push(f,f+'-wal',f+'-journal');
       }
-    } else {
-      // The canonical D15 marker is under 4096 bytes. A larger legacy JSON
-      // source is fingerprinted without parsing it on each hit. Invalid state
-      // is never cached by the caller's health gate.
     }
-    return JSON.stringify(files.map(fileStamp));
+    // Large valid legacy JSON has no valid D15 marker; authoritative loader
+    // checks it. No repeated parse on hit. Check marker identity again.
+    const stamps=files.map(fileStamp);
+    if(JSON.stringify(stamps[dbPaths.length*3])!==key)return null;
+    return JSON.stringify(stamps);
   }catch{return null;}
+}
+export function createDisplayStamp(dbPaths,dispatchDir,metrics=null){
+  const memo={key:null,value:null};
+  return ()=>displayStamp(dbPaths,dispatchDir,memo,metrics);
 }
 
 export function revisionEnvelope(value,revision){
@@ -107,7 +124,8 @@ export class DisplayReportCache {
         try{st=fs.lstatSync(file,{bigint:true});}catch(err){if(err.code==='ENOENT')continue;throw err;}
         if(!st.isFile()||st.isSymbolicLink()||st.size>262144n||
           fs.realpathSync(file)!==path.join(canonical,path.relative(dir,file)))return null;
-        const stamp=JSON.stringify([fileStamp(file),task.result_ref?.sha256??null]);
+        const identity=[id,task.status,task.session_id??null,task.exit_code??null,task.task_status??null,task.result_ref?.turn??null,task.result_ref?.sha256??null];
+        const stamp=JSON.stringify([fileStamp(file),identity]);
         let entry=this.entries.get(file);
         if(entry?.stamp===stamp){this.entries.delete(file);this.entries.set(file,entry);return JSON.parse(entry.json);}
         const fd=fs.openSync(file,'r');
@@ -117,7 +135,7 @@ export class DisplayReportCache {
           while(n<buf.length){const m=fs.readSync(fd,buf,n,buf.length-n,null);if(!m)break;n+=m;}
           raw=buf.subarray(0,n);this.reads++;this.readBytes+=n;
         }finally{fs.closeSync(fd);}
-        if(raw.length>262144||JSON.stringify([fileStamp(file),task.result_ref?.sha256??null])!==stamp)return null;
+        if(raw.length>262144||JSON.stringify([fileStamp(file),identity])!==stamp)return null;
         if(task.result_ref&&crypto.createHash('sha256').update(raw).digest('hex')!==task.result_ref.sha256)return null;
         const value=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(raw));
         if(!value||typeof value!=='object'||Array.isArray(value))return null;

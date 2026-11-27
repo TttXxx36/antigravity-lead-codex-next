@@ -562,8 +562,8 @@
         "D15"
       ],
       "status": "IN_PROGRESS",
-      "evidence": "Run 45975558725 exact-head 20/20 and cumulative PASS; follow-up report mtime cache, partial UI panels and same-fixture real read benchmark; build transfer/recheck pending",
-      "next": "Verify updated CI; retrieve generated bundle and verify git blob hash, commit it; validate benchmark p95/query/logical I/O; host evidence remains blocked",
+      "evidence": "Source Run 45981495894 Ubuntu PASS; exact CI-produced UI blob verified and tracked; marker I/O included and report identity hardened; final four-platform recheck pending",
+      "next": "Verify latest exact head and reproducible UI build plus paired benchmark; host/physical I/O remain blocked",
       "branch": "dev/d16",
       "approval": "2026-11-27 user authorized A candidate development; display-only, no real model or production data writes",
       "pr": 18,
@@ -580,6 +580,12 @@
           "name": "D16 corrected source and paired benchmark",
           "status": "NOT_RUN",
           "ref": "Latest head pending"
+        },
+        {
+          "name": "D16 source build and paired Ubuntu benchmark",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45981495894/job/140446248179",
+          "tested_commit": "d4c06f7f41ddd17c149661c2f41fd9d679853777"
         }
       ]
     },

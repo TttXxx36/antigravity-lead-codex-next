@@ -571,13 +571,14 @@ async function runTests() {
     process.env.CODEX_HOME=codexHome;process.env.AGY_DISPATCH_STATE_DIR=dispatchDir;
     const {CodexStore,setDisplayReadMetrics}=await import('../plugins/codex-console/server/codex-store.mjs');
     const {ConsoleDB}=await import('../plugins/codex-console/server/console-db.mjs');
-    const {QueryCache,DisplayReportCache,displayStamp,revisionEnvelope}=await import('../plugins/codex-console/server/query-cache.mjs');
+    const {QueryCache,DisplayReportCache,createDisplayStamp,revisionEnvelope}=await import('../plugins/codex-console/server/query-cache.mjs');
     // Separate console DB instance only for read benchmark, no running ops in fixture.
     const benchDb=new ConsoleDB(path.join(tmpRoot,'benchmark-console'));
     try{
       const benchStore=new CodexStore(benchDb);
       const native=[benchStore.stateDbPath,benchStore.goalsDbPath,benchStore.queueDbPath,benchStore.historyDbPath,benchDb.dbPath];
-      const stamp=()=>displayStamp(native,dispatchDir);
+      const stampMetrics={fileReads:0,fileBytes:0};
+      const stamp=createDisplayStamp(native,dispatchDir,stampMetrics);
       const reports=new DisplayReportCache(dispatchDir);
       const cache=new QueryCache({ttlMs:5000});
       const sample={baseline:{times:[],dbOpens:0,queries:0,fileReads:0,fileBytes:0,wireBytes:0},candidate:{times:[],dbOpens:0,queries:0,fileReads:0,fileBytes:0,wireBytes:0}};
@@ -602,7 +603,7 @@ async function runTests() {
         }
       }
       setDisplayReadMetrics(null);
-      sample.candidate.fileReads+=reports.reads;sample.candidate.fileBytes+=reports.readBytes;
+      sample.candidate.fileReads+=reports.reads+stampMetrics.fileReads;sample.candidate.fileBytes+=reports.readBytes+stampMetrics.fileBytes;
       const p95=values=>Number(values.sort((a,b)=>a-b)[Math.ceil(values.length*.95)-1].toFixed(3));
       const result=Object.fromEntries(Object.entries(sample).map(([k,m])=>[k,{samples:m.times.length,p95Ms:p95(m.times),dbOpens:m.dbOpens,queries:m.queries,fileReads:m.fileReads,fileBytes:m.fileBytes,wireBytes:m.wireBytes}]));
       console.log('D16_BENCH '+JSON.stringify(result));
