@@ -42,7 +42,8 @@ export class ConsoleDB {
       CREATE TABLE IF NOT EXISTS dispatch_requests_v1 (
         request_id TEXT PRIMARY KEY,
         fingerprint TEXT NOT NULL,
-        operation_id TEXT NOT NULL UNIQUE
+        operation_id TEXT NOT NULL UNIQUE,
+        owner_pid INTEGER
       );
 
       CREATE TABLE IF NOT EXISTS collab_bindings (
@@ -81,15 +82,31 @@ export class ConsoleDB {
       // column already exists
     }
 
-    // Mark orphaned running ops from previous server lifetime as interrupted
+    // Upgrade the candidate request registry without deleting existing receipts.
+    const hasOwner = () => this.db.prepare('PRAGMA table_info(dispatch_requests_v1)').all().some(c=>c.name==='owner_pid');
+    if (!hasOwner()) {
+      try { this.db.exec('ALTER TABLE dispatch_requests_v1 ADD COLUMN owner_pid INTEGER'); }
+      catch (err) { if (!hasOwner()) throw err; }
+    }
+    // Legacy operations retain their existing restart behavior; keyed operations
+    // must not be interrupted merely because another MCP instance opened the DB.
     const now = Date.now();
     this.db.prepare(`
       UPDATE console_ops
       SET status = 'interrupted',
           error_text = COALESCE(error_text, 'MCP 服务重启，后台任务已中断'),
           finished_at = COALESCE(finished_at, ?)
-      WHERE status = 'running'
+      WHERE status = 'running' AND NOT EXISTS (SELECT 1 FROM dispatch_requests_v1 r WHERE r.operation_id=console_ops.id)
     `).run(now);
+    const active=this.db.prepare("SELECT r.operation_id,r.owner_pid FROM dispatch_requests_v1 r JOIN console_ops o ON o.id=r.operation_id WHERE o.status='running'").all();
+    for (const row of active) {
+      // Unknown owner / PID reuse is conservative: preserve pending receipt, never relaunch.
+      if (!Number.isSafeInteger(row.owner_pid) || row.owner_pid<=0) continue;
+      try { process.kill(row.owner_pid,0); }
+      catch (err) {
+        if (err.code==='ESRCH') this.db.prepare("UPDATE console_ops SET status='interrupted',error_text=COALESCE(error_text,'Request owner exited; reconciliation required'),finished_at=COALESCE(finished_at,?) WHERE id=? AND status='running'").run(now,row.operation_id);
+      }
+    }
   }
 
   getAllPrefs() {
@@ -208,7 +225,7 @@ export class ConsoleDB {
         throw new Error('D13: request audit full; no automatic deletion');
       }
       const op = this.createOp({...args, meta:{...args.meta, requestId:key}});
-      this.db.prepare('INSERT INTO dispatch_requests_v1(request_id,fingerprint,operation_id) VALUES (?,?,?)').run(key,fingerprint,op.id);
+      this.db.prepare('INSERT INTO dispatch_requests_v1(request_id,fingerprint,operation_id,owner_pid) VALUES (?,?,?,?)').run(key,fingerprint,op.id,process.pid);
       this.db.exec('COMMIT');
       return { created:true, conflict:false, op };
     } catch (err) {

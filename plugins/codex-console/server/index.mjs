@@ -319,7 +319,7 @@ server.registerTool(
         requestId, retryOf,
       });
       return ok(
-        `消息操作已提交（模式: ${mode}，状态: ${op.status}，操作ID: ${op.id}）${op.errorText ? `\n说明: ${op.errorText}` : ''}`,
+        `${op.duplicate ? '重复请求：返回原操作，未再次派发' : '消息操作已提交'}（模式: ${mode}，状态: ${op.status}，操作ID: ${op.id}）${op.errorText ? `\n说明: ${op.errorText}` : ''}`,
         { op }
       );
     } catch (err) {
@@ -352,7 +352,7 @@ server.registerTool(
     try {
       const op = runner.spawnWorker(args);
       return ok(
-        `已启动受管 Codex 子代理任务（操作ID: ${op.id}，目录: ${args.cwd}，策略: ${args.quality || 'smart'}/${args.difficulty || 'auto'}/${args.isolation || 'worktree'}${args.network ? '/network' : ''}）。`,
+        `${op.duplicate ? '重复请求：返回原操作，未再次启动' : '已启动受管 Codex 子代理任务'}（操作ID: ${op.id}，目录: ${args.cwd}，策略: ${args.quality || 'smart'}/${args.difficulty || 'auto'}/${args.isolation || 'worktree'}${args.network ? '/network' : ''}）。`,
         { op }
       );
     } catch (err) {

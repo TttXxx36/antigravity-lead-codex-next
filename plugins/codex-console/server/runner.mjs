@@ -220,7 +220,7 @@ export class CodexRunner {
         meta: { taskId, cwd: actualCwd, revision:rev },
       });
       const op=reservation.op;
-      if (!reservation.created) return op;
+      if (!reservation.created) return {...op,duplicate:true};
       const dispatchArgs=[DISPATCH_SCRIPT, 'resume', '--task-id', taskId, '--no-network', '--prompt', cleanMsg];
       if (requestId!=null) dispatchArgs.push('--protocol-v2','--request-id',requestId);
       if (retryOf!=null) dispatchArgs.push('--retry-of',retryOf);
@@ -307,7 +307,7 @@ export class CodexRunner {
       meta:{cwd:cleanCwd,taskId:taskId||null,changeKey:changeKey||null,network:useNetwork,revision:rev},
     });
     const op=reservation.op;
-    if (!reservation.created) return op;
+    if (!reservation.created) return {...op,duplicate:true};
 
     const args = [
       DISPATCH_SCRIPT,

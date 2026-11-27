@@ -936,7 +936,7 @@ def collect_git_truth(workdir: Path, base_sha: str | None) -> dict[str, Any]:
     )
     current_sha = head_proc.stdout.strip() if head_proc.returncode == 0 else None
 
-    diff_cmd = [git_bin, "-C", str(workdir), "diff", "--stat"]
+    diff_cmd = [git_bin, "-C", str(workdir), "diff", "--no-ext-diff", "--no-textconv", "--stat"]
     if base_sha:
         diff_cmd.append(base_sha)
     diff_proc = subprocess.run(diff_cmd, capture_output=True, text=True, encoding="utf-8")
@@ -946,6 +946,8 @@ def collect_git_truth(workdir: Path, base_sha: str | None) -> dict[str, Any]:
         "head_sha": current_sha,
         "base_sha": base_sha,
         "has_new_commits": bool(base_sha and current_sha and current_sha != base_sha),
+        "metadata_complete": all(p.returncode == 0 for p in (status_proc, head_proc, diff_proc))
+            and all(len([ln for ln in p.stdout.splitlines() if ln.strip()]) <= 40 for p in (status_proc, diff_proc)),
         "status_short": cap_lines(status_proc.stdout, 40),
         "diff_stat": cap_lines(diff_proc.stdout, 40),
     }
@@ -2051,7 +2053,9 @@ def request_progress(record: dict[str, Any]) -> str | None:
         raise StateIntegrityError("D13: terminal artifact identity mismatch")
     git = data.get("git_truth")
     if (not isinstance(git, dict) or git.get("is_git") is not True
+            or git.get("metadata_complete") is not True
             or not isinstance(git.get("head_sha"), str)
+            or re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", git["head_sha"]) is None
             or any(not isinstance(git.get(k), str) for k in ("status_short", "diff_stat"))):
         return None
     # Conservative metadata fingerprint: same-size edits can look unchanged.

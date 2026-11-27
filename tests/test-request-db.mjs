@@ -21,7 +21,9 @@ test('durable reservation returns original across restart, no cross-scope leakag
   db.db.close();db=new ConsoleDB(root);
   const old=db.reserveRequest(options);
   assert.equal(old.created,false);assert.equal(old.op.id,first.op.id);
-  assert.equal(old.op.status,'interrupted');
+  assert.equal(old.op.status,'running'); // same live owner, even after reopening DB
+  db.finishOp(old.op.id,{status:'succeeded'});
+  assert.equal(db.getOp(old.op.id).status,'succeeded');
   assert.equal(db.listOps().length,1);
  }finally{db.db.close();fs.rmSync(root,{recursive:true,force:true});}
 });
@@ -53,4 +55,22 @@ test('keyed result identity and duplicate receipt never imply independent verifi
  }
  assert.equal(classifyKeyedResult(1,v,'task-1',1).status,'failed');
  assert.equal(classifyKeyedResult(0,v,'task-1',1,true).status,'failed');
+});
+
+test('opening a second MCP instance preserves live keyed owner; dead owner cannot relaunch',async()=>{
+ const root=temp();
+ const moduleUrl=new URL('../plugins/codex-console/server/console-db.mjs',import.meta.url).href;
+ const source='import {ConsoleDB} from '+JSON.stringify(moduleUrl)+';const d=new ConsoleDB(process.argv[1]);const r=d.reserveRequest(JSON.parse(process.argv[2]));console.log(r.op.id);process.stdin.resume();process.stdin.on("end",()=>{d.close();process.exit(0)})';
+ const child=spawn(process.execPath,['--no-warnings','--input-type=module','-e',source,root,JSON.stringify(options)],{stdio:['pipe','pipe','pipe']});
+ const closed=new Promise(resolve=>child.once('close',resolve));
+ try {
+  const id=await new Promise((resolve,reject)=>{let out='';child.stdout.on('data',c=>{out+=c;if(out.includes('\n'))resolve(out.trim())});child.once('error',reject);child.once('close',rc=>reject(new Error('owner exited '+rc)))});
+  const observer=new ConsoleDB(root);
+  try {const duplicate=observer.reserveRequest(options);assert.equal(duplicate.created,false);assert.equal(duplicate.op.id,id);assert.equal(duplicate.op.status,'running');}
+  finally{observer.close()}
+  child.stdin.end();assert.equal(await closed,0);
+  const restarted=new ConsoleDB(root);
+  try {const duplicate=restarted.reserveRequest(options);assert.equal(duplicate.created,false);assert.equal(duplicate.op.id,id);assert.equal(duplicate.op.status,'interrupted');}
+  finally{restarted.close()}
+ }finally{child.stdin.end();await closed;fs.rmSync(root,{recursive:true,force:true})}
 });
