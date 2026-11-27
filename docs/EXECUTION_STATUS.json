@@ -489,9 +489,9 @@
         "D07",
         "D13"
       ],
-      "status": "IN_PROGRESS",
-      "evidence": "D14 opt-in bounded stream and MCP cursor; strict malformed/duplicate JSON rejection, uncertain-stream resume gate and mock run/resume tests; exact-head CI pending",
-      "next": "Verify latest exact-head cumulative CI; real host, UI push, cancellation and raw rotation remain unverified",
+      "status": "BLOCKED",
+      "evidence": "Exact-head four-environment cumulative CI PASS; 32/32 D14 streaming tests plus MCP cursor regression",
+      "next": "D15 candidate permitted; real host/UI push, actual cancel/reconnect and full raw-log rotation remain blocked",
       "branch": "dev/d14",
       "approval": "2026-11-27 user authorized A candidate development; no real model or expanded authority",
       "pr": 16,
@@ -500,10 +500,22 @@
       "checks": [
         {
           "name": "D14 streaming and cumulative regression",
-          "status": "NOT_RUN",
-          "ref": "pending CI"
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45973849986",
+          "tested_commit": "b7bc081c680e94f87a3012d5fa1f0f54d93116b5"
+        },
+        {
+          "name": "Actual host/UI, full raw rotation and cancellation",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D14-streaming.md"
         }
-      ]
+      ],
+      "candidate": {
+        "ready": true,
+        "tested_commit": "b7bc081c680e94f87a3012d5fa1f0f54d93116b5",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45973849986",
+        "limitations": "Opt-in v2; bounded raw log cap stops rather than rotates; metadata rolling window and per-turn cursors only; real host push/cancel/reconnect and escaped descendants remain unverified; no merge."
+      }
     },
     {
       "id": "D15",
