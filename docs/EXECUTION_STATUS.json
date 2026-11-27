@@ -598,15 +598,21 @@
         "D15",
         "D16"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "公平队列、冲突范围、取消释放、保留未提交数据",
+      "status": "IN_PROGRESS",
+      "evidence": "Persistent FIFO scheduler candidate with local quota/disk gating, same-repo conflicts, batch dependency validation and read-only cleanup preview; CI pending",
+      "next": "Verify actual cross-process scheduler regressions, four-environment cumulative CI; actual host/active cancel and trusted cleanup remain blocked",
       "branch": "dev/d17",
-      "approval": null,
+      "approval": "2026-11-27 user authorized A candidate development; no production worker/model or cleanup authorization",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D17 scheduler and cumulative regression",
+          "status": "NOT_RUN",
+          "ref": "pending CI"
+        }
+      ]
     },
     {
       "id": "D18",

@@ -40,6 +40,8 @@ jobs:
           node -p "JSON.stringify({platform:process.platform,arch:process.arch,node:process.version})"
           python -c "import platform,sys; print(platform.machine(),sys.version)"
           git rev-parse HEAD
+      - name: Persistent scheduler and cleanup safety regression
+        run: python -m unittest discover -s tests -p test_scheduler.py -v
       - name: Display cache and delta regression
         run: node --test tests/test-query-cache.mjs
       - name: SQLite state migration and recovery regression

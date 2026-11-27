@@ -23,7 +23,7 @@
 | [D14](decisions/D14.md) 实时流式执行与事件总线 | V1.3 | D07,D13 | BLOCKED | PR #16 四环境 PASS；真实宿主/完整日志轮换未验收；D15 可继续 |
 | [D15](decisions/D15.md) SQLite 任务状态迁移 | V1.3 | D04,D14 | BLOCKED | PR #17 四环境 PASS；真实宿主迁移/恢复及依赖验收阻塞；D16 可继续 |
 | [D16](decisions/D16.md) MCP 查询缓存与 UI 增量刷新 | V1.3 | D14,D15 | BLOCKED | PR #18 四环境 PASS；UI 构建/性能证据已补齐；真实宿主及物理 I/O 未验收；D17 可继续 |
-| [D17](decisions/D17.md) 动态并发与 Worktree 资源治理 | V1.3 | D14,D15,D16 | PROPOSED | 未实施；公平队列、冲突范围、取消释放、保留未提交数据 |
+| [D17](decisions/D17.md) 动态并发与 Worktree 资源治理 | V1.3 | D14,D15,D16 | IN_PROGRESS | D17 持久队列/依赖/清理预检候选；CI 待验证 |
 | [D18](decisions/D18.md) 确定性编排状态机 | V2.0 | D13,D15,D17 | PROPOSED | 未实施；显式状态机、lease/revision、审计、恢复防重复 |
 | [D19](decisions/D19.md) 风险驱动审查与验收 | V2.0 | D18 | PROPOSED | 未实施；风险分级、确定性检查、安全/并发/迁移必审 |
 | [D20](decisions/D20.md) 常驻 Codex App Server 可选适配 | V2.0 | D18,D19 | PROPOSED | 未实施；官方能力协商、CLI 兜底、权限对等、复用/断线测试 |
@@ -165,3 +165,7 @@ Paired same-fixture actual 30 calls each, alternating order; p95 ms measured loc
 | Ubuntu / 140447071593 | 4.049 → 1.591 | 120 → 4 | 270 → 9 | 60 → 2 | 38670 → 2192 | 4413150 → 149930 |
 
 Candidate ready under existing authorization; formal BLOCKED: actual Antigravity browser/old-host compatibility, live DOM interaction, physical I/O, real host state changes and dependency acceptance remain unverified. Report-only mutation may lag snapshot TTL (5s); per-report identity/mtime checked when refreshed; local quota 15s TTL. No model/authority checks use display cache. D17 may continue. Evidence-only head requires recheck.
+
+
+## 2026-11-27 D17 initial candidate
+Base c54b32f300259cc4d5178994c42de9a38e2b2d95 (D16 exact source d70653c / Run 45981702422 PASS). Explicit offline local scheduler.json schema {version:1,max_slots:1..4,max_wait_seconds:1..300,min_free_bytes:integer,quota:null|{remaining_percent:0..100,observed_at:epoch_seconds}}. Not a permission or model grant. Persistent FIFO tickets in D04/D15 state transaction, bounded 4096 audit, no automatic deletion, no lease-expiry relaunch. Unknown/stale advisory quota caps at one, <=10% pauses, disk pressure pauses. Canonical Git common directory and overlapping paths serialize, declared file hints are not trusted isolation; unknown scope conflicts all. Run/resume/review/batch use same scheduler; queue cancel only, active interruption/timeout uncertain retains slot until manual reconciliation, no PID auto-reclaim. Direct MCP fork denied when scheduler configured/activated. Batch DAG validates before launches, conservative waves, failed dependency blocks successors, max 4 workers. Cleanup now read-only preview, checks managed path/branch, clean tracked/untracked/ignored state, ancestry and independent acceptance; never removes/prunes/deletes (trusted approval absent). Config absence before activation preserves legacy execution, sticky scheduler.ever prevents accidental bypass after activation; offline operator must stop all clients, reconcile and remove configuration/marker only after review to roll back; older binaries and external Codex calls cannot be governed. Actual host queue/cancellation, quota source and cleanup approval remain unverified. No real model, production config, cleanup, permission expansion or merge. CI pending.
