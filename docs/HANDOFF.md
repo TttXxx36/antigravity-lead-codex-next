@@ -91,3 +91,6 @@ D03–D08 Windows 与正确性；D09–D13 低 Token 通信；D14–D17 性能�
 - [PR #4](https://github.com/TttXxx36/antigravity-lead-codex-next/pull/4) 独立修复候选三平台全绿，不混入原版 D01；真实用户桌面待测。
 - D02 治理规范、PR 模板、台账、检查器、15 项单测及三平台工作流已提交待验证；H09–H14 的实现/规划已准备，H12 CI 待实际结果、H13 不实际更改保护规则、H14 待用户审查。
 - 全部 23 卡当前状态、剩余验收见 [REMAINING_WORK](REMAINING_WORK.md)，问题与 Bug 见 [ISSUES_AND_BUGS](ISSUES_AND_BUGS.md)。用户要求沿路线持续推进，前置验收/合并及权限门禁仍适用。新状态以实际最新 PR/head 为准。
+
+### D02 实测结果
+[Run 45922285638](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45922285638) 完成 success；测试提交 `02d2e14f676e5f8e9b1a365c8d65553120d915cd`，三个平台 ledger 检查和各15项单测全部通过（45/45）。H09–H12 已实施及验证，H13 保护规则方案已写明但远程规则未修改，H14 Draft PR #3 已更新；人工验收及合并仍待授权。见 [D02 CI 证据](evidence/D02-governance.md)。

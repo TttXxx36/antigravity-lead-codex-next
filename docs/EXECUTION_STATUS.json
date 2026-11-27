@@ -67,8 +67,8 @@
         "D00"
       ],
       "status": "REVIEW",
-      "evidence": "PR #3：治理规范、检查器、三平台测试待核验",
-      "next": "检查器 CI 结果、人工审批；远程保护设置另获授权",
+      "evidence": "PR #3；治理规范、检查器、三平台 45/45 单测通过",
+      "next": "人工验收及合并；远程保护设置另获授权",
       "branch": "dev/d02",
       "approval": "User requested D02 and continuation of roadmap",
       "pr": 3,
@@ -76,9 +76,10 @@
       "merged": false,
       "checks": [
         {
-          "name": "governance workflow",
-          "status": "NOT_RUN",
-          "ref": "PR #3"
+          "name": "governance ledger + 15 unit tests × 3 platforms",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45922285638",
+          "tested_commit": "02d2e14f676e5f8e9b1a365c8d65553120d915cd"
         }
       ]
     },

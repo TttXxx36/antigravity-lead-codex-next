@@ -34,3 +34,6 @@ PROPOSED → ACCEPTED → IN_PROGRESS → REVIEW → DONE。BLOCKED/DEFERRED 须
 ## 退出及回滚
 
 提交 Draft PR 与证据，等待人工验收；关闭未合并 PR 即可回到原状。已合并后使用 revert，保留历史和证据。若证据缺失、测试失败、审批缺失，维持 REVIEW/BLOCKED，不能启动依赖卡。
+
+## 已执行治理 CI
+[Run 45922285638](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45922285638)，测试 head `02d2e14f676e5f8e9b1a365c8d65553120d915cd`，三平台均成功；详见 [D02-governance.md](evidence/D02-governance.md)。
