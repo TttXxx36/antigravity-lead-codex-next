@@ -356,13 +356,18 @@
           "name": "Actual model structured output and host compatibility",
           "status": "BLOCKED",
           "ref": "docs/evidence/D10-protocol.md"
+        },
+        {
+          "name": "BUG-007 cleanup denial synchronization",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D10-cleanup-integration.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "5e937fcb4de98d0df60cef144b81e8f619f9e550",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45941283814",
-        "limitations": "Actual model and host unverified; v2 opt-in; batch/MCP v1; no formal merge."
+        "limitations": "Actual model and host unverified; v2 opt-in; batch/MCP v1; no formal merge. Verified D06 cleanup denial synchronized; current head needs CI."
       }
     },
     {
