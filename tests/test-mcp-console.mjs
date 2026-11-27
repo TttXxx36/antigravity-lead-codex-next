@@ -246,6 +246,7 @@ async function runTests() {
         ...env, HOME: tmpRoot, USERPROFILE: tmpRoot,
         CODEX_BIN: process.execPath,
         CODEX_HOME: codexHome,
+        ALC_QUERY_CACHE:'1',
         AGY_DISPATCH_STATE_DIR: dispatchDir,
         GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: globalConfig, GIT_TERMINAL_PROMPT: '0',
       },
@@ -551,6 +552,20 @@ async function runTests() {
       const reply=await rpc('tools/call',{name:detailName,arguments:{threadId:id}});
       assert.equal(reply.result?.structuredContent?.task?.id,id,JSON.stringify(reply));
     }
+    const view=async(name,args)=>(await rpc('tools/call',{name,arguments:args})).result.structuredContent;
+    const first=await view('console_snapshot_delta',{limit:50});
+    assert.equal(first.changed,true);
+    const same=await view('console_snapshot_delta',{limit:50,revision:first.revision});
+    assert.equal(same.changed,false);
+    assert.equal(same.value,undefined);
+    const detailDelta=await view('console_thread_delta',{threadId:'historical-0299'});
+    assert.equal(detailDelta.value.task.id,'historical-0299');
+    assert.equal(detailDelta.value.git,undefined);
+    assert.equal((await view('console_thread_delta',{threadId:'historical-0299',revision:detailDelta.revision})).changed,false);
+    await rpc('tools/call',{name:'console_toggle_pin',arguments:{threadId:'historical-0299',customTitle:'D16 changed'}});
+    const changedDetail=await view('console_thread_delta',{threadId:'historical-0299',revision:detailDelta.revision,force:true});
+    assert.equal(changedDetail.changed,true);assert.equal(changedDetail.value.task.title,'D16 changed');
+    console.log('[PASS] D16 app delta, ID detail, explicit refresh, no Git by default, legacy contracts retained');
     const ambiguous=await rpc('tools/call',{name:detailName,arguments:{threadId:'historical-0'}});
     assert.equal(ambiguous.result?.isError,true);
     assert.match(ambiguous.result?.structuredContent?.error||'',/Ambiguous/);

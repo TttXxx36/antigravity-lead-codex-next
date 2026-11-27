@@ -51,6 +51,10 @@ const state = {
   selectedGit: null,
 
   loadingSnapshot: false,
+  queryDelta: false,
+  snapshotRevision: undefined,
+  detailRevision: undefined,
+  detailRequest: 0,
   sendingMessage: false,
   searchQuery: '',
   composerText: '',
@@ -231,8 +235,25 @@ async function refreshSnapshot({ silent = false } = {}) {
   if (state.loadingSnapshot) return;
   state.loadingSnapshot = true;
   if (!silent) render();
+  let changed = !silent;
   try {
-    const data = await callTool('console_snapshot', { limit: 180 });
+    let data;
+    if(state.queryDelta){
+      try{
+        const reply=await callTool('console_snapshot_delta',{limit:180,revision:state.snapshotRevision,force:!silent});
+        state.snapshotRevision=reply.revision;
+        if(reply.changed)data=reply.value;
+      }catch(err){
+        if(!/D16 query delta disabled|unknown tool|not found|not supported/i.test(err.message))throw err;
+        state.queryDelta=false;state.snapshotRevision=undefined;
+      }
+    }
+    if(!state.queryDelta){
+      data=await callTool('console_snapshot',{limit:180});
+      state.queryDelta=data.queryDelta===true;
+    }
+    if(data){
+    changed=true;
     state.connected = Boolean(data.connected);
     state.stats = data.stats || state.stats;
     state.tasks = data.tasks || [];
@@ -256,15 +277,16 @@ async function refreshSnapshot({ silent = false } = {}) {
     if (!state.selectedBindingId && state.bindings.length) {
       state.selectedBindingId = state.bindings[0].id;
     }
-    if (state.selectedThreadId) {
-      await loadThreadDetail(state.selectedThreadId, { silent: true });
+    }
+    if (state.selectedThreadId && state.activeTab === 'tasks') {
+      changed=(await loadThreadDetail(state.selectedThreadId,{silent:true,force:!silent,renderAfter:false}))||changed;
     }
     scheduleAutoRefresh();
   } catch (err) {
     if (!silent) showToast(err.message, 'error');
   } finally {
     state.loadingSnapshot = false;
-    render();
+    if(changed)render();
   }
 }
 
@@ -286,18 +308,36 @@ async function refreshQuotaLive({ silent = false } = {}) {
   }
 }
 
-async function loadThreadDetail(threadId, { silent = false } = {}) {
-  if (!threadId) return;
-  state.selectedThreadId = threadId;
-  try {
-    const detail = await callTool('get_codex_task_detail', { threadId });
-    state.selectedDetail = detail;
-    state.selectedGit = detail.git || null;
-  } catch (err) {
-    if (!silent) showToast(err.message, 'error');
-  } finally {
-    render();
-  }
+async function loadThreadDetail(threadId,{silent=false,force=false,renderAfter=true}={}){
+  if(!threadId)return false;
+  let changed=state.selectedThreadId!==threadId||state.selectedDetail?.task?.id!==threadId;
+  if(changed){state.selectedDetail=null;state.selectedGit=null;state.detailRevision=undefined;}
+  state.selectedThreadId=threadId;
+  const request=++state.detailRequest;
+  const current=()=>request===state.detailRequest&&threadId===state.selectedThreadId;
+  try{
+    let detail;
+    if(state.queryDelta){
+      const response=await callTool('console_thread_delta',{threadId,revision:state.detailRevision,force});
+      if(!current())return false;
+      state.detailRevision=response.revision;
+      if(response.changed)detail=response.value;
+    }else{
+      detail=await callTool('get_codex_task_detail',{threadId});
+    }
+    if(!current())return false;
+    if(detail){state.selectedDetail=detail;changed=true;if(!state.queryDelta)state.selectedGit=detail.git||null;}
+    if(state.queryDelta&&state.detailSubTab==='git'&&state.selectedDetail?.task?.cwd){
+      const {git}=await callTool('console_git_inspect',{cwd:state.selectedDetail.task.cwd});
+      if(!current())return false;
+      if(JSON.stringify(git)!==JSON.stringify(state.selectedGit)){state.selectedGit=git;changed=true;}
+    }
+  }catch(err){
+    if(!current())return false;
+    state.selectedDetail=null;state.selectedGit=null;state.detailRevision=undefined;changed=true;
+    if(!silent)showToast(err.message,'error');
+  }finally{if(current()&&renderAfter&&changed)render();}
+  return changed;
 }
 
 async function updateThreadPref(threadId, patch, toastMsg = '') {
@@ -1188,6 +1228,7 @@ function bindEvents() {
     el.addEventListener('click', () => {
       state.detailSubTab = el.dataset.subtab;
       render();
+      if(state.queryDelta&&state.detailSubTab==='git'&&state.selectedThreadId)loadThreadDetail(state.selectedThreadId,{silent:true});
     })
   );
 
@@ -1392,7 +1433,7 @@ function scheduleAutoRefresh() {
     state.stats.runningCount > 0 ||
     state.stats.runningOpsCount > 0 ||
     active?.status?.code === 'running';
-  const ms = hot ? 4_000 : 12_000;
+  const ms = state.queryDelta ? (document.hidden ? 30_000 : hot ? 4_000 : 20_000) : (hot ? 4_000 : 12_000);
   if (state.autoRefreshTimer && state.lastPollMs === ms) return;
   if (state.autoRefreshTimer) clearInterval(state.autoRefreshTimer);
   state.lastPollMs = ms;
@@ -1400,6 +1441,12 @@ function scheduleAutoRefresh() {
     if (!state.modal && !state.sendingMessage) refreshSnapshot({ silent: true });
   }, ms);
 }
+
+document.addEventListener('visibilitychange',()=>{
+  if(!state.queryDelta)return;
+  scheduleAutoRefresh();
+  if(!document.hidden)refreshSnapshot({silent:true});
+});
 
 app.ontoolinput = () => {};
 

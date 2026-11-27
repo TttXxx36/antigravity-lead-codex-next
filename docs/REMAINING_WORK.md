@@ -22,7 +22,7 @@
 | [D13](decisions/D13.md) 幂等派发与循环终止 | V1.2 | D10,D12 | BLOCKED | PR #15 四环境 PASS；真实宿主/恢复未验收；D14 可继续 |
 | [D14](decisions/D14.md) 实时流式执行与事件总线 | V1.3 | D07,D13 | BLOCKED | PR #16 四环境 PASS；真实宿主/完整日志轮换未验收；D15 可继续 |
 | [D15](decisions/D15.md) SQLite 任务状态迁移 | V1.3 | D04,D14 | BLOCKED | PR #17 四环境 PASS；真实宿主迁移/恢复及依赖验收阻塞；D16 可继续 |
-| [D16](decisions/D16.md) MCP 查询缓存与 UI 增量刷新 | V1.3 | D14,D15 | PROPOSED | 未实施；按 ID/TTL/delta、并发请求合并、p95/I/O 对照 |
+| [D16](decisions/D16.md) MCP 查询缓存与 UI 增量刷新 | V1.3 | D14,D15 | IN_PROGRESS | D16 展示缓存/差量接口及 UI 源码候选；待构建、性能及 CI |
 | [D17](decisions/D17.md) 动态并发与 Worktree 资源治理 | V1.3 | D14,D15,D16 | PROPOSED | 未实施；公平队列、冲突范围、取消释放、保留未提交数据 |
 | [D18](decisions/D18.md) 确定性编排状态机 | V2.0 | D13,D15,D17 | PROPOSED | 未实施；显式状态机、lease/revision、审计、恢复防重复 |
 | [D19](decisions/D19.md) 风险驱动审查与验收 | V2.0 | D18 | PROPOSED | 未实施；风险分级、确定性检查、安全/并发/迁移必审 |
@@ -144,3 +144,7 @@ D15 review/CI follow-up: initial Run 45974526071 migration assertions ran on Win
 
 ## 2026-11-27 D15 final candidate evidence
 [Run 45974689285](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45974689285) completed/success on exact head `de11dc6f48588192c82cfd25172be44cfc5901f1`; PR #17 remains Draft. Checkout logs verified: Windows Server x64 140423383707, Ubuntu 140423384167, macOS ARM64 140423384183, Windows 11 ARM64 140423384199. Each ran test_sqlite_state.py 8/8 OK (32/32); actual Python fixture migration, MCP read, corrupt manifest rejection, inverse migration and unchanged native DB hash PASS; cumulative governance and Windows lifecycle PASS. Initial Run 45974526071 failed on both Windows environments due to fixture connection cleanup (WinError 32); corrected explicitly, no skipped assertions. No production migration or real model calls. Candidate ready; formal BLOCKED by actual host migration/recovery, manual quiescence, dependency gates and unverified power-loss recovery. Recovery exports backup only, not automatic activation. D16 candidate may continue under existing authorization. Evidence-only head requires recheck.
+
+
+## 2026-11-27 D16 initial candidate
+Base 07ce2d89eeee61dcd4eafa8111e88f260d3b39a1 (D15 tested de11dc6f / Run 45974689285 PASS). Explicit ALC_QUERY_CACHE=1 enables app-only revision endpoints; default legacy fresh paths, model-facing task/authorization checks remain unchanged. Bounded 5s display TTL, 32 entries/2MiB, single-flight same source, native/owned DB and WAL metadata invalidation, errors/unknown stamps bypass cache; large legacy JSON bypasses cache. Local quota rollout only, bounded 15s cache, no live app-server or real model calls. UI source selects delta only if advertised, avoids unchanged render, ID detail no automatic Git unless tab selected, slower idle/hidden polling. Changed views still use existing full render; report-specific mtime optimization, measured paired p95/query/I/O, full DOM partial patch and actual host acceptance incomplete. Linux CI builds UI source but tracked dist/app.html is NOT yet rebuilt/committed; do not mark candidate ready or advance D17 until remaining candidate evidence. No merge.

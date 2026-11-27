@@ -561,15 +561,21 @@
         "D14",
         "D15"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "按 ID/TTL/delta、并发请求合并、p95/I/O 对照",
+      "status": "IN_PROGRESS",
+      "evidence": "Opt-in app query cache and delta endpoints, UI source polling changes, tests; prebuilt bundle and performance acceptance pending",
+      "next": "Verify cumulative CI; rebuild and commit prebuilt UI, paired p95/query/I/O measurements and real host remain pending",
       "branch": "dev/d16",
-      "approval": null,
+      "approval": "2026-11-27 user authorized A candidate development; display-only, no real model or production data writes",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D16 cache/delta candidate CI",
+          "status": "NOT_RUN",
+          "ref": "Exact-head CI pending"
+        }
+      ]
     },
     {
       "id": "D17",

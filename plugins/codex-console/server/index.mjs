@@ -10,6 +10,8 @@ import { ConsoleDB } from './console-db.mjs';
 import { CodexStore } from './codex-store.mjs';
 import { CodexRunner, DIAGNOSE_BLOCKER_PROMPT, buildExecEnv } from './runner.mjs';
 import { QuotaTracker } from './quota.mjs';
+import { QueryCache, displayStamp, revisionEnvelope } from './query-cache.mjs';
+import { runtimePaths } from './platform.mjs';
 import { compactReply, compactError, compactStatus, compactDelta, compactOperation } from './compact.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -38,6 +40,16 @@ const runner = new CodexRunner(consoleDb);
 const quotaTracker = new QuotaTracker({
   codexBin: runner.codexBin,
   env: buildExecEnv(),
+});
+
+const queryDeltaEnabled=process.env.ALC_QUERY_CACHE==='1';
+const displayCache=new QueryCache();
+const quotaCache=new QueryCache({ttlMs:15000,maxEntries:1,maxBytes:65536});
+const viewStamp=()=>displayStamp([store.stateDbPath,store.goalsDbPath,store.queueDbPath,store.historyDbPath,consoleDb.dbPath],runtimePaths().dispatchStateDir);
+const localQuota=force=>quotaCache.get('quota',{stamp:()=> 'local-rollout',load:()=>quotaTracker.getFastQuota(),force});
+const displaySnapshot=async(limit,force=false)=>({
+  ...await displayCache.get('snapshot:'+limit,{stamp:viewStamp,load:()=>store.getSnapshot({limit}),force,cacheable:v=>v.connected&&!v.health?.errors?.length}),
+  quota:await localQuota(force),runtime:runner.getRuntimeInfo(),queryDelta:true
 });
 
 const APP_URI = 'ui://codex-console/app.html';
@@ -451,9 +463,35 @@ server.registerTool(
       ...snap,
       quota,
       runtime: runner.getRuntimeInfo(),
+      queryDelta:queryDeltaEnabled,
     });
   }
 );
+
+const viewRevision=z.string().regex(/^[a-f0-9]{64}$/).optional();
+server.registerTool('console_snapshot_delta',{
+  description:'Opt-in display-only revision snapshot; no worker or model call.',
+  inputSchema:{limit:z.number().int().min(10).max(250).optional(),revision:viewRevision,force:z.boolean().optional()},
+  _meta:APP_ONLY_META
+},async({limit=160,revision,force=false})=>{
+  if(!queryDeltaEnabled)return fail('D16 query delta disabled');
+  try{return ok('snapshot delta',revisionEnvelope(await displaySnapshot(limit,force),revision));}
+  catch(err){return fail(err.message);}
+});
+server.registerTool('console_thread_delta',{
+  description:'Opt-in exact thread detail by revision; no automatic Git inspection.',
+  inputSchema:{threadId:z.string().min(4).max(256),revision:viewRevision,force:z.boolean().optional()},
+  _meta:APP_ONLY_META
+},async({threadId,revision,force=false})=>{
+  if(!queryDeltaEnabled)return fail('D16 query delta disabled');
+  try{
+    const exact=store.resolveThreadId(threadId);
+    if(!exact)return fail('Thread not found');
+    const detail=await displayCache.get('detail:'+exact,{stamp:viewStamp,load:()=>store.getThreadDetail(exact),force,cacheable:v=>v.task&&!v.errors?.length});
+    if(!detail.task)return fail('Thread not found');
+    return ok('thread delta',revisionEnvelope(detail,revision));
+  }catch(err){return fail(err.message);}
+});
 
 server.registerTool(
   'console_refresh_quota',
@@ -464,7 +502,7 @@ server.registerTool(
     _meta: APP_ONLY_META,
   },
   async () => {
-    const quota = await quotaTracker.refreshLive();
+    const quota = queryDeltaEnabled ? await localQuota(true) : await quotaTracker.refreshLive();
     return ok('quota refreshed', { quota });
   }
 );
