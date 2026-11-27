@@ -467,6 +467,8 @@ def require_storage_quiescent(data):
         raise StateIntegrityError("D15: stop and reconcile active tasks before storage change")
     if any(op["status"] in ("pending","uncertain") for op in request_records(data).values()):
         raise StateIntegrityError("D15: reconcile outstanding request reservations")
+    if any(t["status"] in SCHEDULER_LIVE for t in scheduler_registry(data)["tickets"].values()):
+        raise StateIntegrityError("D17: reconcile scheduler tickets before storage change")
 
 
 def cmd_state_storage(args):
@@ -2404,7 +2406,331 @@ def invoke_worker(cmd, *, cwd, stdin_text, timeout, run_dir, task_id, turn_id=No
     return rc, out, err, timed_out
 
 
-def execute_single_task(
+
+# D17: candidate local resource governor. It can only restrict existing
+# execution. Configure offline; no model/worker input can grant permissions.
+SCHEDULER_KEY = "scheduler_v1"
+SCHEDULER_LIMIT = 4096
+SCHEDULER_LIVE = ("queued", "active", "uncertain")
+SCHEDULER_TERMINAL = ("released", "cancelled")
+
+
+def scheduler_config():
+    file = STATE_DIR / "scheduler.json"
+    reject_link(STATE_DIR)
+    reject_link(file)
+    if not file.exists():
+        return None
+    with file.open("rb") as fh:
+        raw = fh.read(4097)
+    if len(raw)>4096:
+        raise StateIntegrityError("D17: scheduler config too large")
+    value = strict_state_json(raw)
+    if not isinstance(value,dict) or set(value)!={"version","max_slots","max_wait_seconds","min_free_bytes","quota"} or type(value["version"]) is not int or value["version"]!=1:
+        raise StateIntegrityError("D17: incompatible scheduler config")
+    if (type(value["max_slots"]) is not int or not 1<=value["max_slots"]<=4
+        or type(value["max_wait_seconds"]) is not int or not 1<=value["max_wait_seconds"]<=300
+        or type(value["min_free_bytes"]) is not int or not 0<=value["min_free_bytes"]<=2**50):
+        raise StateIntegrityError("D17: invalid capacity configuration")
+    quota=value["quota"]
+    if quota is not None:
+        if (not isinstance(quota,dict) or set(quota)!={"remaining_percent","observed_at"}
+            or type(quota["remaining_percent"]) is not int or not 0<=quota["remaining_percent"]<=100
+            or type(quota["observed_at"]) is not int or quota["observed_at"]<0):
+            raise StateIntegrityError("D17: invalid advisory quota")
+    return value
+
+
+def scheduler_registry(state,create=False):
+    registry=state.get(SCHEDULER_KEY)
+    if registry is None:
+        if SCHEDULER_KEY in state:
+            raise StateIntegrityError("D17: invalid scheduler registry")
+        if not create:
+            return {"next_seq":1,"tickets":{}}
+        registry={"next_seq":1,"tickets":{}}
+        state[SCHEDULER_KEY]=registry
+    if (not isinstance(registry,dict) or set(registry)!={"next_seq","tickets"}
+        or type(registry["next_seq"]) is not int or not 1<=registry["next_seq"]<=SCHEDULER_LIMIT+1
+        or not isinstance(registry["tickets"],dict) or len(registry["tickets"])>SCHEDULER_LIMIT):
+        raise StateIntegrityError("D17: invalid scheduler registry")
+    seqs=set()
+    for key,rec in registry["tickets"].items():
+        if (not isinstance(key,str) or not re.fullmatch(r"[a-f0-9]{32}",key) or not isinstance(rec,dict)
+            or type(rec.get("seq")) is not int or not 1<=rec["seq"]<registry["next_seq"] or rec["seq"] in seqs
+            or rec.get("status") not in SCHEDULER_LIVE+SCHEDULER_TERMINAL
+            or rec.get("kind") not in ("run","resume","review")
+            or type(rec.get("owner_pid")) is not int or rec["owner_pid"]<=0
+            or not isinstance(rec.get("scope"),dict)):
+            raise StateIntegrityError("D17: invalid scheduler ticket")
+        validate_task_id(rec.get("task_id"))
+        scope=rec["scope"]
+        if (set(scope)!={"root","common","unknown"} or not isinstance(scope["root"],str)
+            or not Path(scope["root"]).is_absolute() or type(scope["unknown"]) is not bool
+            or (scope["common"] is not None and (not isinstance(scope["common"],str) or not Path(scope["common"]).is_absolute()))):
+            raise StateIntegrityError("D17: invalid ticket scope")
+        seqs.add(rec["seq"])
+    if len(seqs)!=registry["next_seq"]-1:
+        raise StateIntegrityError("D17: missing scheduler audit sequence")
+    return registry
+
+
+def scheduler_scope(cwd):
+    root=str(Path(cwd).resolve(strict=True))
+    git=get_git_bin()
+    if not git:
+        return {"root":root,"common":None,"unknown":True}
+    try:
+        env={**os.environ,"LC_ALL":"C","LANG":"C","GIT_OPTIONAL_LOCKS":"0"}
+        top=subprocess.run([git,"-C",root,"rev-parse","--show-toplevel"],capture_output=True,
+                           text=True,encoding="utf-8",errors="replace",timeout=5,env=env)
+        if top.returncode:
+            return {"root":root,"common":None,"unknown":"not a git repository" not in top.stderr.lower()}
+        common=subprocess.run([git,"-C",root,"rev-parse","--path-format=absolute","--git-common-dir"],
+                              capture_output=True,text=True,encoding="utf-8",errors="replace",timeout=5,env=env)
+        if common.returncode or not Path(common.stdout.strip()).is_absolute():
+            return {"root":root,"common":None,"unknown":True}
+        return {"root":str(Path(top.stdout.strip()).resolve(strict=True)),
+                "common":str(Path(common.stdout.strip()).resolve(strict=True)),"unknown":False}
+    except (OSError,ValueError,subprocess.TimeoutExpired):
+        return {"root":root,"common":None,"unknown":True}
+
+
+def scheduler_conflict(a,b):
+    if a["task_id"].casefold()==b["task_id"].casefold():
+        return True
+    x,y=a["scope"],b["scope"]
+    if x["unknown"] or y["unknown"]:
+        return True
+    norm=lambda p:os.path.normcase(os.path.normpath(p)).casefold()
+    if x["common"] and y["common"] and norm(x["common"])==norm(y["common"]):
+        return True
+    try:
+        left,right=norm(x["root"]),norm(y["root"])
+        return os.path.commonpath([left,right]) in (left,right)
+    except ValueError:
+        return False  # distinct Windows volumes
+
+
+def scheduler_capacity(config,scope):
+    quota=config["quota"]
+    now=int(time.time())
+    fresh=quota is not None and 0<=now-quota["observed_at"]<=300
+    if not fresh:
+        cap,quota_status=1,"unknown"
+    elif quota["remaining_percent"]<=10:
+        cap,quota_status=0,"low"
+    elif quota["remaining_percent"]<=25:
+        cap,quota_status=1,"limited"
+    else:
+        cap,quota_status=config["max_slots"],"available"
+    try:
+        free=min(shutil.disk_usage(STATE_DIR).free,shutil.disk_usage(scope["root"]).free)
+    except OSError:
+        return 0,quota_status,None,"disk_unknown"
+    if free<config["min_free_bytes"]:
+        return 0,quota_status,free,"disk_pressure"
+    return cap,quota_status,free,"quota_low" if cap==0 else "capacity"
+
+
+def scheduler_has_untracked_work(state,tickets):
+    tracked={t["task_id"].casefold() for t in tickets.values() if t["status"] in ("active","uncertain")}
+    return any(rec.get("status") in ("reserved","running","interrupted") and tid.casefold() not in tracked
+               for tid,rec in state["tasks"].items())
+
+
+def scheduler_settle(ticket,settled=False):
+    if ticket is None:
+        return
+    with locked_state() as state:
+        rec=scheduler_registry(state)["tickets"].get(ticket)
+        if not rec or rec["owner_pid"]!=os.getpid():
+            raise StateIntegrityError("D17: scheduler ticket identity changed")
+        if rec["status"]=="queued":
+            rec.update(status="cancelled",reason="owner_cancelled",updated_at=utc_now())
+        elif rec["status"]=="active":
+            rec.update(status="released" if settled else "uncertain",
+                       reason="terminal_observed" if settled else "reconciliation_required",updated_at=utc_now())
+        elif rec["status"] not in ("cancelled","released","uncertain"):
+            raise StateIntegrityError("D17: unexpected ticket state")
+
+
+@contextlib.contextmanager
+def scheduler_admission(kind,task_id,cwd):
+    config=scheduler_config()
+    # Sticky marker blocks bypass if config is accidentally removed while work
+    # exists. No automatic stale PID reclamation or destructive cleanup.
+    marker=STATE_DIR/"scheduler.ever"
+    reject_link(marker)
+    if config is None and not STATE_FILE.exists() and not marker.exists():
+        yield None
+        return
+    ticket=None
+    scope=scheduler_scope(cwd) if config is not None else None
+    with locked_state() as state:
+        registry=scheduler_registry(state,create=config is not None)
+        tickets=registry["tickets"]
+        if config is None:
+            if any(t["status"] in SCHEDULER_LIVE for t in tickets.values()) or marker.exists():
+                raise StateIntegrityError("D17: scheduler config absent after activation; reconcile offline")
+        else:
+            if len(tickets)>=SCHEDULER_LIMIT:
+                raise StateIntegrityError("D17: scheduler audit full; no automatic deletion")
+            if not marker.exists():
+                if scheduler_has_untracked_work(state,tickets):
+                    raise StateIntegrityError("D17: stop/reconcile legacy work before activation")
+                atomic_write_bytes(marker,b"D17 scheduler activated; offline rollback only\n")
+            ticket=uuid.uuid4().hex
+            seq=registry["next_seq"];registry["next_seq"]+=1
+            tickets[ticket]={"seq":seq,"task_id":validate_task_id(task_id),"kind":kind,
+                             "scope":scope,"owner_pid":os.getpid(),"status":"queued",
+                             "created_at":utc_now(),"updated_at":utc_now(),"reason":"queued"}
+    if ticket is None:
+        yield None
+        return
+    lease={"ticket":ticket,"settled":False}
+    deadline=time.monotonic()+config["max_wait_seconds"]
+    try:
+        while True:
+            cfg=scheduler_config()
+            if cfg is None:
+                raise StateIntegrityError("D17: scheduler config removed while waiting")
+            cap,quota,free,reason=scheduler_capacity(cfg,scope)
+            decision="wait"
+            with locked_state() as state:
+                tickets=scheduler_registry(state)["tickets"]
+                rec=tickets.get(ticket)
+                if not rec or rec["owner_pid"]!=os.getpid():
+                    raise StateIntegrityError("D17: missing scheduler ticket")
+                if rec["status"]=="cancelled":
+                    decision="cancelled"
+                elif rec["status"]!="queued":
+                    raise StateIntegrityError("D17: unexpected admission state")
+                elif time.monotonic()>=deadline:
+                    rec.update(status="cancelled",reason="queue_timeout",updated_at=utc_now())
+                    decision="cancelled"
+                else:
+                    active=[t for t in tickets.values() if t["status"] in ("active","uncertain")]
+                    waiting=sorted((t["seq"] for t in tickets.values() if t["status"]=="queued"))
+                    if scheduler_has_untracked_work(state,tickets):
+                        reason="untracked_work"
+                    elif rec["seq"]!=waiting[0]:
+                        reason="fifo"
+                    elif len(active)>=cap:
+                        reason=reason if cap==0 else "capacity"
+                    elif any(scheduler_conflict(rec,t) for t in active):
+                        reason="scope_conflict"
+                    else:
+                        rec.update(status="active",reason="admitted",updated_at=utc_now())
+                        decision="active"
+                    if decision=="wait" and rec.get("reason")!=reason:
+                        rec.update(reason=reason,updated_at=utc_now())
+                    telemetry={"quota":quota,"free_bytes_floor_mib":None if free is None else free//1048576*1048576,"effective_cap":cap}
+                    if rec.get("resources")!=telemetry:
+                        rec["resources"]=telemetry
+            if decision=="cancelled":
+                raise ValueError("D17: queued operation cancelled or wait deadline reached; no worker launched")
+            if decision=="active":
+                break
+            time.sleep(.15)
+        if scheduler_scope(cwd)!=scope:
+            # No child launched; this ticket can safely release its slot.
+            lease["settled"]=True
+            raise StateIntegrityError("D17: queued workspace identity changed")
+        yield lease
+    finally:
+        scheduler_settle(ticket,lease["settled"])
+
+
+def scheduler_known_terminal(result):
+    return (isinstance(result,dict) and result.get("process_status") in ("exited","failed","launch_failed")
+            and not result.get("timed_out") and result.get("exit_code") not in (124,125)
+            and result.get("task_status") in ("completed","failed","partial","blocked"))
+
+
+def scheduler_reconciliation_packet(state, key):
+    """Describe one unresolved slot without inferring process death or granting release."""
+    if not re.fullmatch(r"[a-f0-9]{32}",key):
+        raise ValueError("D17: invalid ticket")
+    ticket=scheduler_registry(state)["tickets"].get(key)
+    if not ticket or ticket["status"] not in ("active","uncertain"):
+        raise ValueError("D17: reconciliation requires an active or uncertain ticket")
+    tid=ticket["task_id"]
+    task=state["tasks"].get(tid)
+    ops=sorted(((k,v) for k,v in request_records(state).items()
+                if v["task_id"].casefold()==tid.casefold()),key=lambda x:x[1]["ordinal"])
+    latest_key,latest=ops[-1] if ops else (None,None)
+    # D18 orchestration does not exist in this independent D17 candidate.
+    event,lease,bound=None,None,False
+    reasons=["trusted_owned_process_tree_exit_evidence_required",
+             "trusted_reconciliation_authority_required"]
+    if any(op["status"] in ("pending","uncertain") for _,op in ops):
+        reasons.append("unsettled_request")
+    if task is None or task.get("active_turn_id") or not scheduler_known_terminal(task) or task.get("stream_integrity")=="incomplete":
+        reasons.append("terminal_task_unconfirmed")
+    if lease:
+        reasons.append("orchestration_lease_outstanding")
+    if not bound:
+        reasons.append("ticket_to_latest_result_binding_unverified")
+    ref=task.get("result_ref") if task else None
+    # Only a validated digest/turn shape is returned. Latest task metadata is
+    # not evidence that this particular ticket's process tree terminated.
+    packet={"version":1,"operation":"scheduler_reconcile_preview","ticket":key,
+            "ticketSequence":ticket["seq"],"ticketStatus":ticket["status"],
+            "ticketDigest":request_hash(ticket),"taskId":tid,"kind":ticket["kind"],
+            "taskRecordDigest":request_hash(task) if task is not None else None,
+            "latestRequestId":latest_key,"latestRequestStatus":latest["status"] if latest else None,
+            "latestResultSha256":ref["sha256"] if isinstance(ref,dict) and set(ref)=={"turn","sha256"} and isinstance(ref["sha256"],str) and re.fullmatch(r"[a-f0-9]{64}",ref["sha256"]) and (ref["turn"] is None or (isinstance(ref["turn"],str) and re.fullmatch(r"turn-[A-Za-z0-9_-]{1,75}",ref["turn"]))) else None,
+            "orchestrationAuditDigest":event["digest"] if event else None,
+            "orchestrationLeaseMatchesTicket":bound,"blockers":reasons,
+            "processExitProof":"NOT_RUN","authority":"NOT_CONFIGURED",
+            "slotReleased":False,"workerTerminated":False,"cleanupAuthorized":False}
+    packet["evidenceDigest"]=request_hash(packet)
+    return packet
+
+
+def scheduler_status_cmd(args):
+    if args.subcommand=="scheduler-reconcile-preview" and not STATE_FILE.exists():
+        raise ValueError("D17: scheduler state not found")
+    with locked_state() as state:
+        registry=scheduler_registry(state)
+        if args.subcommand=="scheduler-cancel":
+            key=args.ticket
+            if not re.fullmatch(r"[a-f0-9]{32}",key):
+                raise ValueError("D17: invalid ticket")
+            rec=registry["tickets"].get(key)
+            if not rec or rec["status"]!="queued":
+                raise ValueError("D17: only a queued ticket may be cancelled; no active process kill")
+            rec.update(status="cancelled",reason="operator_cancelled",updated_at=utc_now())
+            payload={"ticket":key,"status":"cancelled"}
+        elif args.subcommand=="scheduler-reconcile-preview":
+            payload=scheduler_reconciliation_packet(state,args.ticket)
+        else:
+            payload={"enabled":scheduler_config() is not None,"tickets":[
+                {"ticket":key,"seq":t["seq"],"task_id":t["task_id"],"kind":t["kind"],
+                 "status":t["status"],"reason":t.get("reason"),"resources":t.get("resources")}
+                for key,t in sorted(registry["tickets"].items(),key=lambda x:x[1]["seq"])]}
+    print(json.dumps(payload,ensure_ascii=False,indent=2))
+    return 0
+
+
+def execute_single_task(**kwargs):
+    if kwargs.get("dry_run"):
+        return _execute_single_task(**kwargs)
+    enforce_execution_policy(kwargs["sandbox"],kwargs.get("network",False),kwargs.get("effort"))
+    if kwargs.get("protocol_v2"):
+        tid=parse_task_envelope(kwargs["prompt"],kwargs.get("task_id"),0)["task_id"]
+    else:
+        tid=validate_task_id(kwargs.get("task_id") or make_task_id("run"))
+    kwargs["task_id"]=tid
+    with scheduler_admission("run",tid,kwargs["cwd"]) as lease:
+        result=_execute_single_task(**kwargs)
+        if lease is not None:
+            lease["settled"]=scheduler_known_terminal(result) and not (kwargs.get("stream_events") and result.get("exit_code") in (124,125,127))
+        return result
+
+
+def _execute_single_task(
     *,
     prompt: str,
     cwd: Path,
@@ -2946,6 +3272,26 @@ def cmd_batch(args: argparse.Namespace) -> int:
         enforce_execution_policy(item.get("sandbox", "workspace-write"), item.get("network", False), item.get("effort"))
         if "protocol_v2" in item or "envelope" in item or "blackboard" in item:
             raise ValueError("D10: structured protocol is supported on run/resume only; batch stays v1")
+    if type(args.max_concurrency) is not int or not 1<=args.max_concurrency<=4 or len(items)>128:
+        raise ValueError("D17: batch bounds (1–4 slots, at most 128 tasks)")
+    if any(not isinstance(item.get("prompt"),str) or not item["prompt"].strip() for item in items):
+        raise ValueError("D17: every batch task requires a prompt")
+    dependency_mode=any("depends_on" in item for item in items)
+    dependencies={i:[] for i in range(len(items))}
+    if dependency_mode:
+        ids=[validate_task_id(item.get("task_id")) for item in items]
+        if len({x.casefold() for x in ids})!=len(ids):raise ValueError("D17: duplicate batch task IDs")
+        by_id={tid:i for i,tid in enumerate(ids)}
+        for i,item in enumerate(items):
+            deps=item.get("depends_on",[])
+            if not isinstance(deps,list) or any(not isinstance(x,str) or x not in by_id for x in deps) or len(set(deps))!=len(deps) or ids[i] in deps:
+                raise ValueError("D17: invalid batch dependency")
+            dependencies[i]=[by_id[x] for x in deps]
+        remaining=set(dependencies);seen=set()
+        while remaining:
+            ready={i for i in remaining if set(dependencies[i])<=seen}
+            if not ready:raise ValueError("D17: cyclic batch dependency")
+            seen|=ready;remaining-=ready
     default_cwd = Path(args.cwd).resolve() if args.cwd else Path.cwd().resolve()
 
     def _run_item(idx: int, item: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -2980,11 +3326,23 @@ def cmd_batch(args: argparse.Namespace) -> int:
         return idx, res
 
     ordered: list[dict[str, Any] | None] = [None] * len(items)
-    with ThreadPoolExecutor(max_workers=max(1, args.max_concurrency)) as pool:
-        futures = [pool.submit(_run_item, i, item) for i, item in enumerate(items)]
-        for fut in as_completed(futures):
-            idx, res = fut.result()
-            ordered[idx] = res
+    remaining=set(range(len(items)))
+    with ThreadPoolExecutor(max_workers=args.max_concurrency) as pool:
+        while remaining:
+            wave=[i for i in sorted(remaining) if all(ordered[k] is not None for k in dependencies[i])]
+            if not wave:raise StateIntegrityError("D17: dependency scheduler stalled")
+            futures={}
+            for i in wave:
+                if any(task_exit_code(ordered[k])!=0 for k in dependencies[i]):
+                    ordered[i]={"task_id":items[i].get("task_id"),"task_status":"blocked","process_status":"not_started","reason":"dependency_failed","exit_code":1}
+                else:
+                    futures[pool.submit(_run_item,i,items[i])]=i
+            for fut in as_completed(futures):
+                i=futures[fut]
+                try:idx,res=fut.result();ordered[idx]=res
+                except Exception as exc:
+                    ordered[i]={"task_id":items[i].get("task_id"),"task_status":"blocked","process_status":"unknown","reason":type(exc).__name__,"exit_code":1}
+            remaining.difference_update(wave)
 
     results = [r for r in ordered if r is not None]
     failed = [r for r in results if task_exit_code(r) != 0]
@@ -3012,7 +3370,17 @@ def cmd_resume(args: argparse.Namespace) -> int:
     lock = root / "resume.lock"
     reject_link(lock)
     with exclusive_state_lock(lock, timeout=0):
-        return _cmd_resume(args)
+        with locked_state() as state:
+            record=state["tasks"].get(args.task_id)
+            if not record:raise ValueError("Unknown task_id")
+            cwd=record["workdir"]
+        with scheduler_admission("resume",args.task_id,cwd) as lease:
+            rc=_cmd_resume(args)
+            if lease is not None:
+                with locked_state() as state:
+                    rec=state["tasks"].get(args.task_id,{})
+                    lease["settled"]=scheduler_known_terminal(rec) and rec.get("stream_integrity")!="incomplete"
+            return rc
 
 
 def _cmd_resume(args: argparse.Namespace) -> int:
@@ -3249,6 +3617,23 @@ def _cmd_resume(args: argparse.Namespace) -> int:
 
 
 def cmd_review(args: argparse.Namespace) -> int:
+    if args.dry_run:return _cmd_review(args)
+    cwd=args.cwd
+    if args.task_id:
+        validate_task_id(args.task_id)
+        with locked_state() as state:
+            rec=state["tasks"].get(args.task_id)
+            if not rec:raise ValueError("Unknown task_id")
+            cwd=rec["workdir"]
+        if args.cwd is not None and configured_path(args.cwd)!=configured_path(cwd):
+            raise ValueError("D17: associated review cwd mismatch")
+    with scheduler_admission("review",args.task_id or make_task_id("review"),cwd or Path.cwd()) as lease:
+        rc=_cmd_review(args)
+        if lease is not None:lease["settled"]=getattr(args,"_d17_terminal",False)
+        return rc
+
+
+def _cmd_review(args: argparse.Namespace) -> int:
     if args.task_id:
         validate_task_id(args.task_id)
     task_record: dict[str, Any] | None = None
@@ -3361,6 +3746,7 @@ def cmd_review(args: argparse.Namespace) -> int:
     )
     (run_dir / "events.jsonl").write_text(stdout_text, encoding="utf-8")
     (run_dir / "stderr.log").write_text(stderr_text, encoding="utf-8")
+    args._d17_terminal=not timed_out and rc not in (124,125)
 
     parsed_events = parse_codex_events(stdout_text)
     review_text = (
@@ -3440,11 +3826,131 @@ def cmd_status(args: argparse.Namespace) -> int:
         return 0
 
 
-def cmd_cleanup(args: argparse.Namespace) -> int:
-    # A request, including a plain cleanup without force/delete-branch, is
-    # not a trusted grant. Keep the worktree and task state intact.
-    raise ValueError("D06: cleanup requires trusted human authorization")
+def cleanup_sha(value):
+    return isinstance(value,str) and re.fullmatch(r"(?:[a-f0-9]{40}|[a-f0-9]{64})",value) is not None
 
+
+def cleanup_git_probe(cwd,args,deadline):
+    binary=get_git_bin()
+    remaining=min(8,deadline-time.monotonic())
+    if not binary or remaining<=0:return None,b""
+    env={k:v for k,v in os.environ.items() if not k.upper().startswith("GIT_")}
+    env.update(GIT_CONFIG_NOSYSTEM="1",GIT_CONFIG_GLOBAL=os.devnull,GIT_TERMINAL_PROMPT="0",
+               GIT_NO_REPLACE_OBJECTS="1",GIT_NO_LAZY_FETCH="1",GIT_OPTIONAL_LOCKS="0",
+               GIT_PROTOCOL_FROM_USER="0",GIT_ALLOW_PROTOCOL="",LC_ALL="C")
+    cmd=[binary,"--no-optional-locks","-c","core.fsmonitor=false","-c","core.hooksPath="+os.devnull,
+         "-c","diff.external=","-c","protocol.allow=never",
+         "-c","core.whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol",
+         "-C",str(cwd),*args]
+    try:
+        proc=subprocess.Popen(cmd,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+            env=env,start_new_session=os.name!="nt",
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name=="nt" else 0)
+    except OSError:return None,b""
+    over=threading.Event();buffers=[bytearray(),bytearray()]
+    def read(pipe,buf,limit):
+        try:
+            while True:
+                part=pipe.read1(8192)
+                if not part:break
+                if len(buf)+len(part)>limit:
+                    over.set();break
+                buf.extend(part)
+        except OSError:over.set()
+        finally:pipe.close()
+    threads=[threading.Thread(target=read,args=(proc.stdout,buffers[0],262144),daemon=True),
+             threading.Thread(target=read,args=(proc.stderr,buffers[1],32768),daemon=True)]
+    for thread in threads:thread.start()
+    end=time.monotonic()+remaining
+    try:
+        while proc.poll() is None and not over.is_set() and time.monotonic()<end:time.sleep(.02)
+        if proc.poll() is None:
+            terminate_owned_process_tree(proc);proc.wait(timeout=5);return None,b""
+        for thread in threads:thread.join(timeout=.3)
+        if over.is_set() or any(thread.is_alive() for thread in threads):return None,b""
+        return proc.returncode,bytes(buffers[0])
+    except (OSError,subprocess.TimeoutExpired):return None,b""
+    except BaseException:
+        terminate_owned_process_tree(proc);raise
+
+
+def cmd_cleanup(args: argparse.Namespace) -> int:
+    if args.force or args.delete_branch:
+        raise ValueError("D06: destructive cleanup requires trusted human authorization")
+    validate_task_id(args.task_id)
+    with locked_state() as state:
+        rec=state["tasks"].get(args.task_id)
+        if not rec:raise ValueError("Unknown task_id")
+        busy=any(t["task_id"].casefold()==args.task_id.casefold() and t["status"] in SCHEDULER_LIVE
+                 for t in scheduler_registry(state)["tickets"].values())
+    reasons=[]
+    if busy or rec.get("status")!="completed" or rec.get("active_turn_id"):
+        reasons.append("task_not_quiescent_completed")
+    if rec.get("verification_status")!="passed" or rec.get("verification_passed") is not True:
+        reasons.append("independent_acceptance_missing")
+    wp=rec.get("worktree_path");repo=rec.get("repo_root");branch=rec.get("branch")
+    if not wp or not repo or not branch:
+        reasons.append("no_managed_worktree")
+    else:
+        path=Path(wp)
+        try:
+            rel=path.relative_to(WORKTREES_DIR)
+            if len(rel.parts)!=2 or rel.parts[-1]!=args.task_id or bounded_child(WORKTREES_DIR,*rel.parts)!=path or branch!=f"agy-worker/{args.task_id}":
+                raise ValueError("unexpected path")
+            # Canonical configured root may have an OS-provided alias (macOS
+            # /var -> /private/var, Windows short names). bounded_child above
+            # still rejects every linked component under that configured root.
+            expected=WORKTREES_DIR.resolve().joinpath(*rel.parts)
+            if not path.is_dir() or path.resolve(strict=True)!=expected:
+                raise ValueError("invalid worktree")
+            # Reuse D19 bounded, offline Git probes (no inherited GIT_*,
+            # fsmonitor, hooks, external diff, lazy fetch or protocols).
+            # Git status may invoke configured clean/process filters; refuse
+            # such repos and gitlinks before running status. This is a preview,
+            # not an OS sandbox or a race-free authorization to delete.
+            repo_path=Path(repo).resolve(strict=True)
+            deadline=time.monotonic()+25
+            def probe(cwd,*argv):
+                return cleanup_git_probe(cwd,list(argv),deadline)
+            current_rc,current=probe(path,"symbolic-ref","--short","HEAD")
+            top_rc,top=probe(path,"rev-parse","--show-toplevel")
+            repo_rc,repo_top=probe(repo_path,"rev-parse","--show-toplevel")
+            wc_rc,wc=probe(path,"rev-parse","--path-format=absolute","--git-common-dir")
+            rc,common=probe(repo_path,"rev-parse","--path-format=absolute","--git-common-dir")
+            if (current_rc!=0 or current.decode("utf-8").strip()!=branch or top_rc!=0
+                or Path(top.decode("utf-8").strip()).resolve()!=expected or repo_rc!=0
+                or Path(repo_top.decode("utf-8").strip()).resolve()!=repo_path or wc_rc!=0 or rc!=0
+                or Path(wc.decode("utf-8").strip()).resolve()!=Path(common.decode("utf-8").strip()).resolve()):
+                reasons.append("worktree_identity_mismatch")
+            else:
+                filter_rc,filter_output=probe(path,"config","--null","--get-regexp",r"^filter\.")
+                stage_rc,staged=probe(path,"ls-files","--stage","-z")
+                if filter_rc!=1 or filter_output:
+                    reasons.append("configured_filters_or_unknown")
+                elif stage_rc!=0 or (staged and not staged.endswith(b"\0")) or any(x.startswith(b"160000 ") for x in staged.split(b"\0")):
+                    reasons.append("gitlinks_or_index_unknown")
+                else:
+                    dirty_rc,dirty=probe(path,"status","--porcelain=v1","-z","--untracked-files=all","--ignored=matching")
+                    if dirty_rc!=0 or dirty:
+                        reasons.append("dirty_untracked_or_ignored_files")
+                target_rc,target=probe(repo_path,"symbolic-ref","--short","HEAD")
+                head_rc,head=probe(path,"rev-parse","--verify","HEAD^{commit}")
+                base_rc,base=probe(repo_path,"rev-parse","--verify","HEAD^{commit}")
+                hs,bs=head.decode("ascii").strip(),base.decode("ascii").strip()
+                if (target_rc!=0 or target.decode("utf-8").strip()==branch or head_rc!=0 or base_rc!=0
+                    or not cleanup_sha(hs) or not cleanup_sha(bs)
+                    or probe(repo_path,"merge-base","--is-ancestor",hs,bs)[0]!=0):
+                    reasons.append("unmerged_or_unknown_commits")
+                elif probe(path,"rev-parse","--verify","HEAD^{commit}")!=(0,head) or probe(repo_path,"rev-parse","--verify","HEAD^{commit}")!=(0,base):
+                    reasons.append("worktree_heads_changed")
+        except (OSError,ValueError,UnicodeError,StateIntegrityError,subprocess.TimeoutExpired):
+            reasons.append("worktree_probe_failed")
+    # D17 has no trusted approval bridge. Do not remove/prune/delete even when
+    # candidate prechecks are clean; explicit flags are not trusted approval.
+    result={"task_id":args.task_id,"preview_only":True,"worktree_removed":False,"branch_deleted":False,
+            "ready_for_human_review":not reasons,"blockers":reasons+["trusted_human_cleanup_approval_required"]}
+    print(json.dumps(result,ensure_ascii=False,indent=2))
+    return 0 if not reasons else 1
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -3541,7 +4047,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_st = sub.add_parser("status", help="Inspect tracked task metadata and round-robin state.")
     p_st.add_argument("--task-id", default=None)
 
-    p_cln = sub.add_parser("cleanup", allow_abbrev=False, help="Cleanup disabled until trusted human authorization is available.")
+    sub.add_parser("scheduler-status",allow_abbrev=False,help="Read bounded local scheduler metadata")
+    p_cancel=sub.add_parser("scheduler-cancel",allow_abbrev=False,help="Cancel queued ticket only; never kills an active worker")
+    p_cancel.add_argument("--ticket",required=True)
+    p_reconcile=sub.add_parser("scheduler-reconcile-preview",allow_abbrev=False,help="Read unresolved slot evidence; never releases or kills")
+    p_reconcile.add_argument("--ticket",required=True)
+    p_cln = sub.add_parser("cleanup", allow_abbrev=False, help="D17 read-only cleanup preflight; trusted human approval unavailable.")
     p_cln.add_argument("--task-id", required=True)
     p_cln.add_argument("--delete-branch", action="store_true")
     p_cln.add_argument("--force", action="store_true")
@@ -3563,6 +4074,9 @@ def main() -> int:
         "state-migrate": cmd_state_storage,
         "state-rollback": cmd_state_storage,
         "state-recover": cmd_state_storage,
+        "scheduler-status": scheduler_status_cmd,
+        "scheduler-cancel": scheduler_status_cmd,
+        "scheduler-reconcile-preview": scheduler_status_cmd,
     }
     try:
         if args.subcommand in ('run', 'resume', 'review'):

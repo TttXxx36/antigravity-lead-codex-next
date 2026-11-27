@@ -634,6 +634,14 @@ async function runTests() {
       const denied=await rpc('tools/call',args);
       assert.equal(denied.result?.isError,true, JSON.stringify(denied.result));
     }
+    // D17 direct fork cannot bypass configured managed scheduler.
+    const schedulerFile=path.join(dispatchDir,'scheduler.json');
+    fs.writeFileSync(schedulerFile,JSON.stringify({version:1,max_slots:1,max_wait_seconds:5,min_free_bytes:0,quota:null}));
+    const deniedFork=await rpc('tools/call',{name:'ask_codex_readonly',arguments:{threadId:agyTask.id,prompt:'must not spawn',preset:'custom'}});
+    assert.equal(deniedFork.result?.isError,true);
+    assert.match(JSON.stringify(deniedFork.result),/D17: direct fork disabled/);
+    fs.unlinkSync(schedulerFile);
+    console.log('[PASS] D17 direct MCP fork blocked under managed scheduler config');
     const incompatible=new DatabaseSync(path.join(codexHome,'state_5.sqlite'));
     incompatible.exec('ALTER TABLE threads RENAME TO incompatible_threads');
     incompatible.close();

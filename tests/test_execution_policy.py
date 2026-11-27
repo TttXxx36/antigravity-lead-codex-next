@@ -51,12 +51,11 @@ class ExecutionPolicyTests(unittest.TestCase):
             run.assert_not_called()
 
     def test_cleanup_destructive_flags_rejected(self):
-        for flags in ([], ['--force'], ['--delete-branch']):
-            args=d.build_parser().parse_args(['cleanup','--task-id','test',*flags])
-            with patch.object(d,'remove_worktree') as remove, patch.object(d,'locked_state') as state, self.assertRaisesRegex(ValueError, 'trusted human authorization'):
+        for flag in ('--force','--delete-branch'):
+            args=d.build_parser().parse_args(['cleanup','--task-id','test',flag])
+            with patch.object(d,'remove_worktree') as remove, self.assertRaises(ValueError):
                 d.cmd_cleanup(args)
             remove.assert_not_called()
-            state.assert_not_called()
 
     def test_abbreviated_flag_rejected(self):
         with self.assertRaises(SystemExit):

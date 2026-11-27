@@ -617,13 +617,19 @@
           "name": "D15 updated ancestry integration",
           "status": "NOT_RUN",
           "ref": "docs/evidence/D16-ancestry-integration.md"
+        },
+        {
+          "name": "D16 D15 updated ancestry integration",
+          "status": "PASS",
+          "tested_commit": "835999d29e106d56ea4b9ee8c35e64c22fcdce60",
+          "ref": "docs/evidence/D16-ancestry-integration.md"
         }
       ],
       "candidate": {
         "ready": false,
-        "tested_commit": "6db070f17039338762e03a375c911873302fa32b",
-        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45982938825",
-        "limitations": "Synthetic fixtures; original paired p95 improvement in four environments but macOS rerun slight increase; actual host and physical I/O unverified; EPERM fallback only owned child, escaped descendants not confirmed; no merge. Verified D06 cleanup denial synchronized; existing EPERM fix retained; current head needs CI."
+        "tested_commit": "835999d29e106d56ea4b9ee8c35e64c22fcdce60",
+        "ref": "pending exact-head run",
+        "limitations": "D15 updated ancestry integrated; exact four-platform CI pending. Actual host display/cache and formal gates remain BLOCKED."
       },
       "observations": [
         {
@@ -643,15 +649,51 @@
         "D15",
         "D16"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "公平队列、冲突范围、取消释放、保留未提交数据",
+      "status": "BLOCKED",
+      "evidence": "Integrated exact-head 4-platform cumulative PASS; 44/44 scheduler tests incl abrupt owner death, native MCP bypass denial",
+      "next": "D16 updated ancestry integrated while preserving read-only preview; new exact-head cumulative CI pending",
       "branch": "dev/d17",
-      "approval": null,
-      "pr": null,
+      "approval": "2026-11-27 user authorized A candidate development; no production worker/model or cleanup authorization",
+      "pr": 19,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D17 integrated scheduler and cumulative CI",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45983586382",
+          "tested_commit": "838787ad94f2cbadb00cb222a21aa1b5a720b9e5"
+        },
+        {
+          "name": "Actual host scheduler, cancellation and trusted cleanup",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D17-scheduler.md"
+        },
+        {
+          "name": "D16 ancestry integration preserving read-only cleanup preview",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D17-ancestry-integration.md"
+        },
+        {
+          "name": "D16 updated ancestry integration preserving D17 cleanup preview",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D17-ancestry-integration.md"
+        }
+      ],
+      "observations": [
+        {
+          "name": "Cleanup canonical path alias rejected legitimate managed fixture",
+          "status": "FAIL",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45982548344",
+          "tested_commit": "0e3d61d5813b203e0cb7473304f98c9b2bad5afb"
+        }
+      ],
+      "candidate": {
+        "ready": false,
+        "tested_commit": "8f95bd87739ca82d292cb1ed3ec8b5410fcae724",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46007215069",
+        "limitations": "Real subprocess/Git/SQLite mock fixtures; actual Antigravity host, live cancellation/escaped descendant reconciliation, trusted quota/cleanup approval and dependencies unverified; cleanup preview only."
+      }
     },
     {
       "id": "D18",

@@ -76,6 +76,12 @@ export class CodexRunner {
    * Non-destructive read-only question / blocker diagnosis via `codex exec fork --ephemeral`
    */
   startReadonlyAsk({ threadId, prompt, cwd, opType = 'readonly_ask' }) {
+    // Direct read-only forks are outside the managed Python slot protocol.
+    // Deny them when the local resource governor is configured/was activated.
+    for(const name of ['scheduler.json','scheduler.ever']){
+      try{fs.lstatSync(path.join(runtimePaths().dispatchStateDir,name));throw new Error('D17: direct fork disabled while scheduler configured; use managed review');}
+      catch(err){if(err.code!=='ENOENT')throw err;}
+    }
     if (!this.codexBin) throw new Error('Codex executable not found; set CODEX_BIN to a native executable');
     const actualPrompt = (prompt || '').trim() || DIAGNOSE_BLOCKER_PROMPT;
     const op = this.consoleDb.createOp({
