@@ -210,3 +210,39 @@ Historical D16 Run 45982277920 macOS PermissionError EPERM during D14 rapid proc
 
 ## D17 candidate ancestry integration (2026-11-27)
 D16 0425f17e921ca09571f74c409c4234c35876ca1c / Run 46006220435 4/4 completed/success, actual checkout and cleanup/EPERM logs verified. D17 process-exit function and streaming test blob already identical to D16. Preserve D17 scheduler and read-only cleanup preview; do not copy earlier plain-denial test because it is replaced by D17's preview assertions, which check no removal on both dirty and clean cases. Force/delete branch remain denied. No formal merge; exact integrated head requires CI. Actual host/authorization/dependencies remain BLOCKED.
+
+
+
+## 2026-11-27 formal acceptance security review
+Static review of exact D06 head 39cc294bba80c5d563df21b4b329a2646293e017 found a plain cleanup path calling remove_worktree and setting cleaned without trusted authorization (only force/delete-branch and reserved state rejected). BUG-007 proposed P1; potential worktree removal during active/unaccepted task, not a reproduced data loss. Correction rejects all D06 cleanup before state access or Git mutation, and regression checks plain/force/delete-branch denial. D17+ cumulative cleanup already preview-only; intermediate D07–D16 need safe integration before formal acceptance. MCP descriptions now accurately describe denied unmanaged queue/resume and local quota only; tool identifiers/schema preserved. No actual deletion, model calls, permission expansion or host grants. New exact-head tests NOT_RUN until CI; candidate.ready=false, formal BLOCKED. D05 real environment still missing. Trusted scoped grants and actual OS sandbox remain unimplemented/unverified respectively.
+
+
+## Formal acceptance round 3: BUG-007 candidate evidence
+[Run 46004369900](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004369900) four environments success, exact checkout b9c3fe4df5636aa32bac3ee673e9a0ca5839ddeb directly checked in all logs. Jobs ARM64 140523698666, Windows x64 140523698892, macOS 140523699016, Ubuntu 140523699106. Five execution-policy tests per job PASS (20/20), including plain/force/delete-branch cleanup denial before state/Git access; five dispatch/hook and 18 governance tests per job PASS. BUG-007 candidate fix verified, not formally closed. No real host or model or data deletion. D07–D16 must integrate; D17+ preview-only implementation remains. Formal D06 BLOCKED. Evidence-only head requires recheck.
+
+
+# D10 candidate ancestry integration
+2026-11-27: integrate D09 candidate 61ed00c712fc0d5bf9a7f24eb5e4aed7f98fbb78 / Run 46006153189 completed/success. Four checkout logs and cleanup denial assertions confirmed. Existing D10 cleanup function and test blob equal D09; D10 protocol code retained. Carry parent history/evidence and MCP metadata correction forward, no main merge. Current exact-head CI required; real models, host and dependencies remain BLOCKED.
+
+
+# D12 candidate ancestry integration
+2026-11-27: integrate D11 9605ad5263b2ff65e1cc53010dfedbbbe621e3c3 / Run 46010170648 completed/success; four actual checkout logs confirmed, context blackboard, cleanup denial and cumulative regressions pass. Preserve D12 usage telemetry/budget/cache implementation; D12 dispatch cleanup denial function and execution-policy test already equal D11 verified fix, while D11 MCP description metadata is carried forward. D12 candidate requires exact-head CI. No formal merge; provider/model/host gates unchanged.
+
+
+# D13 candidate ancestry integration
+2026-11-27: integrate D12 906968dca6d930027985b4f9af1039af0227b8c2 / Run 46010810757 was still running during integration; ancestry graph is clean and D12 cleanup denial function/test exactly match D11 verified implementation. Preserve D13 durable request ID and loop termination logic; apply only D12 verified MCP tool description correction to D13 index. D13 exact-head cumulative CI required. No formal merge; real host/risk/Token gates unchanged.
+
+
+# D14 candidate ancestry integration
+2026-11-27: integrate D13 6e2ab4e0673bb9246aa549d93a08488bb365c1d4 / Run 46011167570 was still running during integration. Preserve D14 bounded streaming, metadata-only replay and EPERM fix; D14 cleanup denial implementation matches D13 verified code. Carry forward D13 request-ID implementation through merge ancestry and apply only corrected managed-session MCP description to D14 index. Exact-head CI required; real host/streaming event acceptance remains BLOCKED.
+
+
+# D15 candidate ancestry integration
+2026-11-27: integrate updated D14 78dddef0ff98e575a4f9f938df3580e1a451dad2 / D14 safety ancestry and managed-session MCP description synchronized. Preserve D15 SQLite WAL migration/rollback candidate and D14 streaming/EPERM code; D15 candidate now requires exact-head four-platform CI. No native host database write, no formal merge, no permission expansion.
+
+
+## D16 ancestry refresh (2026-11-27)
+Integrate updated D15 `cd140bf583c0023d1d2be1970eb3eb248cabf120`, which carries D14 ancestry `78dddef0ff98e575a4f9f938df3580e1a451dad2`. Preserve D16 query cache/UI/EPERM implementation. D15 Run 46011814445 and new D16 exact-head CI pending; no formal merge or authority expansion.
+
+
+2026-11-27 refresh: integrate updated D16 `835999d29e106d56ea4b9ee8c35e64c22fcdce60`, carrying D15 `cd140bf583c0023d1d2be1970eb3eb248cabf120` and D14 ancestry. Preserve D17 scheduler and read-only cleanup preview. New D16 and D17 exact-head CI pending; no deletion/permission expansion/formal merge.
