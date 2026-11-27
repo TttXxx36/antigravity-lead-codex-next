@@ -249,13 +249,18 @@
           "name": "actual host process-tree and crash acceptance",
           "status": "BLOCKED",
           "ref": "docs/evidence/D07-outcomes.md"
+        },
+        {
+          "name": "BUG-007 cleanup denial synchronization",
+          "status": "NOT_RUN",
+          "ref": "docs/decisions/D07.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "8e472999c84f1a41dd188a5766d6bd4de7bd02a5",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937506260",
-        "limitations": "Real Codex/Antigravity worker tree, escaped descendants and real power-loss not verified; no formal merge."
+        "limitations": "Real Codex/Antigravity worker tree, escaped descendants and real power-loss not verified; no formal merge. Verified D06 cleanup denial synchronized; current head needs CI."
       }
     },
     {
