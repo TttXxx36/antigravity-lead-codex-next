@@ -580,13 +580,18 @@
           "name": "Actual host UI, repeated p95 and physical I/O",
           "status": "BLOCKED",
           "ref": "docs/evidence/D16-cache.md"
+        },
+        {
+          "name": "BUG-007 cleanup denial synchronization",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D16-cleanup-integration.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "6db070f17039338762e03a375c911873302fa32b",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45982938825",
-        "limitations": "Synthetic fixtures; original paired p95 improvement in four environments but macOS rerun slight increase; actual host and physical I/O unverified; EPERM fallback only owned child, escaped descendants not confirmed; no merge."
+        "limitations": "Synthetic fixtures; original paired p95 improvement in four environments but macOS rerun slight increase; actual host and physical I/O unverified; EPERM fallback only owned child, escaped descendants not confirmed; no merge. Verified D06 cleanup denial synchronized; existing EPERM fix retained; current head needs CI."
       },
       "observations": [
         {
