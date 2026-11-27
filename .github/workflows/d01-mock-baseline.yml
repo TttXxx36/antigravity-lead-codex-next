@@ -1,0 +1,51 @@
+name: D01 Mock baseline (three platforms)
+
+on:
+  push:
+    branches: [dev/d01]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d01-baseline-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  baseline:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/dev/d01') || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'dev/d01')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked MCP runtime dependencies (no lifecycle scripts)
+        working-directory: plugins/codex-console
+        run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+      - name: Execute isolated Mock baseline and retain failures
+        if: success() || failure()
+        run: python benchmarks/ci_baseline.py --repeat 5 --output ci-evidence
+      - name: Upload sanitized results even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d01-baseline-${{ matrix.os }}
+          path: ci-evidence/
+          if-no-files-found: warn
+          retention-days: 14

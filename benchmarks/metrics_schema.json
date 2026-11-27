@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "mode",
+    "baseline_commit",
+    "upstream_commit",
+    "environment",
+    "repeat",
+    "samples",
+    "groups"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "mode": {
+      "enum": [
+        "harness-only",
+        "upstream-mock"
+      ]
+    },
+    "baseline_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "upstream_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "environment": {
+      "type": "object"
+    },
+    "repeat": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "samples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "case",
+          "status",
+          "latency_ms",
+          "payload_bytes",
+          "cache_state",
+          "usage_source",
+          "input_tokens",
+          "output_tokens",
+          "real_model_calls"
+        ],
+        "properties": {
+          "case": {
+            "pattern": "^B0[1-8]$",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "NOT_RUN"
+            ]
+          },
+          "latency_ms": {
+            "type": "number",
+            "minimum": 0
+          },
+          "payload_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "cache_state": {
+            "enum": [
+              "fresh",
+              "warm",
+              "cold"
+            ]
+          },
+          "usage_source": {
+            "const": "unknown"
+          },
+          "input_tokens": {
+            "type": "null"
+          },
+          "output_tokens": {
+            "type": "null"
+          },
+          "real_model_calls": {
+            "const": 0
+          }
+        }
+      }
+    },
+    "groups": {
+      "type": "array"
+    }
+  }
+}

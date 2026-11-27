@@ -1,0 +1,245 @@
+{
+  "mode": "verified-excerpts",
+  "baseline_commit": "77f9f9b95674ada26c8833b5057cebfb4ff70643",
+  "upstream_source_blob": "2057553f544c0ef605eb2c9ad8ae0f8fb59df84a",
+  "excerpt_blobs": [
+    "71ceae90ea5a4b5df6079813533ae123eba7f7d3",
+    "954c03bf4c26766cd5fde98df0985b5e70b4778c",
+    "d3cd17225d860441aa1b8ac10b021b699e9d1808"
+  ],
+  "platform": "Linux",
+  "python": "3.13.5",
+  "repeat": 2,
+  "samples": [
+    {
+      "case": "B01",
+      "status": "PASS",
+      "detail": null,
+      "payload_bytes": 404,
+      "real_model_calls": 0,
+      "usage_source": "unknown",
+      "input_tokens": null,
+      "output_tokens": null,
+      "mock_processes": 1,
+      "latency_ms": 1320.623
+    },
+    {
+      "case": "B01",
+      "status": "PASS",
+      "detail": null,
+      "payload_bytes": 404,
+      "real_model_calls": 0,
+      "usage_source": "unknown",
+      "input_tokens": null,
+      "output_tokens": null,
+      "mock_processes": 1,
+      "latency_ms": 955.268
+    },
+    {
+      "case": "B02",
+      "status": "PASS",
+      "detail": null,
+      "payload_bytes": 420,
+      "real_model_calls": 0,
+      "usage_source": "unknown",
+      "input_tokens": null,
+      "output_tokens": null,
+      "mock_processes": 1,
+      "latency_ms": 1169.012
+    },
+    {
+      "case": "B02",
+      "status": "PASS",
+      "detail": null,
+      "payload_bytes": 420,
+      "real_model_calls": 0,
+      "usage_source": "unknown",
+      "input_tokens": null,
+      "output_tokens": null,
+      "mock_processes": 1,
+      "latency_ms": 1223.457
+    },
+    {
+      "case": "B03",
+      "status": "PASS",
+      "detail": null,
+      "payload_bytes": 808,
+      "real_model_calls": 0,
+      "usage_source": "unknown",
+      "input_tokens": null,
+      "output_tokens": null,
+      "mock_processes": 2,
+      "latency_ms": 2138.597
+    },
+    {
+      "case": "B03",
+      "status": "PASS",
+      "detail": null,
+      "payload_bytes": 808,
+      "real_model_calls": 0,
+      "usage_source": "unknown",
+      "input_tokens": null,
+      "output_tokens": null,
+      "mock_processes": 2,
+      "latency_ms": 2009.635
+    },
+    {
+      "case": "B04",
+      "status": "PASS",
+      "detail": null,
+      "payload_bytes": 862,
+      "real_model_calls": 0,
+      "usage_source": "unknown",
+      "input_tokens": null,
+      "output_tokens": null,
+      "mock_processes": 2,
+      "latency_ms": 2033.639
+    },
+    {
+      "case": "B04",
+      "status": "PASS",
+      "detail": null,
+      "payload_bytes": 862,
+      "real_model_calls": 0,
+      "usage_source": "unknown",
+      "input_tokens": null,
+      "output_tokens": null,
+      "mock_processes": 2,
+      "latency_ms": 2136.476
+    },
+    {
+      "case": "B07",
+      "status": "PASS",
+      "detail": null,
+      "payload_bytes": 808,
+      "real_model_calls": 0,
+      "usage_source": "unknown",
+      "input_tokens": null,
+      "output_tokens": null,
+      "mock_processes": 2,
+      "latency_ms": 1078.094
+    },
+    {
+      "case": "B07",
+      "status": "PASS",
+      "detail": null,
+      "payload_bytes": 808,
+      "real_model_calls": 0,
+      "usage_source": "unknown",
+      "input_tokens": null,
+      "output_tokens": null,
+      "mock_processes": 2,
+      "latency_ms": 1167.92
+    },
+    {
+      "case": "B08",
+      "status": "PASS",
+      "detail": null,
+      "payload_bytes": 404,
+      "real_model_calls": 0,
+      "usage_source": "unknown",
+      "input_tokens": null,
+      "output_tokens": null,
+      "mock_processes": 1,
+      "latency_ms": 965.38
+    },
+    {
+      "case": "B08",
+      "status": "PASS",
+      "detail": null,
+      "payload_bytes": 404,
+      "real_model_calls": 0,
+      "usage_source": "unknown",
+      "input_tokens": null,
+      "output_tokens": null,
+      "mock_processes": 1,
+      "latency_ms": 926.598
+    }
+  ],
+  "groups": [
+    {
+      "case": "B01",
+      "counts": {
+        "PASS": 2,
+        "FAIL": 0,
+        "NOT_RUN": 0
+      },
+      "latency": {
+        "median_ms": 1137.946,
+        "p95_ms": 1320.623
+      }
+    },
+    {
+      "case": "B02",
+      "counts": {
+        "PASS": 2,
+        "FAIL": 0,
+        "NOT_RUN": 0
+      },
+      "latency": {
+        "median_ms": 1196.235,
+        "p95_ms": 1223.457
+      }
+    },
+    {
+      "case": "B03",
+      "counts": {
+        "PASS": 2,
+        "FAIL": 0,
+        "NOT_RUN": 0
+      },
+      "latency": {
+        "median_ms": 2074.116,
+        "p95_ms": 2138.597
+      }
+    },
+    {
+      "case": "B04",
+      "counts": {
+        "PASS": 2,
+        "FAIL": 0,
+        "NOT_RUN": 0
+      },
+      "latency": {
+        "median_ms": 2085.057,
+        "p95_ms": 2136.476
+      }
+    },
+    {
+      "case": "B07",
+      "counts": {
+        "PASS": 2,
+        "FAIL": 0,
+        "NOT_RUN": 0
+      },
+      "latency": {
+        "median_ms": 1123.007,
+        "p95_ms": 1167.92
+      }
+    },
+    {
+      "case": "B08",
+      "counts": {
+        "PASS": 2,
+        "FAIL": 0,
+        "NOT_RUN": 0
+      },
+      "latency": {
+        "median_ms": 945.989,
+        "p95_ms": 965.38
+      }
+    }
+  ],
+  "baseline_observations": {
+    "missing_report_exit0": {
+      "status": "completed",
+      "verification_passed": true
+    },
+    "nonzero_exit_completed_report": {
+      "status": "completed"
+    },
+    "corrupt_state_overwritten": true
+  },
+  "mock_processes": 18,
+  "real_model_calls": 0
+}

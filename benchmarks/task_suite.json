@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "upstream_commit": "b6c36443e5a134ea36aa18dc171f312fdd54b5bc",
+  "baseline_commit": "77f9f9b95674ada26c8833b5057cebfb4ff70643",
+  "cases": [
+    {"id":"B01","description":"single file","prompt":"Write answer.txt","expected":"completed"},
+    {"id":"B02","description":"multiple files","prompt":"Write answer.txt and second.txt","expected":"completed"},
+    {"id":"B03","description":"resume same thread","prompt":"Write answer.txt then update it","expected":"completed"},
+    {"id":"B04","description":"two identical failures","prompt":"Reproduce synthetic failure","expected":"failed"},
+    {"id":"B05","description":"MCP task list","prompt":"","expected":"connected"},
+    {"id":"B06","description":"MCP SQLite detail","prompt":"","expected":"connected"},
+    {"id":"B07","description":"two concurrent tasks","prompt":"Write answer.txt in isolation","expected":"completed"},
+    {"id":"B08","description":"Unicode path / platform import","prompt":"Write answer.txt in Unicode path","expected":"completed"}
+  ]
+}

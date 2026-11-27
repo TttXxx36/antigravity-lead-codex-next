@@ -18,4 +18,4 @@ P0 / D00 DONE（用户已验收并授权合并）。当前仓库为公开独立�
 
 ## 启动下一步
 
-D00 方案 A 已验收并通过 [PR #1](https://github.com/TttXxx36/antigravity-lead-codex-next/pull/1) 合并。下一步仅待 D01 技术决策审批；D01/D02 均未启动，必须另行批准。不会 fork，不会向上游推送，不会在规划初始化时执行代码开发。
+D00 方案 A 已验收并通过 [PR #1](https://github.com/TttXxx36/antigravity-lead-codex-next/pull/1) 合并。D01 方案 A 已获批准，dev/d01 已建立 Mock 基准工具及本地自检、20 个真实调度器函数的 SHA 核验片段集成证据，状态 REVIEW（完整模块、MCP 及三平台基准仍待运行）。详见 [BASELINE.md](docs/BASELINE.md)。D02 未启动，必须另行批准。不会 fork，不会向上游推送，不会在规划初始化时执行代码开发。
