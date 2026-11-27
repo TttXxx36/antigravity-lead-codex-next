@@ -1,0 +1,447 @@
+{
+  "version": 1,
+  "as_of": "2026-11-27",
+  "main_commit": "77f9f9b95674ada26c8833b5057cebfb4ff70643",
+  "permissions": {
+    "automatic_merge": false,
+    "release": false,
+    "real_model_benchmark": false,
+    "upstream_push": false,
+    "remote_protection_change": false
+  },
+  "cards": [
+    {
+      "id": "D00",
+      "phase": "P0",
+      "title": "独立仓库与上游基线",
+      "depends": [],
+      "status": "DONE",
+      "evidence": "已合并 PR #1；45 文件 SHA/mode 核验",
+      "next": "",
+      "branch": "main",
+      "approval": "User accepted PR #1",
+      "pr": 1,
+      "accepted": true,
+      "merged": true,
+      "checks": [
+        {
+          "name": "upstream 45 blobs/modes",
+          "status": "PASS",
+          "ref": "docs/evidence/D00-import.md"
+        }
+      ]
+    },
+    {
+      "id": "D01",
+      "phase": "P0",
+      "title": "基线测试与可复现基准",
+      "depends": [
+        "D00"
+      ],
+      "status": "REVIEW",
+      "evidence": "三平台原版结果已采集；PR #2 待验收，Windows 失败为原版基线",
+      "next": "归档原始证据、确认基线验收；不把修复候选冒充原版",
+      "branch": "dev/d01",
+      "approval": "User approved A, mock/local plus Actions",
+      "pr": 2,
+      "accepted": false,
+      "merged": false,
+      "checks": [
+        {
+          "name": "original three-platform baseline",
+          "status": "FAIL",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45915363640"
+        },
+        {
+          "name": "repair candidate (separate)",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45918185018"
+        }
+      ]
+    },
+    {
+      "id": "D02",
+      "phase": "P0",
+      "title": "开发与验收治理",
+      "depends": [
+        "D00"
+      ],
+      "status": "REVIEW",
+      "evidence": "PR #3；治理规范、检查器、三平台 45/45 单测通过",
+      "next": "人工验收及合并；远程保护设置另获授权",
+      "branch": "dev/d02",
+      "approval": "User requested D02 and continuation of roadmap",
+      "pr": 3,
+      "accepted": false,
+      "merged": false,
+      "checks": [
+        {
+          "name": "governance ledger + 15 unit tests × 3 platforms",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45922285638",
+          "tested_commit": "02d2e14f676e5f8e9b1a365c8d65553120d915cd"
+        }
+      ]
+    },
+    {
+      "id": "D03",
+      "phase": "V1.1",
+      "title": "跨平台路径与运行时发现",
+      "depends": [
+        "D01",
+        "D02"
+      ],
+      "status": "PROPOSED",
+      "evidence": "PR #4 有候选 UTF-8/PATH 修复",
+      "next": "统一环境变量、exe 探测、路径校验、中文/空格/长路径测试",
+      "branch": "dev/d03",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D04",
+      "phase": "V1.1",
+      "title": "跨平台锁与状态完整性",
+      "depends": [
+        "D03"
+      ],
+      "status": "PROPOSED",
+      "evidence": "PR #4 有候选原生锁修复",
+      "next": "集成锁、拒绝损坏 JSON、任务 ID 边界、原子预留与崩溃恢复",
+      "branch": "dev/d04",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D05",
+      "phase": "V1.1",
+      "title": "安装器和环境诊断",
+      "depends": [
+        "D03",
+        "D04"
+      ],
+      "status": "PROPOSED",
+      "evidence": "未实施",
+      "next": "PowerShell install/doctor、备份回滚、node.exe stdio、Windows 11 实机",
+      "branch": "dev/d05",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D06",
+      "phase": "V1.1",
+      "title": "审批门禁与执行边界",
+      "depends": [
+        "D04",
+        "D05"
+      ],
+      "status": "PROPOSED",
+      "evidence": "PR #4 Windows hook 保守转人工",
+      "next": "任务绑定可信授权、batch/resume/MCP 防绕过、危险权限拒绝",
+      "branch": "dev/d06",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D07",
+      "phase": "V1.1",
+      "title": "任务结果与进程生命周期正确性",
+      "depends": [
+        "D04",
+        "D06"
+      ],
+      "status": "PROPOSED",
+      "evidence": "已复现 BUG-001/002",
+      "next": "独立退出/任务/验证状态，失败/取消/超时、进程树清理",
+      "branch": "dev/d07",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D08",
+      "phase": "V1.1",
+      "title": "历史任务定位与 Windows 发布门禁",
+      "depends": [
+        "D05",
+        "D06",
+        "D07"
+      ],
+      "status": "PROPOSED",
+      "evidence": "未实施",
+      "next": "按 ID 查询、歧义拒绝、Git -z、DB 错误、三平台与 Windows 实机",
+      "branch": "dev/d08",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D09",
+      "phase": "V1.2",
+      "title": "模型可见的轻量 MCP 接口",
+      "depends": [
+        "D08"
+      ],
+      "status": "PROPOSED",
+      "evidence": "未实施",
+      "next": "状态/结果/增量/日志拆分，宿主兼容，保留 UI",
+      "branch": "dev/d09",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D10",
+      "phase": "V1.2",
+      "title": "结构化通信与短报告协议",
+      "depends": [
+        "D09"
+      ],
+      "status": "PROPOSED",
+      "evidence": "未实施",
+      "next": "版本化 task/result/delta、字段预算、程序证据、拒绝乱序",
+      "branch": "dev/d10",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D11",
+      "phase": "V1.2",
+      "title": "共享黑板与会话复用",
+      "depends": [
+        "D10"
+      ],
+      "status": "PROPOSED",
+      "evidence": "未实施",
+      "next": "rev、增量 resume、受控压缩重建、跨任务隔离",
+      "branch": "dev/d11",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D12",
+      "phase": "V1.2",
+      "title": "Token 遥测、预算与动态模型路由",
+      "depends": [
+        "D01",
+        "D10",
+        "D11"
+      ],
+      "status": "PROPOSED",
+      "evidence": "未实施",
+      "next": "真实/估算/unknown 区分、预算、路由、避免重复累加",
+      "branch": "dev/d12",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D13",
+      "phase": "V1.2",
+      "title": "幂等派发与循环终止",
+      "depends": [
+        "D10",
+        "D12"
+      ],
+      "status": "PROPOSED",
+      "evidence": "未实施",
+      "next": "持久 request_id、进度指纹、重复错误停止、授权重试",
+      "branch": "dev/d13",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D14",
+      "phase": "V1.3",
+      "title": "实时流式执行与事件总线",
+      "depends": [
+        "D07",
+        "D13"
+      ],
+      "status": "PROPOSED",
+      "evidence": "未实施",
+      "next": "流式 JSONL、心跳/seq、内存有界、断线恢复",
+      "branch": "dev/d14",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D15",
+      "phase": "V1.3",
+      "title": "SQLite 任务状态迁移",
+      "depends": [
+        "D04",
+        "D14"
+      ],
+      "status": "PROPOSED",
+      "evidence": "未实施",
+      "next": "插件自有 WAL、迁移/备份/回滚、原生 Codex DB 只读",
+      "branch": "dev/d15",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D16",
+      "phase": "V1.3",
+      "title": "MCP 查询缓存与 UI 增量刷新",
+      "depends": [
+        "D14",
+        "D15"
+      ],
+      "status": "PROPOSED",
+      "evidence": "未实施",
+      "next": "按 ID/TTL/delta、并发请求合并、p95/I/O 对照",
+      "branch": "dev/d16",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D17",
+      "phase": "V1.3",
+      "title": "动态并发与 Worktree 资源治理",
+      "depends": [
+        "D14",
+        "D15",
+        "D16"
+      ],
+      "status": "PROPOSED",
+      "evidence": "未实施",
+      "next": "公平队列、冲突范围、取消释放、保留未提交数据",
+      "branch": "dev/d17",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D18",
+      "phase": "V2.0",
+      "title": "确定性编排状态机",
+      "depends": [
+        "D13",
+        "D15",
+        "D17"
+      ],
+      "status": "PROPOSED",
+      "evidence": "未实施",
+      "next": "显式状态机、lease/revision、审计、恢复防重复",
+      "branch": "dev/d18",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D19",
+      "phase": "V2.0",
+      "title": "风险驱动审查与验收",
+      "depends": [
+        "D18"
+      ],
+      "status": "PROPOSED",
+      "evidence": "未实施",
+      "next": "风险分级、确定性检查、安全/并发/迁移必审",
+      "branch": "dev/d19",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D20",
+      "phase": "V2.0",
+      "title": "常驻 Codex App Server 可选适配",
+      "depends": [
+        "D18",
+        "D19"
+      ],
+      "status": "PROPOSED",
+      "evidence": "未实施",
+      "next": "官方能力协商、CLI 兜底、权限对等、复用/断线测试",
+      "branch": "dev/d20",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D21",
+      "phase": "V2.0",
+      "title": "可观测性与性能/Token 验收",
+      "depends": [
+        "D12",
+        "D16",
+        "D19",
+        "D20"
+      ],
+      "status": "PROPOSED",
+      "evidence": "未实施",
+      "next": "配对基准、质量/成功率、真实用量及置信限制",
+      "branch": "dev/d21",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    },
+    {
+      "id": "D22",
+      "phase": "V2.0",
+      "title": "发布、兼容性与回滚",
+      "depends": [
+        "D21"
+      ],
+      "status": "PROPOSED",
+      "evidence": "未实施",
+      "next": "RC、三平台/真实 Windows、SHA256、回滚演练、人工发布许可",
+      "branch": "dev/d22",
+      "approval": null,
+      "pr": null,
+      "accepted": false,
+      "merged": false,
+      "checks": []
+    }
+  ]
+}
