@@ -124,3 +124,20 @@ D12 final stream-integrity review: nonempty malformed JSONL, non-object events, 
 Windows 11 Enterprise build 26200 ProductType=1 ARM64 confirmed. No actual provider/model calls or real host verification; Gemini usage and paired benchmark NOT_RUN; prior superseded runs 45947038480/45947156315 retained, not counted as PASS. Boundary-only budget, no system-wide hard cap. D12 candidate ready; formal BLOCKED pending D05–D11 acceptance and real provider/host/benchmark evidence. No merge or release. Main observed `114e0c205f326b4af0935656ef482bba8270b284` (seven checkpoint-only commits since previous recorded main). D13 may inherit under existing candidate approval. Evidence-only commit is distinct from tested code SHA and requires governance recheck.
 
 RISK-08：D12 合成用量与 fail-closed 预算候选通过；真实字段语义及 D13 无进展/幂等仍待验证。BUG-001/002 不改为 FIXED。CI 日志含 actions Node20 deprecation warning，当前未阻止运行；后续兼容升级需独立验证。
+
+
+
+## 2026-11-27 formal acceptance security review
+Static review of exact D06 head 39cc294bba80c5d563df21b4b329a2646293e017 found a plain cleanup path calling remove_worktree and setting cleaned without trusted authorization (only force/delete-branch and reserved state rejected). BUG-007 proposed P1; potential worktree removal during active/unaccepted task, not a reproduced data loss. Correction rejects all D06 cleanup before state access or Git mutation, and regression checks plain/force/delete-branch denial. D17+ cumulative cleanup already preview-only; intermediate D07–D16 need safe integration before formal acceptance. MCP descriptions now accurately describe denied unmanaged queue/resume and local quota only; tool identifiers/schema preserved. No actual deletion, model calls, permission expansion or host grants. New exact-head tests NOT_RUN until CI; candidate.ready=false, formal BLOCKED. D05 real environment still missing. Trusted scoped grants and actual OS sandbox remain unimplemented/unverified respectively.
+
+
+## Formal acceptance round 3: BUG-007 candidate evidence
+[Run 46004369900](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004369900) four environments success, exact checkout b9c3fe4df5636aa32bac3ee673e9a0ca5839ddeb directly checked in all logs. Jobs ARM64 140523698666, Windows x64 140523698892, macOS 140523699016, Ubuntu 140523699106. Five execution-policy tests per job PASS (20/20), including plain/force/delete-branch cleanup denial before state/Git access; five dispatch/hook and 18 governance tests per job PASS. BUG-007 candidate fix verified, not formally closed. No real host or model or data deletion. D07–D16 must integrate; D17+ preview-only implementation remains. Formal D06 BLOCKED. Evidence-only head requires recheck.
+
+
+# D10 candidate ancestry integration
+2026-11-27: integrate D09 candidate 61ed00c712fc0d5bf9a7f24eb5e4aed7f98fbb78 / Run 46006153189 completed/success. Four checkout logs and cleanup denial assertions confirmed. Existing D10 cleanup function and test blob equal D09; D10 protocol code retained. Carry parent history/evidence and MCP metadata correction forward, no main merge. Current exact-head CI required; real models, host and dependencies remain BLOCKED.
+
+
+# D12 candidate ancestry integration
+2026-11-27: integrate D11 9605ad5263b2ff65e1cc53010dfedbbbe621e3c3 / Run 46010170648 completed/success; four actual checkout logs confirmed, context blackboard, cleanup denial and cumulative regressions pass. Preserve D12 usage telemetry/budget/cache implementation; D12 dispatch cleanup denial function and execution-policy test already equal D11 verified fix, while D11 MCP description metadata is carried forward. D12 candidate requires exact-head CI. No formal merge; provider/model/host gates unchanged.

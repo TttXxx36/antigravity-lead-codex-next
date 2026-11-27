@@ -292,7 +292,7 @@ server.registerTool(
   'send_codex_message',
   {
     title: '向 Codex 会话发送消息',
-    description: '向指定 Codex 会话投递指令，支持排队唤醒（codex queue --resume）、同步续跑（codex exec resume）、dispatch.py 续跑或只读提问。',
+    description: '向受管 Codex 会话通过 dispatch.py 续跑或只读提问；未受管 queue/resume 拒绝。',
     inputSchema: {
       threadId: z.string().min(4).describe('目标 Codex 会话 UUID'),
       message: z.string().min(1).describe('要发送的消息或执行指令'),
@@ -451,8 +451,8 @@ server.registerTool(
 server.registerTool(
   'console_refresh_quota',
   {
-    title: 'Refresh Codex Quota Live',
-    description: '通过官方 codex app-server 实时查询 5 小时/周额度与重置时间（仅前端 App 可调用）',
+    title: 'Refresh Local Codex Quota',
+    description: '读取本地额度证据，不启动 app-server 或实时联网查询（仅前端 App 可调用）',
     inputSchema: {},
     _meta: APP_ONLY_META,
   },
