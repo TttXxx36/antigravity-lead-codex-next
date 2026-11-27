@@ -40,6 +40,8 @@ jobs:
           node -p "JSON.stringify({platform:process.platform,arch:process.arch,node:process.version})"
           python -c "import platform,sys; print(platform.machine(),sys.version)"
           git rev-parse HEAD
+      - name: Durable request and loop guard regression
+        run: python -m unittest discover -s tests -p test_request_gate.py -v
       - name: Usage and budget regression
         run: python -m unittest discover -s tests -p test_budget.py -v
       - name: Task-local context regression

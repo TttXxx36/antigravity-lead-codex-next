@@ -19,7 +19,7 @@
 | [D10](decisions/D10.md) 结构化通信与短报告协议 | V1.2 | D09 | BLOCKED | PR #12 四环境候选 PASS；真实 structured output/宿主待验收；D11 可继续 |
 | [D11](decisions/D11.md) 共享黑板与会话复用 | V1.2 | D10 | BLOCKED | PR #13 四环境 PASS；真实会话与 Token 未验收；D12 可继续 |
 | [D12](decisions/D12.md) Token 遥测、预算与动态模型路由 | V1.2 | D01,D10,D11 | BLOCKED | PR #14 四环境 PASS；真实 provider/宿主/基准未验收；D13 可继续 |
-| [D13](decisions/D13.md) 幂等派发与循环终止 | V1.2 | D10,D12 | PROPOSED | 未实施；持久 request_id、进度指纹、重复错误停止、授权重试 |
+| [D13](decisions/D13.md) 幂等派发与循环终止 | V1.2 | D10,D12 | IN_PROGRESS | D13 keyed candidate；CI 待验证；正式门禁不变 |
 | [D14](decisions/D14.md) 实时流式执行与事件总线 | V1.3 | D07,D13 | PROPOSED | 未实施；流式 JSONL、心跳/seq、内存有界、断线恢复 |
 | [D15](decisions/D15.md) SQLite 任务状态迁移 | V1.3 | D04,D14 | PROPOSED | 未实施；插件自有 WAL、迁移/备份/回滚、原生 Codex DB 只读 |
 | [D16](decisions/D16.md) MCP 查询缓存与 UI 增量刷新 | V1.3 | D14,D15 | PROPOSED | 未实施；按 ID/TTL/delta、并发请求合并、p95/I/O 对照 |
@@ -117,3 +117,7 @@ D08 候选：直接查询历史任务、拒绝歧义、Git -z、显式 schema �
 | macOS ARM64 | 140334872749 | macos-26-arm64 20261123.0526.1 | 3.12.10 | 22.23.5 |
 
 Windows 11 Enterprise build 26200 ProductType=1 ARM64 confirmed. No actual provider/model calls or real host verification; Gemini usage and paired benchmark NOT_RUN; prior superseded runs 45947038480/45947156315 retained, not counted as PASS. Boundary-only budget, no system-wide hard cap. D12 candidate ready; formal BLOCKED pending D05–D11 acceptance and real provider/host/benchmark evidence. No merge or release. Main observed `114e0c205f326b4af0935656ef482bba8270b284` (seven checkpoint-only commits since previous recorded main). D13 may inherit under existing candidate approval. Evidence-only commit is distinct from tested code SHA and requires governance recheck.
+
+
+## 2026-11-27 D13 candidate implementation
+Base `5ae7ef0c4af3b748d2cf78ea19e5d9f984f0c472` (D12 exact tested code f5b1bf017d1f1c259e1c50f0fd89a85100cf082f, Run 45947305027; subsequent evidence-only diff). Existing user candidate approval applies. Opt-in `--request-id` with explicit task ID and v2 run/resume; persistent registry in locked dispatcher state, exact argument digest, immutable scope/revision, duplicates return original operation metadata; conflicting keys never dispatch. Keyed tasks reject unkeyed CLI continuation and initial reservation collisions. Reservation persists before invocation, pending/uncertain after crash cannot auto-retry. Explicit new key and retry-of for known failed worker operation; at most two retries and two associated reviews; repeated failure category or two continuations without observed Git progress stop further resume. No automatic retry, merge or verification. D12 budget and D06/D10/D11 policies remain active. The Git metadata fingerprint is conservative (same-size edits may look unchanged, non-Git progress unknown), not an exact diff/content fingerprint. Registry cap 4096; no automatic removal. Direct legacy APIs/old binaries/unmanaged external calls are outside keyed CLI contract. Real host, crash/power loss and formal dependencies not verified; CI pending. Rollback: do not use keyed operations, do not run old binaries on active keyed tasks; preserve registry/state and reconcile pending requests manually.

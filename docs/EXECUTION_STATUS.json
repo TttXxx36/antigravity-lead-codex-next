@@ -445,15 +445,21 @@
         "D10",
         "D12"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "持久 request_id、进度指纹、重复错误停止、授权重试",
+      "status": "IN_PROGRESS",
+      "evidence": "D13 keyed v2 run/resume and associated review candidate; CI pending",
+      "next": "Four-environment cumulative CI; real host, recovery and dependency acceptance pending",
       "branch": "dev/d13",
-      "approval": null,
+      "approval": "2026-11-27 user approved A and verified candidate development; no real model or expanded authority",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D13 request and cumulative regression",
+          "status": "NOT_RUN",
+          "ref": "pending CI"
+        }
+      ]
     },
     {
       "id": "D14",

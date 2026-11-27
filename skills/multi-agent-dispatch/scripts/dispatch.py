@@ -340,11 +340,17 @@ def bounded_child(root: Path, *parts: str) -> Path:
     return candidate
 
 
-def reserve_run_dir(task_id: str, record: dict[str, Any] | None = None) -> Path:
+def reserve_run_dir(task_id: str, record: dict[str, Any] | None = None, request_id: str | None = None) -> Path:
     """Atomically reserve ID under lock; orphaned directories are never reused."""
     tid = validate_task_id(task_id)
     with locked_state() as state:
         run_dir = bounded_child(RUNS_DIR, tid)
+        requests = request_records(state)
+        keyed = [op for op in requests.values() if op["task_id"].casefold() == tid.casefold()]
+        if keyed or request_id is not None:
+            op = requests.get(validate_task_id(request_id).casefold()) if request_id is not None else None
+            if (op is None or op["task_id"] != tid or op["kind"] != "run" or op["status"] != "pending"):
+                raise ValueError("D13: task ID reserved by a keyed operation")
         if any(key.casefold() == tid.casefold() for key in state["tasks"]):
             raise ValueError("Duplicate task_id")
         if any(p.name.casefold() == tid.casefold() for p in RUNS_DIR.iterdir()):
@@ -1731,6 +1737,7 @@ def execute_single_task(
     blackboard: bool = False,
     budget: dict[str,Any] | None = None,
     use_budget_route: bool = False,
+    request_id: str | None = None,
 ) -> dict[str, Any]:
     limits=make_budget() if budget is None else make_budget(budget['turns'],budget['tokens'],budget['seconds'])
     store=new_usage_store()
@@ -1811,7 +1818,7 @@ def execute_single_task(
     run_dir = reserve_run_dir(tid, {"backend": backend, "model": model_used, "effort": effort_used,
         "difficulty": routing["effective_difficulty"], "repo_root": git_info["repo_root"],
         "original_cwd": str(cwd), "workdir": str(cwd), "session_id": None, "network": network,
-        "sandbox": sandbox, "isolation": eff_isolation, "created_at": utc_now(), "updated_at": utc_now(), **protocol_meta(envelope), **context_state_fields(board), "budget":limits,"usage_store":store,"budget_route":use_budget_route})
+        "sandbox": sandbox, "isolation": eff_isolation, "created_at": utc_now(), "updated_at": utc_now(), **protocol_meta(envelope), **context_state_fields(board), "budget":limits,"usage_store":store,"budget_route":use_budget_route}, request_id=request_id)
     (run_dir / "prompt.txt").write_text(worker_prompt, encoding="utf-8")
 
     workdir = cwd
@@ -1970,6 +1977,222 @@ def cmd_health(_args: argparse.Namespace) -> int:
     return 0 if healthy else 1
 
 
+
+# D13: opt-in, persistent CLI request reservations. A key is not authorization.
+REQUEST_REGISTRY = "dispatch_requests_v1"
+REQUEST_LIMIT = 4096
+
+def request_hash(value: Any) -> str:
+    return hashlib.sha256(json.dumps(value, ensure_ascii=True, sort_keys=True,
+                                     separators=(",", ":"), allow_nan=False).encode("ascii")).hexdigest()
+
+def request_records(state: dict[str, Any]) -> dict[str, Any]:
+    records = state.get(REQUEST_REGISTRY, {})
+    if not isinstance(records, dict) or len(records) > REQUEST_LIMIT:
+        raise StateIntegrityError("D13: invalid request registry")
+    seen = set()
+    for key, op in records.items():
+        if (not isinstance(key, str) or not isinstance(op, dict)
+                or key != key.casefold()
+                or not isinstance(op.get("task_id"), str)
+                or op.get("kind") not in ("run", "resume", "review")
+                or op.get("status") not in ("pending", "returned", "uncertain")
+                or type(op.get("ordinal")) is not int or op["ordinal"] <= 0
+                or op["ordinal"] in seen
+                or type(op.get("revision")) is not int or op["revision"] <= 0
+                or type(op.get("stagnant")) is not int or op["stagnant"] < 0
+                or not isinstance(op.get("fingerprint"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", op["fingerprint"])
+                or not isinstance(op.get("scope"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", op["scope"])
+                or (op["status"] == "returned" and
+                    (type(op.get("exit_code")) is not int or op["exit_code"] not in (0, 1)))
+                or any(op.get(k) is not None and
+                       (not isinstance(op[k], str) or not re.fullmatch(r"[0-9a-f]{64}", op[k]))
+                       for k in ("progress", "failure"))):
+            raise StateIntegrityError("D13: malformed request entry")
+        validate_task_id(key)
+        validate_task_id(op["task_id"])
+        seen.add(op["ordinal"])
+    if seen != set(range(1, len(records) + 1)):
+        raise StateIntegrityError("D13: noncontiguous request audit")
+    return records
+
+def request_scope(envelope: dict[str, Any]) -> str:
+    return request_hash({k: envelope[k] for k in ("goal", "scope", "accept")})
+
+def request_response(key: str, op: dict[str, Any], conflict: bool = False) -> int:
+    # Return original operation metadata, never a second worker result or approval.
+    print(json.dumps({"request_id": key, "task_id": op["task_id"],
+        "operation": op["kind"], "revision": op["revision"],
+        "operation_status": op["status"], "duplicate": not conflict,
+        "conflict": conflict, "original_exit_code": op.get("exit_code"),
+        "result_ref": op.get("result_ref"), "review_id": op.get("review_id"),
+        "verification_passed": False}, ensure_ascii=False))
+    return op["exit_code"] if not conflict and op["status"] == "returned" else 2
+
+def request_progress(record: dict[str, Any]) -> str | None:
+    # Use only independently collected Git metadata, never a model summary.
+    # A missing/ambiguous/truncated observation is not evidence of progress.
+    ref = record.get("result_ref")
+    if not isinstance(ref, dict) or not isinstance(ref.get("sha256"), str):
+        raise StateIntegrityError("D13: missing terminal result reference")
+    parts = [record["task_id"]]
+    if ref.get("turn") is not None:
+        parts.append(validate_task_id(ref["turn"]))
+    p = bounded_child(RUNS_DIR, *parts) / "result.json"
+    reject_link(p)
+    with p.open("rb") as f:
+        raw = f.read(2 * 1024 * 1024 + 1)
+    if len(raw) > 2 * 1024 * 1024 or hashlib.sha256(raw).hexdigest() != ref["sha256"]:
+        raise StateIntegrityError("D13: terminal artifact invalid or oversized")
+    data = json.loads(raw.decode("utf-8"))
+    if not isinstance(data, dict) or data.get("task_id") != record["task_id"] or data.get("turn_id") != ref.get("turn"):
+        raise StateIntegrityError("D13: terminal artifact identity mismatch")
+    git = data.get("git_truth")
+    if (not isinstance(git, dict) or git.get("is_git") is not True
+            or not isinstance(git.get("head_sha"), str)
+            or any(not isinstance(git.get(k), str) for k in ("status_short", "diff_stat"))):
+        return None
+    # Conservative metadata fingerprint: same-size edits can look unchanged.
+    return request_hash({k: git[k] for k in ("head_sha", "status_short", "diff_stat")})
+
+def guarded_dispatch(args: argparse.Namespace, handler) -> int:
+    kind = args.subcommand
+    tid = getattr(args, "task_id", None)
+    raw_key = getattr(args, "request_id", None)
+    retry = getattr(args, "retry_of", None)
+    if raw_key is None:
+        if retry is not None:
+            raise ValueError("D13: retry requires a new request_id")
+        if tid is not None and not args.dry_run:
+            with locked_state() as state:
+                if any(op["task_id"].casefold() == tid.casefold() for op in request_records(state).values()):
+                    raise ValueError("D13: managed keyed task requires request_id")
+        return handler(args)
+    if args.dry_run:
+        raise ValueError("D13: dry-run does not reserve request IDs; omit request_id for preview")
+    key = validate_task_id(raw_key).casefold()
+    tid = validate_task_id(tid)
+    if kind in ("run", "resume"):
+        if not args.protocol_v2:
+            raise ValueError("D13: keyed worker operations require protocol v2")
+        if args.prompt == "-":
+            args.prompt = sys.stdin.read(PROTOCOL_LIMIT + 1)
+        if not isinstance(args.prompt, str) or len(args.prompt.encode("utf-8")) > PROTOCOL_LIMIT:
+            raise ValueError("D13: request exceeds protocol bound")
+    params = {k: v for k, v in vars(args).items() if k not in ("request_id",) and not k.startswith("_")}
+    if params.get("cwd") is not None:
+        params["cwd"] = str(configured_path(params["cwd"]))
+    digest = request_hash(params)
+    with locked_state() as state:
+        records = request_records(state)
+        old = records.get(key)
+        if old is not None:
+            return request_response(key, old, old["fingerprint"] != digest or old["task_id"] != tid)
+        if len(records) >= REQUEST_LIMIT:
+            raise StateIntegrityError("D13: request audit full; no automatic deletion")
+        previous = sorted((op for op in records.values() if op["task_id"].casefold() == tid.casefold()),
+                          key=lambda op: op["ordinal"])
+        if any(op["task_id"] != tid for op in previous):
+            raise ValueError("D13: task identity is case ambiguous")
+        if any(op["status"] != "returned" for op in previous):
+            raise ValueError("D13: unresolved operation; reconcile manually, no automatic retry")
+        record = state["tasks"].get(tid)
+        workers = [op for op in previous if op["kind"] in ("run", "resume")]
+        if kind == "run":
+            if previous or any(k.casefold() == tid.casefold() for k in state["tasks"]) or retry is not None:
+                raise ValueError("D13: initial request requires a new task")
+            enforce_execution_policy(args.sandbox, args.network, args.effort)
+            envelope = parse_task_envelope(args.prompt, tid, 0)
+            scope = request_scope(envelope)
+            rev = envelope["rev"]
+        else:
+            if not workers or not record or record.get("protocol_version") != 2:
+                raise ValueError("D13: keyed continuation requires a keyed v2 initial task")
+            last = workers[-1]
+            if record.get("protocol_rev") != last["revision"] or record.get("status") in ("reserved", "running", "interrupted"):
+                raise StateIntegrityError("D13: managed task revision/terminal state changed")
+            scope = workers[0]["scope"]
+            if kind == "resume":
+                validate_resume_binding(record, args)
+                enforce_execution_policy(args.sandbox or record["sandbox"], args.network is True, args.effort)
+                budget_timeout(record.get("budget", make_budget()),
+                               record.get("usage_store", new_usage_store(prior_unknown=True)), args.timeout)
+                if record.get("context_board") is not None:
+                    envelope, _, _ = context_prepare(args.prompt, record, args.rebuild_context, args.sandbox)
+                else:
+                    envelope = prepare_resume_envelope(args.prompt, record, True)
+                if request_scope(envelope) != scope:
+                    raise ValueError("D13: task scope changed; use a reviewed new task")
+                rev = envelope["rev"]
+                if last["stagnant"] >= 2:
+                    raise ValueError("D13: no observed progress in two continuations")
+                if last["exit_code"] != 0:
+                    # A fresh key does not itself approve retry of an old operation.
+                    if (retry is None or records.get(validate_task_id(retry).casefold()) is not last
+                            or record.get("process_status") != "failed" or record.get("task_status") != "failed"):
+                        raise ValueError("D13: known failed operation needs explicit retry-of; uncertain/partial/timeout not retried")
+                    if sum(op.get("retry_of") is not None for op in workers) >= 2:
+                        raise ValueError("D13: retry limit reached")
+                    if len(workers) >= 2 and last.get("failure") is not None and workers[-2].get("failure") == last["failure"]:
+                        raise ValueError("D13: repeated failure signature")
+                elif retry is not None:
+                    raise ValueError("D13: retry-of requires a failed prior worker operation")
+            else:
+                if retry is not None:
+                    raise ValueError("D13: review does not authorize worker retry")
+                if sum(op["kind"] == "review" for op in previous) >= 2:
+                    raise ValueError("D13: review limit reached; independent human review required")
+                if args.cwd is not None and configured_path(args.cwd) != configured_path(record["workdir"]):
+                    raise ValueError("D13: review scope mismatch")
+                if args.base is not None and args.base != record.get("base_sha"):
+                    raise ValueError("D13: review base mismatch")
+                if any(v is not None for v in record.get("budget", make_budget()).values()):
+                    raise ValueError("D12: associated review outside managed budget settlement")
+                enforce_execution_policy("read-only", False, args.effort)
+                rev = record["protocol_rev"]
+        op = {"task_id": tid, "kind": kind, "revision": rev, "scope": scope,
+              "ordinal": len(records)+1, "fingerprint": digest, "status": "pending",
+              "retry_of": retry.casefold() if retry is not None else None,
+              "stagnant": 0, "progress": None, "failure": None,
+              "created_at": utc_now()}
+        records[key] = op
+        state[REQUEST_REGISTRY] = records
+    # Reservation is durable before handler or child launch. Crash/exception
+    # leaves a pending/uncertain operation; no lease expiry may relaunch it.
+    try:
+        rc = handler(args)
+        if type(rc) is not int or rc not in (0, 1):
+            raise StateIntegrityError("D13: invalid handler outcome")
+        with locked_state() as state:
+            records = request_records(state)
+            op = records.get(key)
+            if op is None or op["status"] != "pending" or op["fingerprint"] != digest:
+                raise StateIntegrityError("D13: request reservation changed")
+            if kind != "review":
+                record = state["tasks"].get(tid)
+                if (not record or record.get("protocol_rev") != rev
+                        or record.get("status") in ("reserved", "running", "interrupted")):
+                    raise StateIntegrityError("D13: missing terminal worker state")
+                progress = request_progress(record)
+                op["progress"] = progress
+                op["result_ref"] = record["result_ref"]
+                if rc != 0:
+                    op["failure"] = request_hash({k: record.get(k) for k in ("process_status", "task_status", "exit_code")})
+                if kind == "resume":
+                    op["stagnant"] = last["stagnant"] + 1 if progress is None or progress == last["progress"] else 0
+            else:
+                op["review_id"] = getattr(args, "_d13_review_id", None)
+            op.update(status="returned", exit_code=rc, updated_at=utc_now())
+        return rc
+    except Exception:
+        with locked_state() as state:
+            op = request_records(state).get(key)
+            if op is not None and op["status"] == "pending" and op["fingerprint"] == digest:
+                op.update(status="uncertain", updated_at=utc_now())
+        raise
+
 def cmd_run(args: argparse.Namespace) -> int:
     prompt_text = sys.stdin.read() if args.prompt == "-" else args.prompt
     result = execute_single_task(
@@ -1991,6 +2214,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         dry_run=args.dry_run,
         protocol_v2=args.protocol_v2, blackboard=args.blackboard,
         budget=make_budget(args.max_turns,args.max_tokens,args.max_seconds),use_budget_route=args.budget_route,
+        request_id=getattr(args, 'request_id', None),
     )
     print(json.dumps(result.get("protocol_result",result), ensure_ascii=False, separators=(",",":") if args.protocol_v2 else None, indent=None if args.protocol_v2 else 2))
     return task_exit_code(result)
@@ -2409,6 +2633,7 @@ def cmd_review(args: argparse.Namespace) -> int:
         return 0
 
     run_dir = reserve_run_dir(review_id)
+    args._d13_review_id = review_id
     rc, stdout_text, stderr_text, timed_out = run_subprocess_with_timeout(
         cmd, cwd=workdir, stdin_text=stdin_prompt, timeout=args.timeout
     )
@@ -2563,6 +2788,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--timeout", type=int, default=600)
     p_run.add_argument("--files", nargs="*", default=None, help="Optional target file hints.")
     p_run.add_argument("--task-id", default=None)
+    p_run.add_argument("--request-id", default=None, help="Persistent D13 operation ID (v2 only).")
     p_run.add_argument("--max-turns", type=int, default=None)
     p_run.add_argument("--max-tokens", type=int, default=None)
     p_run.add_argument("--max-seconds", type=int, default=None)
@@ -2582,6 +2808,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_res = sub.add_parser("resume", allow_abbrev=False, help="Continue an existing worker session in its workdir.")
     p_res.add_argument("--task-id", default=None)
+    p_res.add_argument("--request-id", default=None)
+    p_res.add_argument("--retry-of", default=None, help="Explicit previous failed request; not an authorization grant.")
     p_res.add_argument("--route-reason", default=None, help="Required for model/effort changes of budget-routed tasks.")
     p_res.add_argument("--rebuild-context", action="store_true", help="Explicit new session with reviewed checkpoint; blackboard only.")
     p_res.add_argument("--protocol-v2", action="store_true", help="Continue an existing v2 task using the next revision envelope.")
@@ -2604,6 +2832,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_rev = sub.add_parser("review", allow_abbrev=False, help="Run non-interactive read-only Codex code review.")
     p_rev.add_argument("--task-id", default=None)
+    p_rev.add_argument("--request-id", default=None)
     p_rev.add_argument("--cwd", default=None)
     p_rev.add_argument("--backend", choices=VALID_BACKENDS, default="codex")
     p_rev.add_argument("--quality", choices=VALID_QUALITIES, default="smart")
@@ -2639,6 +2868,8 @@ def main() -> int:
         "cleanup": cmd_cleanup,
     }
     try:
+        if args.subcommand in ('run', 'resume', 'review'):
+            return guarded_dispatch(args, handlers[args.subcommand])
         return handlers[args.subcommand](args)
     except Exception as exc:
         print(json.dumps({"error": str(exc)}, ensure_ascii=False, indent=2), file=sys.stderr)
