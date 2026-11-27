@@ -321,13 +321,18 @@
           "name": "Actual host visibility/UI and real token acceptance",
           "status": "BLOCKED",
           "ref": "docs/evidence/D09-compact.md"
+        },
+        {
+          "name": "BUG-007 cleanup denial synchronization",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D09-cleanup-integration.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "99c0e5544bf03c1702fee7b7deb1a196b9fba502",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45940757723",
-        "limitations": "Actual host and token tests NOT_RUN; old records without result_ref unavailable; metadata-only log cursor and nonpersistent hash; not merged."
+        "limitations": "Actual host and token tests NOT_RUN; old records without result_ref unavailable; metadata-only log cursor and nonpersistent hash; not merged. Verified D06 cleanup denial synchronized; current head needs CI."
       }
     },
     {
