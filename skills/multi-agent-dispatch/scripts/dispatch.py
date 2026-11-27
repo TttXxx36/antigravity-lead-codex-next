@@ -3205,6 +3205,212 @@ def orchestrator_public(state,rec):
             "accepted":False,"mergeAuthorized":False,"auditDigest":e["digest"]}
 
 
+
+# D19: explicit local operator, pinned commit-pair evidence, never acceptance.
+RISK_KEY="risk_review_v1"
+RISK_POLICY="D19-v1"
+RISK_OUTPUT_LIMIT=262144
+RISK_CHECKS=("identity","ancestry","diff_metadata","diff_content","whitespace","worktree","project_tests","independent_review")
+RISK_SENSITIVE=re.compile(r"security|auth|credential|secret|permission|sandbox|approval|network|privilege|concurr|async|lock|race|lease|scheduler|orchestrat|state|sqlite|migration|schema|storage|database|token|quota|workflow|policy|安全|权限|并发|锁|迁移|数据库|授权",re.I)
+RISK_GUIDE=re.compile(r"docs/(?:user-guide|tutorials)/[A-Za-z0-9_./-]+\.md\Z")
+
+
+def risk_sha(value):
+    return isinstance(value,str) and re.fullmatch(r"(?:[a-f0-9]{40}|[a-f0-9]{64})",value) is not None
+
+
+def risk_git(cwd,args,deadline):
+    binary=get_git_bin()
+    remaining=min(8,deadline-time.monotonic())
+    if not binary or remaining<=0:return None,b""
+    env={k:v for k,v in os.environ.items() if not k.upper().startswith("GIT_")}
+    env.update(GIT_CONFIG_NOSYSTEM="1",GIT_CONFIG_GLOBAL=os.devnull,GIT_TERMINAL_PROMPT="0",
+               GIT_NO_REPLACE_OBJECTS="1",GIT_NO_LAZY_FETCH="1",GIT_OPTIONAL_LOCKS="0",
+               GIT_PROTOCOL_FROM_USER="0",GIT_ALLOW_PROTOCOL="",LC_ALL="C")
+    cmd=[binary,"--no-optional-locks","-c","core.fsmonitor=false","-c","core.hooksPath="+os.devnull,
+         "-c","diff.external=","-c","protocol.allow=never","-C",str(cwd),*args]
+    try:
+        proc=subprocess.Popen(cmd,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+            env=env,start_new_session=os.name!="nt",
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name=="nt" else 0)
+    except OSError:return None,b""
+    over=threading.Event();buffers=[bytearray(),bytearray()]
+    def read(pipe,buf,limit):
+        try:
+            while True:
+                part=pipe.read1(8192)
+                if not part:break
+                if len(buf)+len(part)>limit:
+                    over.set();break
+                buf.extend(part)
+        except OSError:over.set()
+        finally:pipe.close()
+    threads=[threading.Thread(target=read,args=(proc.stdout,buffers[0],RISK_OUTPUT_LIMIT),daemon=True),
+             threading.Thread(target=read,args=(proc.stderr,buffers[1],32768),daemon=True)]
+    for thread in threads:thread.start()
+    end=time.monotonic()+remaining
+    try:
+        while proc.poll() is None and not over.is_set() and time.monotonic()<end:time.sleep(.02)
+        if proc.poll() is None:
+            terminate_owned_process_tree(proc);proc.wait(timeout=5);return None,b""
+        for thread in threads:thread.join(timeout=.3)
+        if over.is_set() or any(thread.is_alive() for thread in threads):return None,b""
+        return proc.returncode,bytes(buffers[0])
+    except (OSError,subprocess.TimeoutExpired):return None,b""
+    except BaseException:
+        terminate_owned_process_tree(proc);raise
+
+
+def risk_diff_paths(raw):
+    if not raw or not raw.endswith(b"\0"):return [] if not raw else None
+    parts=raw[:-1].split(b"\0")
+    if len(parts)%2 or len(parts)>256:return None
+    result=[]
+    for meta,name in zip(parts[::2],parts[1::2]):
+        match=re.fullmatch(rb":([0-7]{6}) ([0-7]{6}) ([a-f0-9]{40,64}) ([a-f0-9]{40,64}) ([AMDT])",meta)
+        if not match or not name or len(name)>1024:return None
+        try:path=name.decode("utf8")
+        except UnicodeError:return None
+        if any(ord(c)<32 or ord(c)==127 for c in path) or "\\" in path or any(p in ("",".","..") for p in path.split("/")):return None
+        result.append((path,match[1].decode(),match[2].decode(),match[5].decode()))
+    return result
+
+
+def risk_classify(paths,patch):
+    if paths is None or not paths or patch is None:return "high",["unknown_or_empty_diff"]
+    reasons=set()
+    for path,before,after,change in paths:
+        if RISK_SENSITIVE.search(path):reasons.add("sensitive_path")
+        if before!="100644" or after!="100644" or change!="M":reasons.add("structural_change")
+        if not RISK_GUIDE.fullmatch(path):reasons.add("non_allowlisted_change")
+    try:content=patch.decode("utf8")
+    except UnicodeError:return "high",["unknown_diff_encoding"]
+    if RISK_SENSITIVE.search(content):reasons.add("sensitive_content")
+    if "GIT binary patch" in content or "Binary files " in content:reasons.add("binary_diff")
+    if any(c in content for c in ("\0","\x1b",chr(96)*3,"<script","<!--")):reasons.add("embedded_or_control_content")
+    return ("high",sorted(reasons)) if reasons else ("low",["plain_guide_edit"])
+
+
+def risk_collect(cwd,base,head,approved,artifact_ok,sandbox,network):
+    checks={k:"NOT_RUN" for k in RISK_CHECKS}
+    result={"risk":"high","reasons":["checks_not_approved"],"checks":checks,"diffSha256":None,
+            "changedCount":None,"scope":"committed_pair_only","workerArtifact":"PASS" if artifact_ok else "FAIL",
+            "repeatReviewMaySkip":False,"requiredAudit":True,"accepted":False,"mergeAuthorized":False}
+    if not approved:return result
+    if not artifact_ok or sandbox not in ("read-only","workspace-write") or network is not False or not risk_sha(base) or not risk_sha(head):
+        result["reasons"]=["artifact_or_execution_policy_unknown"];checks["identity"]="UNKNOWN";return result
+    deadline=time.monotonic()+25
+    def git(*args):return risk_git(cwd,list(args),deadline)
+    rc,value=git("rev-parse","--verify","HEAD^{commit}")
+    if rc!=0 or value.strip()!=head.encode():
+        checks["identity"]="UNKNOWN";result["reasons"]=["head_mismatch_or_unavailable"];return result
+    rc,value=git("rev-parse","--verify",base+"^{commit}")
+    if rc!=0 or value.strip()!=base.encode():
+        checks["identity"]="UNKNOWN";result["reasons"]=["base_unavailable"];return result
+    checks["identity"]="PASS"
+    rc,_=git("merge-base","--is-ancestor",base,head)
+    checks["ancestry"]="PASS" if rc==0 else "FAIL" if rc==1 else "UNKNOWN"
+    if rc!=0:
+        result["reasons"]=["base_not_ancestor_or_unknown"];return result
+    rc,raw=git("diff-tree","--no-commit-id","-r","--raw","-z","--no-renames","--no-abbrev",base,head,"--")
+    paths=risk_diff_paths(raw) if rc==0 else None
+    checks["diff_metadata"]="PASS" if paths else "UNKNOWN"
+    result["changedCount"]=len(paths) if paths is not None else None
+    rc,patch=git("diff","--no-ext-diff","--no-textconv","--no-color","--no-renames","--unified=0",base,head,"--")
+    if rc!=0:patch=None
+    checks["diff_content"]="PASS" if patch and paths else "UNKNOWN"
+    risk,reasons=risk_classify(paths,patch)
+    result.update(risk=risk,reasons=reasons,diffSha256=hashlib.sha256(patch).hexdigest() if patch is not None else None)
+    rc,_=git("diff","--check","--no-ext-diff","--no-textconv","--no-color",base,head,"--")
+    checks["whitespace"]="PASS" if rc==0 else "FAIL" if rc==2 else "UNKNOWN"
+    rc,current=git("rev-parse","--verify","HEAD^{commit}")
+    if rc!=0 or current.strip()!=head.encode():
+        checks["identity"]="UNKNOWN";result.update(risk="high",reasons=["head_changed_during_checks"])
+    eligible=result["risk"]=="low" and all(checks[k]=="PASS" for k in RISK_CHECKS[:5])
+    result["repeatReviewMaySkip"]=eligible;result["requiredAudit"]=not eligible
+    return result
+
+
+def risk_registry(state,create=False):
+    registry=state.get(RISK_KEY)
+    if registry is None:
+        if RISK_KEY in state:raise StateIntegrityError("D19: invalid evidence registry")
+        if not create:return {}
+        registry={};state[RISK_KEY]=registry
+    if not isinstance(registry,dict) or len(registry)>ORCHESTRATOR_LIMIT:raise StateIntegrityError("D19: invalid evidence registry")
+    orch=orchestrator_registry(state)
+    for tid,rec in registry.items():
+        if not isinstance(rec,dict) or set(rec)!={"policy","taskId","revision","auditDigest","artifactSha256","base","head","evidence","at","digest"}:
+            raise StateIntegrityError("D19: malformed review receipt")
+        if (rec["taskId"]!=tid or tid not in orch or rec["policy"]!=RISK_POLICY or
+            type(rec["revision"]) is not int or not 1<=rec["revision"]<=len(orch[tid]["events"]) or
+            not risk_sha(rec["base"]) or not risk_sha(rec["head"]) or not orchestrator_hash_ok(rec["auditDigest"]) or
+            not orchestrator_hash_ok(rec["artifactSha256"]) or not orchestrator_hash_ok(rec["digest"]) or
+            not isinstance(rec["at"],str) or len(rec["at"])>64):raise StateIntegrityError("D19: invalid receipt identity")
+        event=orch[tid]["events"][rec["revision"]-1]
+        if event["status"]!="verifying" or event["digest"]!=rec["auditDigest"] or event["result_ref"]["sha256"]!=rec["artifactSha256"]:
+            raise StateIntegrityError("D19: evidence not bound to orchestration")
+        ev=rec["evidence"]
+        if (not isinstance(ev,dict) or set(ev)!={"risk","reasons","checks","diffSha256","changedCount","scope","workerArtifact","repeatReviewMaySkip","requiredAudit","accepted","mergeAuthorized"}
+            or ev["risk"] not in ("low","high") or not isinstance(ev["reasons"],list) or not 1<=len(ev["reasons"])<=8
+            or any(not isinstance(x,str) or len(x)>80 for x in ev["reasons"])
+            or not isinstance(ev["checks"],dict) or set(ev["checks"])!=set(RISK_CHECKS)
+            or any(x not in ("PASS","FAIL","UNKNOWN","NOT_RUN") for x in ev["checks"].values())
+            or any(ev["checks"][k]!="NOT_RUN" for k in RISK_CHECKS[5:])
+            or ev["scope"]!="committed_pair_only" or ev["workerArtifact"] not in ("PASS","FAIL")
+            or ev["accepted"] is not False or ev["mergeAuthorized"] is not False
+            or (ev["diffSha256"] is not None and not orchestrator_hash_ok(ev["diffSha256"]))
+            or (ev["changedCount"] is not None and (type(ev["changedCount"]) is not int or not 0<=ev["changedCount"]<=128))):
+            raise StateIntegrityError("D19: invalid review evidence")
+        eligible=ev["risk"]=="low" and ev["workerArtifact"]=="PASS" and all(ev["checks"][k]=="PASS" for k in RISK_CHECKS[:5])
+        if ev["repeatReviewMaySkip"] is not eligible or ev["requiredAudit"] is not (not eligible) or rec["digest"]!=request_hash({k:v for k,v in rec.items() if k!="digest"}):
+            raise StateIntegrityError("D19: evidence digest or review gate mismatch")
+    return registry
+
+
+def risk_review_command(args):
+    tid=validate_task_id(args.task_id)
+    if not STATE_FILE.exists():raise ValueError("D19: task not found")
+    with locked_state() as state:
+        rec=orchestrator_lookup(state,tid)
+        if rec is None:raise ValueError("D19: task not orchestrated")
+        e=rec["events"][-1];old=risk_registry(state).get(tid)
+        if args.subcommand=="orchestrator-risk-status":
+            payload={"taskId":tid,"status":"NOT_RUN" if old is None else "RECORDED","receipt":old,
+                     "currentRevision":e["revision"],"sameRevision":bool(old and old["auditDigest"]==e["digest"]),
+                     "accepted":False,"mergeAuthorized":False}
+            print(json.dumps(payload,ensure_ascii=True,separators=(",",":")));return 0
+        if args.expected_revision!=e["revision"] or e["status"]!="verifying" or e["lease"] is not None:raise ValueError("D19: current verifying revision required")
+        if not risk_sha(args.head):raise ValueError("D19: full lowercase commit SHA required")
+        task=state["tasks"].get(tid,{});base=task.get("base_sha")
+        if not risk_sha(base) or not isinstance(task.get("workdir"),str):raise ValueError("D19: no recorded Git base/workspace; review manually")
+        cwd=Path(task["workdir"]).resolve(strict=True)
+        artifact_ok=orchestrator_artifact_matches(state,rec)
+        identity=(e["digest"],e["revision"],e["result_ref"]["sha256"],request_hash(task))
+        sandbox=task.get("sandbox");network=task.get("network")
+        if old is not None:
+            if old["auditDigest"]!=e["digest"] or old["head"]!=args.head or old["base"]!=base:raise ValueError("D19: receipt already recorded; changed revision/commit needs independent manual review")
+            if not artifact_ok:raise StateIntegrityError("D19: original artifact changed")
+            print(json.dumps({"receipt":old,"duplicate":True,"accepted":False,"mergeAuthorized":False},separators=(",",":")))
+            return 0 if all(old["evidence"]["checks"][k]=="PASS" for k in RISK_CHECKS[:5]) else 1
+    evidence=risk_collect(cwd,base,args.head,args.approve_git_checks,artifact_ok,sandbox,network)
+    if not args.approve_git_checks:
+        print(json.dumps({"taskId":tid,"status":"NOT_RUN","evidence":evidence},separators=(",",":")));return 1
+    with locked_state() as state:
+        current=orchestrator_lookup(state,tid);e=current["events"][-1] if current else {}
+        task=state["tasks"].get(tid,{})
+        if (e.get("digest"),e.get("revision"),(e.get("result_ref") or {}).get("sha256"),request_hash(task))!=identity or not orchestrator_artifact_matches(state,current):
+            raise StateIntegrityError("D19: task changed during checks; evidence not published")
+        registry=risk_registry(state,create=True)
+        if tid in registry:raise StateIntegrityError("D19: concurrent receipt; read existing evidence")
+        receipt={"policy":RISK_POLICY,"taskId":tid,"revision":identity[1],"auditDigest":identity[0],
+                 "artifactSha256":identity[2],"base":base,"head":args.head,"evidence":evidence,"at":utc_now()}
+        receipt["digest"]=request_hash(receipt);registry[tid]=receipt;risk_registry(state)
+    print(json.dumps({"receipt":receipt,"duplicate":False,"accepted":False,"mergeAuthorized":False},separators=(",",":")))
+    return 0 if all(evidence["checks"][k]=="PASS" for k in RISK_CHECKS[:5]) else 1
+
+
+
 def orchestrator_command(args):
     kind=args.subcommand
     tid=validate_task_id(args.task_id)
@@ -3264,6 +3470,7 @@ def orchestrator_command(args):
                 orchestrator_append(rec,"retry","explicit_retry",request_id=key,protocol_rev=env["rev"],
                     attempt=e["attempt"]+1,envelope=request_hash(env),lease=None,result_ref=None)
             elif kind=="orchestrator-verify":
+                risk_registry(state)  # Evidence is never an approval.
                 if e["status"]!="verifying":
                     raise ValueError("D18: verification requires verifying state")
                 reason="trusted_acceptance_unavailable" if orchestrator_artifact_matches(state,rec) else "artifact_invalid"
@@ -4175,6 +4382,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_st = sub.add_parser("status", help="Inspect tracked task metadata and round-robin state.")
     p_st.add_argument("--task-id", default=None)
 
+    p_risk=sub.add_parser("orchestrator-risk-review",allow_abbrev=False,help="D19 pinned commit-pair checks; no project test execution or acceptance")
+    p_risk.add_argument("--task-id",required=True)
+    p_risk.add_argument("--expected-revision",type=int,required=True)
+    p_risk.add_argument("--head",required=True)
+    p_risk.add_argument("--approve-git-checks",action="store_true",help="Explicit local operator request for fixed Git checks; not approval to merge")
+    p_risk_status=sub.add_parser("orchestrator-risk-status",allow_abbrev=False,help="Read historical D19 receipt")
+    p_risk_status.add_argument("--task-id",required=True)
     for operation in ("orchestrator-queue","orchestrator-retry","orchestrator-cancel","orchestrator-verify","orchestrator-status","orchestrator-audit","orchestrator-recover"):
         p_orch=sub.add_parser(operation,allow_abbrev=False,help="D18 explicit local orchestration; no automatic execution or merge")
         p_orch.add_argument("--task-id",required=True)
@@ -4217,6 +4431,8 @@ def main() -> int:
         "scheduler-cancel": scheduler_status_cmd,
     }
     try:
+        if args.subcommand in ('orchestrator-risk-review','orchestrator-risk-status'):
+            return risk_review_command(args)
         if args.subcommand.startswith('orchestrator-'):
             return orchestrator_command(args)
         if args.subcommand in ('run', 'resume', 'review'):

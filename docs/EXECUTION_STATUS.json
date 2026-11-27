@@ -686,15 +686,21 @@
       "depends": [
         "D18"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "风险分级、确定性检查、安全/并发/迁移必审",
+      "status": "IN_PROGRESS",
+      "evidence": "Pinned Git evidence, conservative risk classification, durable receipt and NOT_RUN separation; CI pending",
+      "next": "Verify actual Git/worker fixtures and cumulative four-platform CI",
       "branch": "dev/d19",
-      "approval": null,
+      "approval": "2026-11-27 user authorized A candidate development D06-D22; no model/permission/merge grant",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D19 risk review and cumulative CI",
+          "status": "NOT_RUN",
+          "ref": "Latest candidate CI pending"
+        }
+      ]
     },
     {
       "id": "D20",

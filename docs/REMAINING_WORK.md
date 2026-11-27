@@ -25,7 +25,7 @@
 | [D16](decisions/D16.md) MCP 查询缓存与 UI 增量刷新 | V1.3 | D14,D15 | BLOCKED | PR #18 四环境 PASS；UI 构建/性能证据已补齐；真实宿主及物理 I/O 未验收；D17 可继续 |
 | [D17](decisions/D17.md) 动态并发与 Worktree 资源治理 | V1.3 | D14,D15,D16 | BLOCKED | PR #19 集成四环境 PASS；真实宿主、取消及可信清理未验收；D18 可继续 |
 | [D18](decisions/D18.md) 确定性编排状态机 | V2.0 | D13,D15,D17 | BLOCKED | PR #20 四环境累计 PASS；可信验收/实际恢复未验证；D19 可继续 |
-| [D19](decisions/D19.md) 风险驱动审查与验收 | V2.0 | D18 | PROPOSED | 未实施；风险分级、确定性检查、安全/并发/迁移必审 |
+| [D19](decisions/D19.md) 风险驱动审查与验收 | V2.0 | D18 | IN_PROGRESS | 固定 Git 检查、风险分级、审计回执；CI 待验证 |
 | [D20](decisions/D20.md) 常驻 Codex App Server 可选适配 | V2.0 | D18,D19 | PROPOSED | 未实施；官方能力协商、CLI 兜底、权限对等、复用/断线测试 |
 | [D21](decisions/D21.md) 可观测性与性能/Token 验收 | V2.0 | D12,D16,D19,D20 | PROPOSED | 未实施；配对基准、质量/成功率、真实用量及置信限制 |
 | [D22](decisions/D22.md) 发布、兼容性与回滚 | V2.0 | D21 | PROPOSED | 未实施；RC、三平台/真实 Windows、SHA256、回滚演练、人工发布许可 |
@@ -194,3 +194,7 @@ D18 follow-up: initial Run 45985228514 orchestration regression step PASS on eac
 
 ## D18 exact-head candidate verification
 Run 45985424111 completed/success on all four actual runners; exact source fbd1dbc29cedf1c2d1900151dba11b8827f41788. Ubuntu 140459741740, macOS ARM64 140459741767, Windows Server x64 140459741267, Windows 11 ARM64 140459741896. 9/9 state-machine tests per environment (36/36), real local mock subprocess crash, timeout, duplicate/reservation, SQLite restart, explicit retry/CAS, tampered artifact/audit, scheduler gating and native MCP read-only receipt PASS; cumulative CI/governance PASS. Earlier run 45985228514 all four orchestration steps PASS; two jobs superseded, not a full four-platform PASS. Candidate ready; formal BLOCKED: actual host reconciliation, independent trusted acceptance/completed bridge, cancellation and upstream formal acceptance unverified. No automatic merge. Evidence-only head recheck required.
+
+
+## 2026-11-27 D19 candidate
+Base 7fbc1b0ac2821a6a3a09806b829503ae72361a05; D18 exact-head cumulative Run 45985424111 PASS. Explicit local CLI orchestrator-risk-review --task-id --expected-revision --head --approve-git-checks; no unapproved checks or arbitrary project code. Fixed bounded Git commands compare full immutable recorded base and explicit HEAD commit, ancestry, raw diff modes/paths, patch digest and whitespace; external diff/textconv/hooks/fsmonitor/lazy fetch disabled, no network protocols. Recheck HEAD and orchestration CAS before publishing one bounded digest-linked receipt per task; retain original evidence, duplicate reads do not rerun. Conservative high risk for all non-allowlisted changes, structural changes, sensitive paths/content, unknown/empty/binary/oversize diff; only ordinary modifications to docs/user-guide or docs/tutorials may skip repetitive review when all fixed Git checks PASS. Worktree, project tests and independent review explicitly NOT_RUN; committed pair only, not proof of clean tree, task scope compliance or trusted independent review. D18 verifying never becomes completed or auto-merges; receipt tampering fails closed. No real models, permissions, arbitrary commands or merge. CI pending; formal trusted host/operator and independent review blocked.
