@@ -254,7 +254,18 @@ def atomic_write_bytes(target: Path, payload: bytes) -> None:
 
 
 def decode_state(raw: bytes) -> dict[str, Any]:
-    data = json.loads(raw.decode("utf-8"))
+    def unique_keys(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Duplicate state JSON key")
+            result[key] = value
+        return result
+
+    def reject_constant(value):
+        raise ValueError("Non-finite state JSON number")
+
+    data = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_keys, parse_constant=reject_constant)
     if not isinstance(data, dict) or not isinstance(data.get("tasks"), dict):
         raise ValueError("state must contain a tasks object")
     rr = data.get("rr_counter", 0)

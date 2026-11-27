@@ -1,5 +1,7 @@
 """D04: real filesystem/process regression, never calls a model."""
+import contextlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -50,7 +52,7 @@ class StateIntegrityTests(unittest.TestCase):
         p.communicate(timeout=15)
 
     def test_corrupt_bytes_unchanged_and_copied(self):
-        for raw in (b"{broken", b"[]", b'{"tasks":[]}', b'{"tasks":{},"rr_counter":true}', b"\xff"):
+        for raw in (b"{broken", b"[]", b'{"tasks":[]}', b'{"tasks":{},"rr_counter":true}', b'{"tasks":{},"tasks":{}}', b'{"tasks":{},"rr_counter":NaN}', b"\xff"):
             with self.subTest(raw=raw):
                 d.STATE_FILE.write_bytes(raw)
                 with self.assertRaises(d.StateIntegrityError):
@@ -163,6 +165,55 @@ with d.locked_state() as state:
                     prefer_wide=False,sandbox="workspace-write",network=False,isolation="inplace",timeout=3,
                     files_hint=None,task_id="blocked",dry_run=False)
             run.assert_not_called()
+
+
+    def test_dispatch_resume_and_duplicate_with_real_mock_process(self):
+        mock = ROOT / "tests/mock_codex.py"
+        work = Path(self.tmp.name) / "项目"
+        work.mkdir()
+        route = {"model":"mock","effort":"low","effective_difficulty":"low"}
+        original = d.run_subprocess_with_timeout
+        calls = []
+        def boundary(cmd, **kwargs):
+            self.assertEqual(cmd[0], "MOCK_ONLY")
+            self.assertEqual(cmd[1], "exec")
+            calls.append(cmd[2])
+            kwargs["env"] = dict(self.env, ALC_MOCK_CASE="B01")
+            return original([sys.executable,"-I",str(mock),*cmd[1:]],**kwargs)
+        with patch.object(d,"get_codex_bin",return_value="MOCK_ONLY"), patch.object(d,"resolve_model_and_effort",return_value=route), patch.object(d,"run_subprocess_with_timeout",side_effect=boundary):
+            def dispatch():
+                return d.execute_single_task(prompt="synthetic",cwd=work,backend="codex",
+                    difficulty="low",model="mock",effort="low",quality="balanced",alternate=False,
+                    prefer_wide=False,sandbox="workspace-write",network=False,isolation="inplace",
+                    timeout=15,files_hint=None,task_id="mock-task",dry_run=False)
+            result = dispatch()
+            self.assertEqual(result["exit_code"],0)
+            self.assertEqual(result["report"]["status"],"completed")
+            with self.assertRaises(ValueError):
+                dispatch()
+            self.assertEqual(len(calls),1)
+            args = d.build_parser().parse_args(["resume","--task-id","mock-task","--prompt","synthetic followup"])
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(d.cmd_resume(args),0)
+            resumed = json.loads(output.getvalue())
+            self.assertEqual(resumed["session_id"],result["session_id"])
+            self.assertEqual(len(calls),2)
+            self.assertEqual((work/"answer.txt").read_text(encoding="utf-8"),"mock resume\n")
+            self.assertTrue((Path(resumed["run_dir"])/"result.json").is_file())
+            state=json.loads(d.STATE_FILE.read_bytes())
+            self.assertEqual(state["tasks"]["mock-task"]["status"],"completed")
+            self.assertEqual(len(state["tasks"]),1)
+
+    def test_resume_lock_refuses_parallel_resume(self):
+        d.reserve_run_dir("resume-race", {"backend":"mock"})
+        root=d.RUNS_DIR/"resume-race"
+        args=d.build_parser().parse_args(["resume","--task-id","resume-race","--prompt","synthetic"])
+        with d.exclusive_state_lock(root/"resume.lock"):
+            with patch.object(d,"_cmd_resume") as handler:
+                with self.assertRaises(TimeoutError):
+                    d.cmd_resume(args)
+                handler.assert_not_called()
 
 
 if __name__ == "__main__":
