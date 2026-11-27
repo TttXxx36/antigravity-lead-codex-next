@@ -464,13 +464,18 @@
           "name": "Actual host, risk review and crash/power-loss recovery",
           "status": "BLOCKED",
           "ref": "docs/evidence/D13-requests.md"
+        },
+        {
+          "name": "BUG-007 cleanup denial synchronization",
+          "status": "NOT_RUN",
+          "ref": "docs/evidence/D13-cleanup-integration.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "b61c1cddb9c1b67b3ebd1bfe7b7b1548b0729081",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45971644956",
-        "limitations": "Opt-in keyed CLI/MCP only; legacy callers excluded; conservative Git metadata; real host and power loss, cross-store reconciliation and trusted retry approval not independently accepted; no merge."
+        "limitations": "Opt-in keyed CLI/MCP only; legacy callers excluded; conservative Git metadata; real host and power loss, cross-store reconciliation and trusted retry approval not independently accepted; no merge. Verified D06 cleanup denial synchronized; current head needs CI."
       },
       "observations": [
         {
