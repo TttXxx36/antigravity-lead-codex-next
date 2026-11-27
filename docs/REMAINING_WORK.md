@@ -11,7 +11,7 @@
 | [D02](decisions/D02.md) 开发与验收治理 | P0 | D00 | DONE | PR #3 已验收合并；治理三平台通过；远程保护设置另获授权 |
 | [D03](decisions/D03.md) 跨平台路径与运行时发现 | V1.1 | D01,D02 | DONE | PR #5 已合并；三平台实际长路径 I/O 与 MCP smoke PASS；真实客户端/桌面由 D05/D08 验收 |
 | [D04](decisions/D04.md) 跨平台锁与状态完整性 | V1.1 | D03 | DONE | PR #6 已合并；39/39 状态回归通过 |
-| [D05](decisions/D05.md) 安装器和环境诊断 | V1.1 | D03,D04 | BLOCKED | PR #7；托管三平台/Windows Server 生命周期 PASS；真实 Windows 11 和 Antigravity MCP 宿主验收缺失 |
+| [D05](decisions/D05.md) 安装器和环境诊断 | V1.1 | D03,D04 | BLOCKED | PR #7；四环境及真实 Windows 11 ARM64 OS 生命周期 PASS；真实 Antigravity 宿主和实际 Codex 版本证据缺失 |
 | [D06](decisions/D06.md) 审批门禁与执行边界 | V1.1 | D04,D05 | PROPOSED | PR #4 Windows hook 保守转人工；任务绑定可信授权、batch/resume/MCP 防绕过、危险权限拒绝 |
 | [D07](decisions/D07.md) 任务结果与进程生命周期正确性 | V1.1 | D04,D06 | PROPOSED | 已复现 BUG-001/002；独立退出/任务/验证状态，失败/取消/超时、进程树清理 |
 | [D08](decisions/D08.md) 历史任务定位与 Windows 发布门禁 | V1.1 | D05,D06,D07 | PROPOSED | 未实施；按 ID 查询、歧义拒绝、Git -z、DB 错误、三平台与 Windows 实机 |
@@ -68,3 +68,6 @@ D05 候选已实现 PowerShell 安装、备份/恢复/卸载、直接 node.exe s
 ## 当前恢复点
 
 D00–D04 正式完成（5/23）；D05 代码及托管 CI 通过，保留 Draft PR #7。必须完成 [真实 Windows 11 验收](evidence/D05-WINDOWS11-acceptance.md)；[CI](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45935195557)。D06–D21 不再需要逐卡合并批准，但当前传递依赖未满足；D22 发布另需许可。
+
+## Windows 11 ARM64 真正 OS 补测（2026-11-27）
+[Run 45936238126](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45936238126) completed/success，精确测试 head `9813f19c222a858f2a4f7cf217702f62252cc540`，四个 job 均 success。Windows 11 Enterprise / 10.0.26200 / Build 26200 / ProductType 1 / ARM 64-bit Processor；Node 22.23.5 win32 arm64、Python 3.12.10 ARM64；13/13 状态、7/7 Python 平台、4/4 Node 平台、真实本地 MCP 合成客户端和完整 PowerShell 生命周期均 PASS。Windows Server 2025 x64 同样通过新增 SQLite SHA256/内容断言；Linux/macOS 回归 PASS。Windows 两种架构均通过 install/upgrade/restore/uninstall/reinstall、ConsoleOnly、Unicode、missing dependency、injected rollback、持久数据及 SQLite bytes preserved。Job IDs: Win11 140299982943、WinServer 140299983157、Ubuntu 140299983213、macOS 140299983240。原 push/PR 重复取消不计入 PASS。实际 Win11 OS 子门槛已取得 ARM64 证据，真实 x64 桌面及 Antigravity App/IDE 登录宿主仍 NOT_RUN；native mock CLI 仅 --version，0 真实模型调用，不冒充真实宿主。

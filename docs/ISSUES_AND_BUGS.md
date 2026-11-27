@@ -35,7 +35,7 @@
 | ENV-02 | 本地 github.com DNS 失败、依赖不可用 | 改 GitHub 托管三平台 CI；本地网络问题不等于项目缺陷 |
 | ENV-03 | 原 5 次本地自检超时 | 保留 2 次实测，后续 Actions 各条件 5 次 |
 | ENV-04 | Actions Artifact 14 天留存 | 归档六份 ZIP 摘要、SHA256、链接；保留可下载原件 |
-| ENV-05 | 缺真实 Windows 11/Antigravity/Codex 宿主 | 仍 NOT_RUN；GitHub Windows Server 2025 不代替用户桌面 |
+| ENV-05 | 真实桌面环境证据缺失 | Windows 11 ARM64 OS 已通过；真实 x64 桌面、Antigravity 宿主及真实 Codex 版本仍未验证 |
 | ENV-06 | 缺真实模型用量及预算许可 | UNKNOWN；不宣称节省达标 |
 | ENV-07 | 历史 D01/D02/PR #4 未获合并许可 | D01/D02 已合并；D03–D21 已获条件许可；PR #4 独立候选保留 |
 
@@ -55,3 +55,5 @@ BUG-003、BUG-004：FIXED（PR #6 已合并）；RISK-02 针对重复 ID、路�
 D05 RISK-03/BUG-005：原生安装及 MCP 配置候选；不删除数据，不自动联网。待托管生命周期与实际桌面验收。
 ### D05 实测更新
 RISK-03：候选安装器完成，Windows Server 2025 的原生安装/升级/恢复/卸载/重装、ConsoleOnly、真实本地 MCP initialize、缺依赖及注入失败回滚均 PASS；Linux/macOS 回归 PASS。[Run 45935195557](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45935195557)。ENV-05 仍阻塞真实 Windows 11/Antigravity host 验收；D05 未合并，不声称真实客户端已修复。未发现新的已确认产品 Bug；已加固 ConsoleOnly 缺可选 Python/Git 字段、绝对 exe 覆盖、探测环境和进程清理，均通过最终托管测试。
+### D05 Windows 11 补测
+RISK-03/BUG-005：四环境 Run 45936238126 success；Win11 ARM64、WinServer x64 SQLite 原始字节保持和生命周期通过。BUG-005 原生启动器已合入 D03；真实宿主缺失，D05 尚未合入。初次四环境 push/PR 同组取消是 CI 配置问题，已改 PR-only，最新四 job 通过；不计为产品 Bug。

@@ -25,3 +25,8 @@
 
 ## 托管 Windows 11 补测（新增）
 GitHub 官方公共仓库 runner [windows-11-arm](https://docs.github.com/en/actions/reference/runners/github-hosted-runners) 提供 Windows 11 ARM64 VM；新增到 D05 矩阵并验证 ProductType=1、Windows 11 Caption 和 BuildNumber >=22000。实际原生安装生命周期、合成 SQLite 文件 SHA256 与内容、MCP stdio 均需通过。此方式验证 Windows 11 OS，仍不代表 x64 桌面或实际登录的 Antigravity 宿主成功；两者分开记录。禁止在公共 runner 注入账号或 token。
+
+## Windows 11 ARM64 真正 OS 补测（2026-11-27）
+[Run 45936238126](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45936238126) completed/success，精确测试 head `9813f19c222a858f2a4f7cf217702f62252cc540`，四个 job 均 success。Windows 11 Enterprise / 10.0.26200 / Build 26200 / ProductType 1 / ARM 64-bit Processor；Node 22.23.5 win32 arm64、Python 3.12.10 ARM64；13/13 状态、7/7 Python 平台、4/4 Node 平台、真实本地 MCP 合成客户端和完整 PowerShell 生命周期均 PASS。Windows Server 2025 x64 同样通过新增 SQLite SHA256/内容断言；Linux/macOS 回归 PASS。Windows 两种架构均通过 install/upgrade/restore/uninstall/reinstall、ConsoleOnly、Unicode、missing dependency、injected rollback、持久数据及 SQLite bytes preserved。Job IDs: Win11 140299982943、WinServer 140299983157、Ubuntu 140299983213、macOS 140299983240。原 push/PR 重复取消不计入 PASS。实际 Win11 OS 子门槛已取得 ARM64 证据，真实 x64 桌面及 Antigravity App/IDE 登录宿主仍 NOT_RUN；native mock CLI 仅 --version，0 真实模型调用，不冒充真实宿主。
+
+实际 Win11 OS 生命周期已由 ARM64 托管 VM 验证；真实宿主子门槛仍未执行。桌面证据应来自实际 Antigravity MCP 管理器/日志而非 doctor；不注入任何账户凭据到公共 CI。

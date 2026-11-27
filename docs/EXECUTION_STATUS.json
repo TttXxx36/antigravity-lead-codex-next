@@ -159,8 +159,8 @@
         "D04"
       ],
       "status": "BLOCKED",
-      "evidence": "PowerShell installer and all hosted lifecycle/regression tests PASS; actual Windows 11 and Antigravity MCP host evidence missing",
-      "next": "Run real desktop checklist; then verify exact head and conditionally merge. D06 waits.",
+      "evidence": "4 environments PASS including genuine Windows 11 ARM64 OS, SQLite bytes preserved; actual Antigravity desktop host still NOT_RUN",
+      "next": "Actual Antigravity host connection evidence and real local Codex --version; verify exact head, then merge D05; D06 waits.",
       "branch": "dev/d05",
       "approval": "2026-11-27 user approved A and conditional merge",
       "pr": 7,
@@ -168,13 +168,13 @@
       "merged": false,
       "checks": [
         {
-          "name": "hosted three-platform regression and Windows Server lifecycle",
+          "name": "four-platform hosted regression and Windows Server x64 + Windows 11 ARM64 lifecycle",
           "status": "PASS",
-          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45935195557",
-          "tested_commit": "06a06c144b4c238adc56baeebe7f8d5809dbeba2"
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45936238126",
+          "tested_commit": "9813f19c222a858f2a4f7cf217702f62252cc540"
         },
         {
-          "name": "actual Windows 11 desktop lifecycle and Antigravity host MCP initialize",
+          "name": "actual Antigravity desktop host MCP initialize and real Codex version",
           "status": "BLOCKED",
           "ref": "docs/evidence/D05-WINDOWS11-acceptance.md"
         }

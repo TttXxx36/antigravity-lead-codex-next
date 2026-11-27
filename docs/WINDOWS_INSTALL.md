@@ -32,3 +32,6 @@ D05 必需真实 Windows 11 安装/升级/卸载/重装和 Antigravity 实际 MC
 
 ## 已验证和待验证
 [Run 45935195557](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45935195557) 三平台 success，包含 Windows Server 2025 合成安装全生命周期与 ConsoleOnly。真实 Windows 11/Antigravity 宿主仍 BLOCKED；使用 [实机验收清单](evidence/D05-WINDOWS11-acceptance.md) 提交脱敏证据。不要将本地 doctor 的合成 handshake 当作真实 host 加载。
+
+## Windows 11 ARM64 真正 OS 补测（2026-11-27）
+[Run 45936238126](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45936238126) completed/success，精确测试 head `9813f19c222a858f2a4f7cf217702f62252cc540`，四个 job 均 success。Windows 11 Enterprise / 10.0.26200 / Build 26200 / ProductType 1 / ARM 64-bit Processor；Node 22.23.5 win32 arm64、Python 3.12.10 ARM64；13/13 状态、7/7 Python 平台、4/4 Node 平台、真实本地 MCP 合成客户端和完整 PowerShell 生命周期均 PASS。Windows Server 2025 x64 同样通过新增 SQLite SHA256/内容断言；Linux/macOS 回归 PASS。Windows 两种架构均通过 install/upgrade/restore/uninstall/reinstall、ConsoleOnly、Unicode、missing dependency、injected rollback、持久数据及 SQLite bytes preserved。Job IDs: Win11 140299982943、WinServer 140299983157、Ubuntu 140299983213、macOS 140299983240。原 push/PR 重复取消不计入 PASS。实际 Win11 OS 子门槛已取得 ARM64 证据，真实 x64 桌面及 Antigravity App/IDE 登录宿主仍 NOT_RUN；native mock CLI 仅 --version，0 真实模型调用，不冒充真实宿主。
