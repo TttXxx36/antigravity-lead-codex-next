@@ -189,6 +189,12 @@ with d.locked_state() as state:
             result = dispatch()
             self.assertEqual(result["exit_code"],0)
             self.assertEqual(result["report"]["status"],"completed")
+            self.assertEqual(result["task_status"],"completed")
+            self.assertFalse(result["verification_passed"])
+            self.assertEqual(result["verification_status"],"unknown")
+            # Legacy network request is deliberately not inherited on resume.
+            with d.locked_state() as state:
+                state["tasks"]["mock-task"]["network"] = True
             with self.assertRaises(ValueError):
                 dispatch()
             self.assertEqual(len(calls),1)
@@ -198,6 +204,8 @@ with d.locked_state() as state:
                 self.assertEqual(d.cmd_resume(args),0)
             resumed = json.loads(output.getvalue())
             self.assertEqual(resumed["session_id"],result["session_id"])
+            self.assertFalse(resumed["network"])
+            self.assertFalse(resumed["verification_passed"])
             self.assertEqual(len(calls),2)
             self.assertEqual((work/"answer.txt").read_text(encoding="utf-8"),"mock resume\n")
             self.assertTrue((Path(resumed["run_dir"])/"result.json").is_file())

@@ -180,8 +180,9 @@ export class ConsoleDB {
 
   finishOp(id, { status, outputText = null, errorText = null, metaPatch = null }) {
     const now = Date.now();
-    const cur = this.db.prepare('SELECT started_at, meta_json FROM console_ops WHERE id = ?').get(id);
+    const cur = this.db.prepare('SELECT started_at, meta_json, status FROM console_ops WHERE id = ?').get(id);
     if (!cur) return null;
+    if (cur.status !== 'running') return this.getOp(id);
     let nextMeta = cur.meta_json;
     if (metaPatch) {
       let parsed = {};
@@ -196,7 +197,7 @@ export class ConsoleDB {
     this.db.prepare(`
       UPDATE console_ops
       SET status = ?, output_text = ?, error_text = ?, meta_json = ?, finished_at = ?, duration_ms = ?
-      WHERE id = ?
+      WHERE id = ? AND status = 'running'
     `).run(status, outputText, errorText, nextMeta, now, durationMs, id);
     return this.getOp(id);
   }

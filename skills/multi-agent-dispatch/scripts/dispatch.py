@@ -21,6 +21,7 @@ import re
 import shutil
 import subprocess
 import sys
+import signal
 import tempfile
 import time
 import uuid
@@ -1041,43 +1042,64 @@ def parse_report_file(
     exit_code: int,
     event_errors: list[str] | None = None,
 ) -> dict[str, Any]:
+    """Report is a worker claim, not independent proof of verification."""
     candidate_text = ""
-    if report_path.exists():
-        candidate_text = report_path.read_text(encoding="utf-8", errors="replace").strip()
-    if not candidate_text and fallback_text:
-        candidate_text = fallback_text.strip()
-
+    if report_path.is_file():
+        try:
+            candidate_text = report_path.read_text(encoding="utf-8", errors="strict").strip()
+        except (OSError, UnicodeError):
+            pass
+    parsed = None
     if candidate_text:
         try:
-            parsed = json.loads(candidate_text)
-            if isinstance(parsed, dict) and "summary" in parsed:
-                return parsed
-        except json.JSONDecodeError:
+            value = json.loads(candidate_text)
+            if (isinstance(value, dict)
+                and set(value) == {"status", "summary", "files_modified", "commands_run",
+                                   "verification_passed", "risks_or_followups", "notes_for_orchestrator"}
+                and value["status"] in ("completed", "partial", "blocked", "failed")
+                and isinstance(value["summary"], str) and value["summary"].strip()
+                and isinstance(value["notes_for_orchestrator"], str)
+                and type(value["verification_passed"]) is bool
+                and all(isinstance(value[k], list) and all(isinstance(x, str) for x in value[k])
+                        for k in ("files_modified", "commands_run", "risks_or_followups"))):
+                parsed = value
+        except (ValueError, TypeError):
             pass
+    if parsed is None:
+        tail = "\n".join((candidate_text or fallback_text or stderr_text).splitlines()[-20:])[:1500]
+        parsed = {"status": "partial", "summary": tail or "No valid structured worker report",
+                  "files_modified": [], "commands_run": [], "verification_passed": False,
+                  "risks_or_followups": ["Structured report missing or invalid; inspect logs."],
+                  "notes_for_orchestrator": ""}
+        source = "missing_or_invalid"
+    else:
+        source = "structured_file"
+    claimed = parsed["verification_passed"] if source == "structured_file" else None
+    if exit_code != 0 or event_errors:
+        parsed["status"] = "failed"
+        parsed["risks_or_followups"].append("Process failed or emitted an error; inspect logs.")
+        if event_errors:
+            parsed["summary"] = "\n".join(event_errors)[:1500]
+    parsed["worker_claimed_verification_passed"] = claimed
+    parsed["verification_passed"] = False
+    parsed["verification_status"] = "unknown" if source == "structured_file" else "not_run"
+    parsed["report_source"] = source
+    return parsed
 
-    if event_errors and exit_code != 0:
-        err_summary = "\n".join(event_errors).strip()[:1500]
-        return {
-            "status": "failed",
-            "summary": err_summary,
-            "files_modified": [],
-            "commands_run": [],
-            "verification_passed": False,
-            "risks_or_followups": ["Worker emitted JSONL error event; inspect events.jsonl."],
-            "notes_for_orchestrator": "",
-        }
 
-    tail = "\n".join((candidate_text or stderr_text).splitlines()[-20:])
-    return {
-        "status": "completed" if exit_code == 0 else "failed",
-        "summary": tail[:1500] if tail else f"Worker exited with code {exit_code} without structured report.",
-        "files_modified": [],
-        "commands_run": [],
-        "verification_passed": exit_code == 0,
-        "risks_or_followups": [] if exit_code == 0 else ["Structured JSON report missing; inspect logs."],
-        "notes_for_orchestrator": "",
-    }
+def outcome_fields(report: dict[str, Any], rc: int, timed_out: bool, stderr: str) -> dict[str, Any]:
+    process_status = ("timed_out" if timed_out else "launch_failed" if
+                      stderr.startswith("[dispatcher] Launch failed:") else
+                      "exited" if rc == 0 else "failed")
+    return {"process_status": process_status, "task_status": report["status"],
+            "verification_status": report["verification_status"],
+            "verification_passed": False}
 
+
+def task_exit_code(result: dict[str, Any]) -> int:
+    return 0 if result.get("dry_run") or (
+        result.get("exit_code") == 0 and result.get("task_status") == "completed"
+        and not result.get("timed_out")) else 1
 
 def make_task_id(prefix: str = "task") -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
@@ -1105,7 +1127,7 @@ def validate_resume_binding(record: dict[str, Any], args: argparse.Namespace) ->
         raise ValueError("D06: resume cwd differs from managed task")
     if args.sandbox is not None and args.sandbox != record.get("sandbox") and args.sandbox != "read-only":
         raise ValueError("D06: resume sandbox escalation denied")
-    if record.get("status") == "reserved":
+    if record.get("status") in ("reserved", "running", "interrupted"):
         raise ValueError("D06: incomplete task cannot be resumed")
 
 
@@ -1193,6 +1215,26 @@ def build_codex_resume_cmd(
     return cmd
 
 
+def terminate_owned_process_tree(proc: subprocess.Popen) -> None:
+    """Terminate the owned worker tree; never target an arbitrary user PID."""
+    if os.name == "nt":
+        # taskkill uses the native process tree of this still-live child.
+        if proc.poll() is None:
+            system = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "taskkill.exe"
+            try:
+                subprocess.run([str(system), "/PID", str(proc.pid), "/T", "/F"],
+                               capture_output=True, timeout=10, check=False)
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+            if proc.poll() is None:
+                proc.kill()
+    else:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
 def run_subprocess_with_timeout(
     cmd: list[str],
     *,
@@ -1201,22 +1243,41 @@ def run_subprocess_with_timeout(
     timeout: int,
     env: dict[str, str] | None = None,
 ) -> tuple[int, str, str, bool]:
+    if timeout <= 0:
+        raise ValueError("Timeout must be positive")
     try:
-        proc = subprocess.run(
-            cmd,
-            cwd=str(cwd),
-            input=stdin_text,
-            env=env,
-            capture_output=True,
-            text=True, encoding="utf-8",
-            timeout=timeout,
+        proc = subprocess.Popen(
+            cmd, cwd=str(cwd), env=env, stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, encoding="utf-8", errors="replace",
+            start_new_session=(os.name != "nt"),
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
         )
-        return proc.returncode, proc.stdout, proc.stderr, False
+    except OSError as exc:
+        return 127, "", f"[dispatcher] Launch failed: {type(exc).__name__}: {exc}", False
+    try:
+        out, err = proc.communicate(input=stdin_text, timeout=timeout)
+        return proc.returncode, out, err, False
     except subprocess.TimeoutExpired as exc:
-        out = exc.stdout if isinstance(exc.stdout, str) else (exc.stdout.decode("utf-8", "replace") if exc.stdout else "")
-        err = exc.stderr if isinstance(exc.stderr, str) else (exc.stderr.decode("utf-8", "replace") if exc.stderr else "")
-        return 124, out, f"{err}\n[dispatcher] Timed out after {timeout}s".strip(), True
-
+        terminate_owned_process_tree(proc)
+        try:
+            out, err = proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            # Descendant may have escaped/inherited pipes; never hang or report success.
+            out = exc.stdout or ""
+            err = exc.stderr or ""
+            for stream in (proc.stdin, proc.stdout, proc.stderr):
+                if stream:
+                    stream.close()
+            if proc.poll() is None:
+                proc.kill()
+            proc.wait(timeout=5)
+        out = out.decode("utf-8", "replace") if isinstance(out, bytes) else out
+        err = err.decode("utf-8", "replace") if isinstance(err, bytes) else err
+        return 124, out, f"{err}\n[dispatcher] Timed out after {timeout}s; process tree termination requested".strip(), True
+    except BaseException:
+        terminate_owned_process_tree(proc)
+        raise
 
 def execute_single_task(
     *,
@@ -1342,7 +1403,8 @@ def execute_single_task(
 
     git_truth = collect_git_truth(workdir, git_info["head_sha"])
     now = utc_now()
-    final_status = "timed_out" if timed_out else report.get("status", "completed" if rc == 0 else "failed")
+    outcome = outcome_fields(report, rc, timed_out, stderr_text)
+    final_status = "timed_out" if timed_out else outcome["task_status"]
 
     task_record = {
         "task_id": tid,
@@ -1362,19 +1424,16 @@ def execute_single_task(
         "network": network,
         "session_id": session_id,
         "status": final_status,
+        **outcome,
         "exit_code": rc,
         "created_at": now,
         "updated_at": now,
         "run_dir": str(run_dir),
     }
 
-    with locked_state() as state:
-        if state["tasks"].get(tid, {}).get("status") != "reserved":
-            raise StateIntegrityError("Task reservation missing or changed")
-        state["tasks"][tid] = task_record
-
     result = {
         "task_id": tid,
+        **outcome,
         "backend": backend,
         "model_used": model_used,
         "effort_used": effort_used,
@@ -1393,9 +1452,12 @@ def execute_single_task(
         "git_truth": git_truth,
         "run_dir": str(run_dir),
     }
-    (run_dir / "result.json").write_text(
-        json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
+    atomic_write_bytes(run_dir / "result.json", (json.dumps(result, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
+    with locked_state() as state:
+        if state["tasks"].get(tid, {}).get("status") != "reserved":
+            raise StateIntegrityError("Task reservation missing or changed")
+        state["tasks"][tid] = task_record
+
     return result
 
 
@@ -1463,7 +1525,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         dry_run=args.dry_run,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 0 if result.get("dry_run") or result.get("exit_code", 1) == 0 else 1
+    return task_exit_code(result)
 
 
 def cmd_batch(args: argparse.Namespace) -> int:
@@ -1521,7 +1583,7 @@ def cmd_batch(args: argparse.Namespace) -> int:
             ordered[idx] = res
 
     results = [r for r in ordered if r is not None]
-    failed = [r for r in results if not r.get("dry_run") and r.get("exit_code", 1) != 0]
+    failed = [r for r in results if task_exit_code(r) != 0]
     summary = {
         "batch_total": len(results),
         "batch_failed": len(failed),
@@ -1657,6 +1719,13 @@ def _cmd_resume(args: argparse.Namespace) -> int:
     run_dir.mkdir(exist_ok=False)
     (run_dir / "prompt.txt").write_text(worker_prompt, encoding="utf-8")
 
+    with locked_state() as state:
+        current = state["tasks"].get(resume_tid)
+        if not current or current.get("status") in ("reserved", "running", "interrupted"):
+            raise StateIntegrityError("Managed task is no longer available for resume")
+        current["status"] = "running"
+        current["active_turn_id"] = turn_id
+        current["updated_at"] = utc_now()
     cmd = build_codex_resume_cmd(
         codex_bin=get_codex_bin(),  # type: ignore[arg-type]
         session_id=session_id,
@@ -1684,22 +1753,12 @@ def _cmd_resume(args: argparse.Namespace) -> int:
     usage = parsed_events["usage"]
 
     git_truth = collect_git_truth(workdir, base_sha)
-    if task_record:
-        with locked_state() as state:
-            if resume_tid in state["tasks"]:
-                state["tasks"][resume_tid]["model"] = model_used
-                state["tasks"][resume_tid]["effort"] = effort_used
-                state["tasks"][resume_tid]["sandbox"] = sandbox
-                state["tasks"][resume_tid]["network"] = network
-                state["tasks"][resume_tid]["session_id"] = new_session_id
-                state["tasks"][resume_tid]["status"] = (
-                    "timed_out" if timed_out else report.get("status", "completed" if rc == 0 else "failed")
-                )
-                state["tasks"][resume_tid]["updated_at"] = utc_now()
+    outcome = outcome_fields(report, rc, timed_out, stderr_text)
 
     result = {
         "task_id": resume_tid,
         "turn_id": turn_id,
+        **outcome,
         "backend": backend,
         "model_used": model_used,
         "effort_used": effort_used,
@@ -1715,11 +1774,18 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         "git_truth": git_truth,
         "run_dir": str(run_dir),
     }
-    (run_dir / "result.json").write_text(
-        json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
+    atomic_write_bytes(run_dir / "result.json", (json.dumps(result, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
+    with locked_state() as state:
+        current = state["tasks"].get(resume_tid)
+        if not current or current.get("active_turn_id") != turn_id or current.get("status") != "running":
+            raise StateIntegrityError("Resume reservation changed")
+        current.update({"model": model_used, "effort": effort_used, "sandbox": sandbox,
+            "network": False, "session_id": new_session_id, "exit_code": rc,
+            "status": "timed_out" if timed_out else outcome["task_status"], **outcome,
+            "updated_at": utc_now()})
+        current.pop("active_turn_id", None)
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 0 if rc == 0 else 1
+    return task_exit_code(result)
 
 
 def cmd_review(args: argparse.Namespace) -> int:
@@ -1915,7 +1981,7 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
 
-    if rec.get("status") == "reserved":
+    if rec.get("status") in ("reserved", "running", "interrupted"):
         raise StateIntegrityError("Reserved/incomplete task requires manual inspection; refusing cleanup")
     if rec.get("worktree_path"):
         wp = Path(rec["worktree_path"])

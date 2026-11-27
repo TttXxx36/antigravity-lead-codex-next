@@ -62,3 +62,6 @@ D06 RISK-04：候选执行层拒绝无可信授权的联网、危险 sandbox、�
 
 ## 实际四环境 CI（候选开发就绪，不是正式验收）
 [Run 45937059171](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937059171) completed/success，精确 tested commit `b652c5877df2e5a91d5191e1f21fab8c208b3015`；Windows 11 ARM64、Windows Server x64、Ubuntu、macOS 四个 job 均成功。每环境执行5项执行策略、5项 dispatch/hook、18项治理测试（合计112次通过），并运行 D03/D04 平台/状态回归、真实本地 MCP synthetic 及 Windows 原生安装生命周期。真实模型测试未执行。D06 否决未授权操作的候选可作为后续开发基础；可信宿主签发任务/范围/有效期授权、实际 OS sandbox、外部写与真实宿主验证仍 BLOCKED；不得将全部拒绝冒充完整授权功能。PR #8 base dev/d05 保持 Draft，未合并。
+
+
+D07 BUG-001/002 修复候选已实现，等待 CI；不关闭缺陷或冒充真实客户端验证。RISK-05 受管进程超时、重复终态和崩溃保守恢复候选。

@@ -230,15 +230,21 @@
         "D04",
         "D06"
       ],
-      "status": "PROPOSED",
-      "evidence": "已复现 BUG-001/002",
-      "next": "独立退出/任务/验证状态，失败/取消/超时、进程树清理",
+      "status": "IN_PROGRESS",
+      "evidence": "D07 report and process lifecycle candidate",
+      "next": "CI and real desktop process-tree/host acceptance",
       "branch": "dev/d07",
-      "approval": null,
+      "approval": "2026-11-27 user approved A and verified candidate development",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D07 outcome and lifecycle regressions",
+          "status": "NOT_RUN",
+          "ref": "pending CI"
+        }
+      ]
     },
     {
       "id": "D08",
