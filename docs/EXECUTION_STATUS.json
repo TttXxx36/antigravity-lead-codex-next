@@ -446,18 +446,23 @@
         "D12"
       ],
       "status": "IN_PROGRESS",
-      "evidence": "D13 keyed v2 run/resume and associated review candidate; CI pending",
-      "next": "Four-environment cumulative CI; real host, recovery and dependency acceptance pending",
+      "evidence": "D13 CLI/MCP keyed reservation and loop guard implemented; Run 45971488857 exposed SQLite concurrent startup lock; correction submitted, exact-head retest pending",
+      "next": "Verify latest exact-head four-environment CI; real host, crash/power-loss recovery and formal dependency acceptance remain blocked",
       "branch": "dev/d13",
       "approval": "2026-11-27 user approved A and verified candidate development; no real model or expanded authority",
-      "pr": null,
+      "pr": 15,
       "accepted": false,
       "merged": false,
       "checks": [
         {
           "name": "D13 request and cumulative regression",
           "status": "NOT_RUN",
-          "ref": "pending CI"
+          "ref": "Latest corrected head CI pending; prior failure Run 45971488857"
+        },
+        {
+          "name": "Actual host and recovery",
+          "status": "BLOCKED",
+          "ref": "docs/ISSUES_AND_BUGS.md"
         }
       ]
     },

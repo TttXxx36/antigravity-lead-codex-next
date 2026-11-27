@@ -8,9 +8,24 @@ export class ConsoleDB {
     fs.mkdirSync(dataDir, { recursive: true });
     this.dbPath = path.join(dataDir, 'console.sqlite');
     this.db = new DatabaseSync(this.dbPath);
+    // Install the busy handler before touching journal mode. Opening a second
+    // connection while an existing server writes may otherwise fail immediately.
+    this.db.exec('PRAGMA busy_timeout = 3000');
+    const deadline=Date.now()+5000;
+    try {
+      for (;;) {
+        try {
+          if (this.db.prepare('PRAGMA journal_mode').get().journal_mode!=='wal') {
+            this.db.exec('PRAGMA journal_mode = WAL');
+          }
+          break;
+        } catch(err) {
+          if (![5,6].includes(err.errcode & 255) || Date.now()>=deadline) throw err;
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,25);
+        }
+      }
+    } catch(err) { this.db.close(); throw err; }
     this.db.exec(`
-      PRAGMA journal_mode = WAL;
-      PRAGMA busy_timeout = 3000;
       PRAGMA synchronous = NORMAL;
 
       CREATE TABLE IF NOT EXISTS thread_prefs (
