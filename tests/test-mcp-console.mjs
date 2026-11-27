@@ -413,6 +413,14 @@ async function runTests() {
     const reconnect=await compactCall('task_events',{taskId:fixtureId,turnId:replay.turnId,cursor:replay.nextCursor},2500);
     assert.equal(reconnect.gap,false);assert.equal(reconnect.nextCursor,6);assert.equal(reconnect.entries[0].private,undefined);
     assert.equal(reconnect.verification,'unknown');
+    const taskEntries=streamEntries.map(e=>({...e,taskSeq:e.seq}));
+    const taskSnapshot={...streamSnapshot,version:2,sequenceBase:0,sequenceScope:'task',entries:taskEntries};
+    fs.writeFileSync(streamFile,JSON.stringify(taskSnapshot));
+    const taskReplay=await compactCall('task_events',{taskId:fixtureId,limit:2},2500);
+    assert.equal(taskReplay.sequenceScope,'task');assert.equal(taskReplay.entries[1].taskSeq,6);
+    fs.writeFileSync(streamFile,JSON.stringify({...taskSnapshot,entries:[taskEntries[0],{...taskEntries[1],taskSeq:8}]}));
+    const badTaskSequence=(await rpc('tools/call',{name:'task_events',arguments:{taskId:fixtureId}})).result;
+    assert.equal(badTaskSequence.isError,true);
     fs.writeFileSync(streamFile,JSON.stringify({...streamSnapshot,entries:[streamEntries[0],{...streamEntries[1],seq:8}]}));
     const invalidStream=(await rpc('tools/call',{name:'task_events',arguments:{taskId:fixtureId}})).result;
     assert.equal(invalidStream.isError,true);
