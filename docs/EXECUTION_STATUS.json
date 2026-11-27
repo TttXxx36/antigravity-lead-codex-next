@@ -803,9 +803,9 @@
       "depends": [
         "D21"
       ],
-      "status": "IN_PROGRESS",
-      "evidence": "Source scanner corrected; deterministic archive tests PASS; Unix rollback exposed old installer EXIT trap defect, corrected and recheck pending",
-      "next": "Verify exact-head four-platform RC builds, archive integrity, rollback and cumulative CI; no formal release",
+      "status": "BLOCKED",
+      "evidence": "Exact-head four-platform cumulative PASS; 28/28 D22 tests; 8 identical rebuilds; 4 equal SHA256 RC artifacts; isolated rollback restores 3 components and preserves SQLite/JSON",
+      "next": "Candidate development complete D00-D22; actual host/real model/security/license/production recovery evidence, sequential formal acceptance and explicit release approval remain blocked",
       "branch": "dev/d22",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no formal release, merge, permission or real model grant",
       "pr": 24,
@@ -813,9 +813,15 @@
       "merged": false,
       "checks": [
         {
-          "name": "D22 source RC, rollback and cumulative CI",
-          "status": "NOT_RUN",
-          "ref": "Latest candidate CI pending"
+          "name": "D22 reproducible source RC, rollback and cumulative CI",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46000875781",
+          "tested_commit": "7eb7b43cfe7be57aae2854f94aecf962e7745886"
+        },
+        {
+          "name": "Actual host, all formal dependencies and explicit release approval",
+          "status": "BLOCKED",
+          "ref": "docs/RELEASE_CANDIDATE.md"
         }
       ],
       "observations": [
@@ -831,7 +837,13 @@
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46000617038",
           "tested_commit": "f38e8498acea39ca7d09e94582974ef656f879f2"
         }
-      ]
+      ],
+      "candidate": {
+        "ready": true,
+        "tested_commit": "7eb7b43cfe7be57aae2854f94aecf962e7745886",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46000875781",
+        "limitations": "Four identical source-only RC artifacts, actual mock installer/portable rollback/SQLite fixtures; no actual Windows Antigravity+Codex host, production rollback, complete privacy/dependency licensing audit, real model parity or release grant. No tag, release, formal merge or upstream push."
+      }
     }
   ],
   "roadmap_approval": "2026-11-27 用户明确验收 D01、D02 并授权合并 PR #2、#3；批准 D03–D22 推荐 A 按依赖实施及 GitHub Actions 测试。后续 PR 的合并、真实模型测试及正式发布仍遵守独立授权门禁。",

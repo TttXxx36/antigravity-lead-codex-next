@@ -8,3 +8,21 @@ Base 1226e5d27db5737cc843145a956c980790b6aac5; D21 exact source c1bff45 Run 4599
 Initial Run 46000304667 all four FAIL at package preflight: existing D11 tests/test_context.py includes literal PEM header only as a synthetic rejection test (no actual key body); scanner correctly refused it. Construct identical runtime negative-test string by concatenation instead of embedding contiguous marker in source. No scan exemption, pattern removal or credential disclosure; add immutable blob SHA to diagnostic (never matched contents/filename). Original failure preserved. Reverify all four.
 
 Run 46000617038: archive identity/reproducibility/secret/tamper tests passed; Windows D22 steps passed, Ubuntu/macOS rollback test failed because local install returned nonzero. Independently reproduced legacy cleanup_tmp short-circuit returning 1 from EXIT trap under set -e when TMP_DIR empty. Fix only cleanup guard to if block, no deletion of any additional path; test requires actual completion marker and exit 0, without raw captured paths. Prior failure retained. D21 evidence head 1226e5d Run 46000026000 all four PASS. New exact-head CI pending.
+
+## D22 exact-head candidate verification
+Run 46000875781 completed/success, exact source 7eb7b43cfe7be57aae2854f94aecf962e7745886. All four actual runners: seven D22 tests each (28/28), each builds twice byte-identically, checks Git blobs/license/source allowlist, strict checksum/identity/manifest/unsafe path/tamper refusal, explicit synthetic-secret negatives, fresh-directory extraction and isolated old-code rollback. On Ubuntu/macOS actual Unix installer with mock Node/npm/curl dependencies completed exit 0 and manual old-component restore; Windows fixture package-tree rehearsal plus actual native PowerShell installer/upgrade/restore/doctor/uninstall/SQLite preservation with native mock executable in cumulative CI. Each rollback recovered 3 components and 2 persistent files byte-identically, SQLite readable. Full cumulative regressions, D21 paired benchmark, governance and Linux UI reproducible rebuild PASS. Four RC artifacts uploaded successfully, all exact inner archive/manifest SHA256 equal across four runners. Initial Run 46000304667 all four blocked on literal synthetic PEM test marker; Run 46000617038 Ubuntu/macOS rollback failed on legacy local installer EXIT trap; both fixes independently tested, failures retained. D21 evidence head 1226e5d Run 46000026000 PASS.
+
+- Version label: v2.0.0-rc.1 (filename only, no Git tag or Release)
+- Archive: antigravity-lead-codex-v2.0.0-rc.1-7eb7b43cfe7b.tar.gz, 1812688 bytes, 138 source files
+- Archive SHA256: 66835dac37201ffa021a35663ececda4a153d9e7c5a0faa3b8cc3056db51d931
+- Manifest SHA256: f31e40e6e8ae4b0693778942ea5b6bd3b42351e2c6aa2fee01026e9dd5b49544
+- Artifact run: https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46000875781 (7-day retention; external Artifact ZIP digest differs from inner archive SHA256)
+
+| Runner / job | Rollback mode | Artifact ID |
+|---|---|---:|
+| install (ubuntu-latest) / 140511976927 | actual_unix_installer_mock_dependencies | 15197329055 |
+| install (macos-latest) / 140511977264 | actual_unix_installer_mock_dependencies | 15198081739 |
+| install (windows-latest) / 140511977341 | portable_package_tree_rehearsal | 15197134950 |
+| install (windows-11-arm) / 140511977363 | portable_package_tree_rehearsal | 15198676005 |
+
+No real provider or native Antigravity/Codex host, no production migration, no complete credential/third-party dependency review, no release/signing/tag/merge/upstream push. Common-pattern scan zero matches is not proof of absence of secrets; source package only, not offline dependency bundle. D05–D21 formal blockers remain. D22 candidate ready; formal BLOCKED, explicit release approval still required. This exact code-head artifact is the verified RC, distinct from the subsequent evidence-only commit; evidence head must be rechecked and would have a different source SHA/archive.
