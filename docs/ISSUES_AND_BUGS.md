@@ -203,6 +203,51 @@ Pre-integration Run 45982783750 completed/success exact head 09b16b6803e58eb8275
 Run 45983586382 completed/success, exact source 838787ad94f2cbadb00cb222a21aa1b5a720b9e5, four actual runner logs verified (Windows 11 ARM64 140453373472, Ubuntu 140453373960, macOS ARM64 140453373967, Windows Server x64 140453374144). 11/11 scheduler tests each (44/44), abrupt owner death retains slot, FIFO, low/unknown quota, disk pressure, dependency blocking, canonical same-repo conflicts, clean/dirty worktree no-delete, D13/D14/D15 actual mock run/resume and MCP direct fork denial all PASS. D16 process exit regression and cumulative governance PASS. D16 evidence head ffa9c4e6312d3b034d306ec3a4907cf0f1fdc870 Run 45983418330 all four PASS. Historical D17 alias failure 45982548344 retained. Formal BLOCKED: actual host scheduler, live cancellation and escaped-child reconciliation, advisory quota provenance, trusted cleanup approval and predecessor acceptance unverified. Cleanup preview only; no automatic slot reclamation. Candidate ready for D18 under existing development authorization, no formal merge. Evidence-only head recheck required.
 
 
+
+## Formal acceptance follow-up: D14 process-exit correction (2026-11-27)
+Historical D16 Run 45982277920 macOS PermissionError EPERM during D14 rapid process exit remains recorded. Backport only terminate_owned_process_tree and test_owned_process_exit_race_permission_error from verified D16 head ffa9c4e6312d3b034d306ec3a4907cf0f1fdc870 (code tested 6db070f17039338762e03a375c911873302fa32b, Run 45982938825 four environments PASS). No later-card implementation imported. Do not signal group after Popen reaped leader; EPERM wait/owned-child fallback, descendants remain unverified. New D14 exact-head CI NOT_RUN at commit creation; candidate.ready=false until verified. D14 stays BLOCKED: actual cancellation, escaped descendants, real host/UI/reconnect, raw rotation and dependencies remain outstanding. Existing D15–D22 contain this correction in cumulative D16+ or require integration before formal merge; do not force-push or merge main.
+
+
+## D17 candidate ancestry integration (2026-11-27)
+D16 0425f17e921ca09571f74c409c4234c35876ca1c / Run 46006220435 4/4 completed/success, actual checkout and cleanup/EPERM logs verified. D17 process-exit function and streaming test blob already identical to D16. Preserve D17 scheduler and read-only cleanup preview; do not copy earlier plain-denial test because it is replaced by D17's preview assertions, which check no removal on both dirty and clean cases. Force/delete branch remain denied. No formal merge; exact integrated head requires CI. Actual host/authorization/dependencies remain BLOCKED.
+
+
+
+## 2026-11-27 formal acceptance security review
+Static review of exact D06 head 39cc294bba80c5d563df21b4b329a2646293e017 found a plain cleanup path calling remove_worktree and setting cleaned without trusted authorization (only force/delete-branch and reserved state rejected). BUG-007 proposed P1; potential worktree removal during active/unaccepted task, not a reproduced data loss. Correction rejects all D06 cleanup before state access or Git mutation, and regression checks plain/force/delete-branch denial. D17+ cumulative cleanup already preview-only; intermediate D07–D16 need safe integration before formal acceptance. MCP descriptions now accurately describe denied unmanaged queue/resume and local quota only; tool identifiers/schema preserved. No actual deletion, model calls, permission expansion or host grants. New exact-head tests NOT_RUN until CI; candidate.ready=false, formal BLOCKED. D05 real environment still missing. Trusted scoped grants and actual OS sandbox remain unimplemented/unverified respectively.
+
+
+## Formal acceptance round 3: BUG-007 candidate evidence
+[Run 46004369900](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46004369900) four environments success, exact checkout b9c3fe4df5636aa32bac3ee673e9a0ca5839ddeb directly checked in all logs. Jobs ARM64 140523698666, Windows x64 140523698892, macOS 140523699016, Ubuntu 140523699106. Five execution-policy tests per job PASS (20/20), including plain/force/delete-branch cleanup denial before state/Git access; five dispatch/hook and 18 governance tests per job PASS. BUG-007 candidate fix verified, not formally closed. No real host or model or data deletion. D07–D16 must integrate; D17+ preview-only implementation remains. Formal D06 BLOCKED. Evidence-only head requires recheck.
+
+
+# D10 candidate ancestry integration
+2026-11-27: integrate D09 candidate 61ed00c712fc0d5bf9a7f24eb5e4aed7f98fbb78 / Run 46006153189 completed/success. Four checkout logs and cleanup denial assertions confirmed. Existing D10 cleanup function and test blob equal D09; D10 protocol code retained. Carry parent history/evidence and MCP metadata correction forward, no main merge. Current exact-head CI required; real models, host and dependencies remain BLOCKED.
+
+
+# D12 candidate ancestry integration
+2026-11-27: integrate D11 9605ad5263b2ff65e1cc53010dfedbbbe621e3c3 / Run 46010170648 completed/success; four actual checkout logs confirmed, context blackboard, cleanup denial and cumulative regressions pass. Preserve D12 usage telemetry/budget/cache implementation; D12 dispatch cleanup denial function and execution-policy test already equal D11 verified fix, while D11 MCP description metadata is carried forward. D12 candidate requires exact-head CI. No formal merge; provider/model/host gates unchanged.
+
+
+# D13 candidate ancestry integration
+2026-11-27: integrate D12 906968dca6d930027985b4f9af1039af0227b8c2 / Run 46010810757 was still running during integration; ancestry graph is clean and D12 cleanup denial function/test exactly match D11 verified implementation. Preserve D13 durable request ID and loop termination logic; apply only D12 verified MCP tool description correction to D13 index. D13 exact-head cumulative CI required. No formal merge; real host/risk/Token gates unchanged.
+
+
+# D14 candidate ancestry integration
+2026-11-27: integrate D13 6e2ab4e0673bb9246aa549d93a08488bb365c1d4 / Run 46011167570 was still running during integration. Preserve D14 bounded streaming, metadata-only replay and EPERM fix; D14 cleanup denial implementation matches D13 verified code. Carry forward D13 request-ID implementation through merge ancestry and apply only corrected managed-session MCP description to D14 index. Exact-head CI required; real host/streaming event acceptance remains BLOCKED.
+
+
+# D15 candidate ancestry integration
+2026-11-27: integrate updated D14 78dddef0ff98e575a4f9f938df3580e1a451dad2 / D14 safety ancestry and managed-session MCP description synchronized. Preserve D15 SQLite WAL migration/rollback candidate and D14 streaming/EPERM code; D15 candidate now requires exact-head four-platform CI. No native host database write, no formal merge, no permission expansion.
+
+
+## D16 ancestry refresh (2026-11-27)
+Integrate updated D15 `cd140bf583c0023d1d2be1970eb3eb248cabf120`, which carries D14 ancestry `78dddef0ff98e575a4f9f938df3580e1a451dad2`. Preserve D16 query cache/UI/EPERM implementation. D15 Run 46011814445 and new D16 exact-head CI pending; no formal merge or authority expansion.
+
+
+2026-11-27 refresh: integrate updated D16 `835999d29e106d56ea4b9ee8c35e64c22fcdce60`, carrying D15 `cd140bf583c0023d1d2be1970eb3eb248cabf120` and D14 ancestry. Preserve D17 scheduler and read-only cleanup preview. New D16 and D17 exact-head CI pending; no deletion/permission expansion/formal merge.
+
+
 ## 2026-11-27 D18 initial candidate
 Base adefa4881d3c7ffa1480ab77139cd0fbd6d3a417, D17 verified 838787a Run 45983586382 all four PASS. A: explicit opt-in local CLI orchestration state machine persisted in existing locked JSON/SQLite state. Queue pins exact task/request ID, envelope SHA, immutable scope and canonical cwd; D13 request reservation creates lease atomically, D17 ticket and admission change queued→running in same transaction, D13 terminal receipt and orchestration settlement commit together. Explicit revision CAS for cancel/retry/verify, bounded two known-failure retries retain D13 progress/retry guards; no automatic retry/replay or PID lease expiry. Abrupt owner death leaves durable pending lease, read-only recover reports manual reconciliation, no new worker; queued cancellation only before reservation. Hash-linked bounded audit (128 tasks, 24 events/task, cursor limit 10); hashes detect accidental corruption, not authentication. Worker success → verifying only; artifact digest/identity check cannot substitute for independent trusted acceptance, verify always BLOCKED, completed transition explicitly unavailable until trusted host approval bridge. Timeout/uncertainty retain lease, migration blocked while unresolved. Existing non-orchestrated behavior remains default; managed registered task cannot bypass keyed/scheduler gates. MCP adds exact bounded read-only orchestration_status; no model-facing mutation, acceptance, cleanup or merge. No real model/production writes, permissions or formal merge. Actual host/trusted acceptance and active cancellation/reconciliation remain unverified. Candidate CI pending.
 
@@ -210,3 +255,7 @@ D18 follow-up: initial Run 45985228514 orchestration regression step PASS on eac
 
 ## D18 exact-head candidate verification
 Run 45985424111 completed/success on all four actual runners; exact source fbd1dbc29cedf1c2d1900151dba11b8827f41788. Ubuntu 140459741740, macOS ARM64 140459741767, Windows Server x64 140459741267, Windows 11 ARM64 140459741896. 9/9 state-machine tests per environment (36/36), real local mock subprocess crash, timeout, duplicate/reservation, SQLite restart, explicit retry/CAS, tampered artifact/audit, scheduler gating and native MCP read-only receipt PASS; cumulative CI/governance PASS. Earlier run 45985228514 all four orchestration steps PASS; two jobs superseded, not a full four-platform PASS. Candidate ready; formal BLOCKED: actual host reconciliation, independent trusted acceptance/completed bridge, cancellation and upstream formal acceptance unverified. No automatic merge. Evidence-only head recheck required.
+
+
+## D18 updated D17 ancestry integration (2026-11-27)
+D17 updated candidate 5dc22853841b9d8b1df61661962e5f97dcc64bd9 carries the verified D16/D15/D14 ancestry and repaired D16/D17 evidence records. Preserve D18 orchestration state machine, revision/lease/receipt gates, no worker launch on read-only status, and D17 scheduler/cleanup preview. D17 repaired-evidence and D18 new exact-head CI pending. No real model, host approval, cleanup, production write or formal merge.
