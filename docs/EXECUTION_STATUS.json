@@ -236,15 +236,38 @@
         "D04",
         "D06"
       ],
-      "status": "PROPOSED",
-      "evidence": "已复现 BUG-001/002",
-      "next": "独立退出/任务/验证状态，失败/取消/超时、进程树清理",
+      "status": "BLOCKED",
+      "evidence": "Four environments outcome and cumulative regressions PASS; actual host process-tree acceptance pending",
+      "next": "D06 updated candidate ancestry integrated; fresh exact-head regression, actual host and dependency gates pending.",
       "branch": "dev/d07",
-      "approval": null,
-      "pr": null,
+      "approval": "2026-11-27 user approved A and verified candidate development",
+      "pr": 9,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "four-environment outcome and cumulative regression",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937506260",
+          "tested_commit": "8e472999c84f1a41dd188a5766d6bd4de7bd02a5"
+        },
+        {
+          "name": "actual host process-tree and crash acceptance",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D07-outcomes.md"
+        },
+        {
+          "name": "BUG-007 cleanup denial synchronization",
+          "status": "NOT_RUN",
+          "ref": "docs/decisions/D07.md"
+        }
+      ],
+      "candidate": {
+        "ready": false,
+        "tested_commit": "8e472999c84f1a41dd188a5766d6bd4de7bd02a5",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937506260",
+        "limitations": "Real Codex/Antigravity worker tree, escaped descendants and real power-loss not verified; no formal merge. Verified D06 cleanup denial synchronized; current head needs CI."
+      }
     },
     {
       "id": "D08",

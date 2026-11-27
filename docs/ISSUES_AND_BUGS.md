@@ -6,8 +6,8 @@
 
 | ID | 优先级 | 现象/根因 | 证据 | 归属 | 状态与回归要求 |
 |---|---|---|---|---|---|
-| BUG-001 | P0 | parse_report_file 缺报告且 exit=0 仍给 completed/verification_passed=true | 原版 Linux/macOS 与候选三平台 dispatch-contract.json | D07 | OPEN；必须缺报告不通过 |
-| BUG-002 | P0 | exit=7，fallback 报告 completed，仍返回 completed | 同上 | D07 | OPEN；退出/任务/验证三状态分离 |
+| BUG-001 | P0 | 缺少结构化报告仍判验证通过 | D07 Run 45937506260 | D07 | CANDIDATE_PASS；缺报告 partial/verification false，未合并 |
+| BUG-002 | P0 | 非零退出仍判 completed | D07 Run 45937506260 | D07 | CANDIDATE_PASS；非零退出强制 failed，未合并 |
 | BUG-003 | P0 | 损坏 JSON 被静默覆盖 | D04 Run 45934605595 | D04 | FIXED；PR #6 已合并 |
 | BUG-004 | P0 | Windows 无 fcntl，dispatcher import 失败 | D04 Run 45934605595 | D04 | FIXED；原生锁与跨进程回归 PASS，PR #6 合并 |
 | BUG-005 | P1 | MCP 测试依赖 Bash，原版 Windows NOT_RUN | D03/D05 CI | D05/D08 | 原生测试启动已合入 D03；实际安装候选 D05 托管 PASS，真实宿主待验收 |
@@ -62,6 +62,12 @@ D06 RISK-04：候选执行层拒绝无可信授权的联网、危险 sandbox、�
 
 ## 实际四环境 CI（候选开发就绪，不是正式验收）
 [Run 45937059171](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937059171) completed/success，精确 tested commit `b652c5877df2e5a91d5191e1f21fab8c208b3015`；Windows 11 ARM64、Windows Server x64、Ubuntu、macOS 四个 job 均成功。每环境执行5项执行策略、5项 dispatch/hook、18项治理测试（合计112次通过），并运行 D03/D04 平台/状态回归、真实本地 MCP synthetic 及 Windows 原生安装生命周期。真实模型测试未执行。D06 否决未授权操作的候选可作为后续开发基础；可信宿主签发任务/范围/有效期授权、实际 OS sandbox、外部写与真实宿主验证仍 BLOCKED；不得将全部拒绝冒充完整授权功能。PR #8 base dev/d05 保持 Draft，未合并。
+
+
+D07 BUG-001/002 修复候选已实现，等待 CI；不关闭缺陷或冒充真实客户端验证。RISK-05 受管进程超时、重复终态和崩溃保守恢复候选。
+
+## 实际四环境 CI（候选通过）
+[Run 45937506260](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937506260) completed/success，测试 commit `8e472999c84f1a41dd188a5766d6bd4de7bd02a5`；Windows 11 ARM64、Windows Server x64、Ubuntu、macOS 各7项 Python outcome +4项 Node outcome（共44/44 PASS），真实本地父子进程超时 marker 未出现，缺报告与非零退出反向断言、启动失败、终态重复事件和重启孤儿状态通过。D06 策略、Hook、治理及 D03–D05 累计回归通过。旧 BUG-001/002 为 CANDIDATE_PASS，尚未合入 main；真实 Antigravity/实际 Codex worker 的进程树、逃逸/提前退出根进程及真实掉电未验收，不能据托管结果标 DONE。D07 候选允许后续依赖开发；PR #9 base dev/d06 保持 Draft。
 
 
 ## 2026-11-27 formal acceptance security review

@@ -13,10 +13,15 @@ spec.loader.exec_module(mod)
 
 class GovernanceTests(unittest.TestCase):
     def setUp(self):
-        self.data = json.loads((ROOT / 'docs/EXECUTION_STATUS.json').read_text(encoding='utf-8'))
+        self.actual = json.loads((ROOT / 'docs/EXECUTION_STATUS.json').read_text(encoding='utf-8'))
+        self.data = copy.deepcopy(self.actual)
+        # Mutations below use a fixed D05-ready fixture, not downstream active cards.
+        for card in self.data['cards'][6:]:
+            card.update(status='PROPOSED',approval=None,pr=None,accepted=False,merged=False,checks=[])
+            card.pop('candidate',None)
 
     def test_current_ledger(self):
-        self.assertEqual(mod.validate(self.data), [])
+        self.assertEqual(mod.validate(self.actual), [])
 
     def test_missing_card(self):
         self.data['cards'].pop()

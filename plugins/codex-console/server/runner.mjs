@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { classifyManagedResult, watchOwnedChild } from './outcome.mjs';
 import { runtimePaths, resolveExecutable, buildRuntimeEnv, normalizePath } from './platform.mjs';
 
 const execFileAsync = promisify(execFile);
@@ -82,6 +83,7 @@ export class CodexRunner {
     const child = spawn(this.codexBin, args, {
       cwd: safeCwd(cwd),
       env: buildExecEnv(),
+      detached: process.platform !== 'win32',
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
@@ -94,24 +96,9 @@ export class CodexRunner {
       if (stderr.length < 80_000) stderr += chunk.toString('utf8');
     });
 
-    const timer = setTimeout(() => {
-      try {
-        child.kill('SIGTERM');
-      } catch {
-        // ignore
-      }
-    }, 180_000);
-
-    child.on('error', (err) => {
-      clearTimeout(timer);
-      this.consoleDb.finishOp(op.id, {
-        status: 'failed',
-        errorText: `启动 codex 失败: ${err.message}`,
-      });
-    });
-
-    child.on('close', (code) => {
-      clearTimeout(timer);
+    watchOwnedChild(child, 180_000, (err) => {
+      this.consoleDb.finishOp(op.id, {status:'failed',errorText:'启动 codex 失败: '+err.message});
+    }, (code, timedOut) => {
       let finalMsg = '';
       if (fs.existsSync(outFile)) {
         try {
@@ -122,7 +109,7 @@ export class CodexRunner {
         }
       }
       const outputText = finalMsg || stdout.trim();
-      if (code === 0 && outputText) {
+      if (!timedOut && code === 0 && outputText) {
         this.consoleDb.finishOp(op.id, {
           status: 'succeeded',
           outputText,
@@ -131,11 +118,11 @@ export class CodexRunner {
         });
       } else {
         this.consoleDb.finishOp(op.id, {
-          status: code === 0 ? 'succeeded' : 'failed',
+          status: 'failed',
           outputText: outputText || '',
           errorText:
             stderr.trim() ||
-            (code !== 0 ? `codex exec fork 退出码 ${code}` : '未返回正文内容'),
+            (timedOut ? '只读诊断超时' : code !== 0 ? `codex exec fork 退出码 ${code}` : '未返回正文内容'),
           metaPatch: { exitCode: code },
         });
       }
@@ -207,7 +194,8 @@ export class CodexRunner {
         {
           cwd: safeCwd(cwd),
           env: buildExecEnv(),
-          stdio: ['ignore', 'pipe', 'pipe'],
+          detached: process.platform !== 'win32',
+      stdio: ['ignore', 'pipe', 'pipe'],
         }
       );
 
@@ -219,12 +207,17 @@ export class CodexRunner {
       child.stderr.on('data', (c) => {
         if (stderr.length < 80_000) stderr += c.toString('utf8');
       });
-      child.on('close', (code) => {
+      watchOwnedChild(child, 660_000, err => {
+        this.consoleDb.finishOp(op.id,{status:'failed',errorText:err.message});
+      }, (code,timedOut) => {
+        let parsed = null;
+        try { parsed = JSON.parse(stdout.trim()); } catch {}
+        const outcome = classifyManagedResult(code,parsed,timedOut);
         this.consoleDb.finishOp(op.id, {
-          status: code === 0 ? 'succeeded' : 'failed',
+          status: outcome.status,
           outputText: stdout.trim(),
-          errorText: stderr.trim() || (code !== 0 ? `dispatch resume 退出码 ${code}` : null),
-          metaPatch: { exitCode: code },
+          errorText: outcome.error || stderr.trim() || null,
+          metaPatch: {exitCode:code,taskStatus:outcome.taskStatus,processStatus:outcome.processStatus,verificationStatus:outcome.verificationStatus},
         });
       });
       return op;
@@ -293,6 +286,7 @@ export class CodexRunner {
     const child = spawn(this.pythonBin, args, {
       cwd: cleanCwd,
       env: buildExecEnv(),
+      detached: process.platform !== 'win32',
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
@@ -305,20 +299,16 @@ export class CodexRunner {
       if (stderr.length < 80_000) stderr += c.toString('utf8');
     });
 
-    child.on('error', (err) => {
-      this.consoleDb.finishOp(op.id, {
-        status: 'failed',
-        errorText: `启动 dispatch.py 失败: ${err.message}`,
-      });
-    });
-
-    child.on('close', (code) => {
+    watchOwnedChild(child, 660_000, err => {
+      this.consoleDb.finishOp(op.id,{status:'failed',errorText:'启动 dispatch.py 失败: '+err.message});
+    }, (code,timedOut) => {
       let parsed = null;
       try {
         parsed = JSON.parse(stdout.trim());
       } catch {
         parsed = null;
       }
+      const outcome = classifyManagedResult(code,parsed,timedOut);
       const sessionId = parsed?.session_id || null;
       const finalTaskId = parsed?.task_id || taskId || null;
 
@@ -330,10 +320,10 @@ export class CodexRunner {
             threadId: sessionId,
             taskId: finalTaskId,
             ownerRole: 'codex',
-            status: code === 0 ? 'completed' : 'blocked',
+            status: outcome.status === 'succeeded' ? 'reviewing' : 'blocked',
             repoPath: cleanCwd,
             branch: parsed?.branch || null,
-            notes: parsed?.summary || '',
+            notes: parsed?.report?.summary || '',
           });
         } catch {
           // ignore binding failure
@@ -341,13 +331,16 @@ export class CodexRunner {
       }
 
       this.consoleDb.finishOp(op.id, {
-        status: code === 0 ? 'succeeded' : 'failed',
+        status: outcome.status,
         outputText: parsed
           ? JSON.stringify(parsed, null, 2)
           : stdout.trim(),
-        errorText: stderr.trim() || (code !== 0 ? `dispatch.py 退出码 ${code}` : null),
+        errorText: outcome.error || stderr.trim() || null,
         metaPatch: {
           exitCode: code,
+          taskStatus: outcome.taskStatus,
+          processStatus: outcome.processStatus,
+          verificationStatus: outcome.verificationStatus,
           taskId: finalTaskId,
           sessionId,
           branch: parsed?.branch || null,
