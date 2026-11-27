@@ -14,7 +14,7 @@
 | [D05](decisions/D05.md) 安装器和环境诊断 | V1.1 | D03,D04 | BLOCKED | PR #7；四环境及真实 Windows 11 ARM64 OS 生命周期 PASS；真实 Antigravity 宿主和实际 Codex 版本证据缺失 |
 | [D06](decisions/D06.md) 审批门禁与执行边界 | V1.1 | D04,D05 | BLOCKED | PR #8 候选四环境 CI PASS；可信宿主授权/真实 sandbox 未验收；可继续 D07 候选 |
 | [D07](decisions/D07.md) 任务结果与进程生命周期正确性 | V1.1 | D04,D06 | BLOCKED | PR #9 四环境 44/44 outcome PASS；真实宿主进程树未验收；可继续 D08 候选 |
-| [D08](decisions/D08.md) 历史任务定位与 Windows 发布门禁 | V1.1 | D05,D06,D07 | PROPOSED | 未实施；按 ID 查询、歧义拒绝、Git -z、DB 错误、三平台与 Windows 实机 |
+| [D08](decisions/D08.md) 历史任务定位与 Windows 发布门禁 | V1.1 | D05,D06,D07 | BLOCKED | PR #10 四环境 CI PASS；实机宿主未验收；D09 候选可继续 |
 | [D09](decisions/D09.md) 模型可见的轻量 MCP 接口 | V1.2 | D08 | PROPOSED | 未实施；状态/结果/增量/日志拆分，宿主兼容，保留 UI |
 | [D10](decisions/D10.md) 结构化通信与短报告协议 | V1.2 | D09 | PROPOSED | 未实施；版本化 task/result/delta、字段预算、程序证据、拒绝乱序 |
 | [D11](decisions/D11.md) 共享黑板与会话复用 | V1.2 | D10 | PROPOSED | 未实施；rev、增量 resume、受控压缩重建、跨任务隔离 |
@@ -86,3 +86,6 @@ D07 候选：BUG-001/002 报告与退出状态校验、原子结果/终态、超
 [Run 45937506260](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937506260) completed/success，测试 commit `8e472999c84f1a41dd188a5766d6bd4de7bd02a5`；Windows 11 ARM64、Windows Server x64、Ubuntu、macOS 各7项 Python outcome +4项 Node outcome（共44/44 PASS），真实本地父子进程超时 marker 未出现，缺报告与非零退出反向断言、启动失败、终态重复事件和重启孤儿状态通过。D06 策略、Hook、治理及 D03–D05 累计回归通过。旧 BUG-001/002 为 CANDIDATE_PASS，尚未合入 main；真实 Antigravity/实际 Codex worker 的进程树、逃逸/提前退出根进程及真实掉电未验收，不能据托管结果标 DONE。D07 候选允许后续依赖开发；PR #9 base dev/d06 保持 Draft。
 
 D08 候选：直接查询历史任务、拒绝歧义、Git -z、显式 schema 错误和永久 CI；待实际回归。
+
+## 四环境修复后实测（候选通过）
+[Run 45938086882](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45938086882) completed/success，tested commit `5ab0c7db084b87701bb3d5d5f60fc512f833dc7f`；Windows Server x64 (140305829193)、macOS (140305829410)、Ubuntu (140305829450)、Windows 11 ARM64 (140305829483) 四个 job 均 success。Git parser + 原生文件系统 rename 各2项，共8/8 PASS；MCP 集成测试四环境均通过 >250 历史任务（300条 fixture）、歧义、只读哈希及 schema 错误断言；累计回归及两个 Windows 安装生命周期 PASS。首轮失败保留，Git 全局配置改隔离临时空文件后通过。真实 Antigravity/Codex 宿主端到端与 Windows x64 桌面仍 NOT_RUN；候选可用于 D09，不代表正式验收或发布。PR #10 base dev/d07，Draft，未合并。

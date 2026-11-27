@@ -267,21 +267,33 @@
         "D06",
         "D07"
       ],
-      "status": "IN_PROGRESS",
-      "evidence": "D08 exact/prefix query, errors, git parser and permanent CI candidate",
-      "next": "CI plus real host end-to-end acceptance",
+      "status": "BLOCKED",
+      "evidence": "Four-environment D08 query/Git and cumulative regression PASS; real host NOT_RUN",
+      "next": "D09 candidate development; real Antigravity/Codex host acceptance and formal dependency merges remain blocked",
       "branch": "dev/d08",
       "approval": "2026-11-27 user approved A and verified candidate development",
-      "pr": null,
+      "pr": 10,
       "accepted": false,
       "merged": false,
       "checks": [
         {
-          "name": "D08 query and Git regression",
-          "status": "NOT_RUN",
-          "ref": "pending CI"
+          "name": "D08 query/Git and cumulative regression",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45938086882",
+          "tested_commit": "5ab0c7db084b87701bb3d5d5f60fc512f833dc7f"
+        },
+        {
+          "name": "Real host end-to-end",
+          "status": "BLOCKED",
+          "ref": "docs/evidence/D08-history.md"
         }
-      ]
+      ],
+      "candidate": {
+        "ready": true,
+        "tested_commit": "5ab0c7db084b87701bb3d5d5f60fc512f833dc7f",
+        "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45938086882",
+        "limitations": "Actual Antigravity/Codex end-to-end and Windows x64 desktop unverified; no formal merge."
+      }
     },
     {
       "id": "D09",
