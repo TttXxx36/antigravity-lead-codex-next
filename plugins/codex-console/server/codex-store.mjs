@@ -290,12 +290,12 @@ export class CodexStore {
   getThread(input) {
     const id = this.resolveThreadId(input);
     if (!id) return null;
-    const snap = this.getSnapshot({ threadId:id, limit:1 });
+    const snap = this.getSnapshot({ threadId:id, limit:1, includeManagedAgents:false });
     if (!snap.connected) throw new Error('State database unavailable');
     return snap.tasks.find(t => t.id === id) || null;
   }
 
-  getSnapshot({ limit = 160, threadId = null, includeChildren = false } = {}) {
+  getSnapshot({ limit = 160, threadId = null, includeChildren = false, includeManagedAgents = true } = {}) {
     const errors = [];
     const prefsMap = this.consoleDb.getAllPrefs();
     const dispatchState = readDispatchState(errors);
@@ -503,7 +503,7 @@ export class CodexStore {
     });
 
     // 7. Build managed subagents view (dispatch workers + active console spawns + codex subagents)
-    const managedAgents = dispatchTasksList
+    const managedAgents = (includeManagedAgents ? dispatchTasksList : [])
       .map((t) => {
         const result = readDispatchRunResult(t.run_dir);
         const linkedThread = tasks.find((x) => x.id === t.session_id) || null;
@@ -624,6 +624,57 @@ export class CodexStore {
     );
 
     return { latestTurnMap, durationMap, latestReplyMap };
+  }
+
+  // Compact model-facing reads never enumerate unrelated run artifacts.
+  getManagedTask(taskId, includeResult = false) {
+    if (typeof taskId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$/.test(taskId)) throw new Error('Invalid task ID');
+    const errors = [];
+    const state = readDispatchState(errors);
+    if (errors.length) throw new Error('Dispatcher state unavailable');
+    if (!Object.hasOwn(state.tasks, taskId)) return null;
+    const task = state.tasks[taskId];
+    if (!task || task.task_id !== taskId) throw new Error('Invalid task record');
+    let result = null;
+    if (includeResult && task.run_dir) {
+      const expected = path.resolve(DISPATCH_STATE_DIR, 'runs', taskId);
+      // Never follow a record to arbitrary paths or symlink/junction targets.
+      try {
+        const actual = fs.realpathSync(expected);
+        const root = fs.realpathSync(DISPATCH_STATE_DIR);
+        const canonical = path.join(root, 'runs', taskId);
+        if (path.resolve(task.run_dir) !== expected || actual !== canonical ||
+            fs.lstatSync(expected).isSymbolicLink()) throw new Error('Unexpected run directory');
+        const turns = fs.readdirSync(expected, { withFileTypes:true })
+          .filter(e=>e.isDirectory() && /^turn-[A-Za-z0-9_-]+$/.test(e.name))
+          .map(e=>path.join(expected,e.name,'result.json')).sort().reverse();
+        const latest = [...turns, path.join(expected,'result.json')].find(p=>fs.existsSync(p));
+        if (latest) {
+          const stat = fs.lstatSync(latest);
+          if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 262144 ||
+              fs.realpathSync(latest) !== path.join(actual,path.relative(expected,latest))) throw new Error('Invalid result artifact');
+          result = JSON.parse(fs.readFileSync(latest,'utf8'));
+        }
+      } catch {
+        // Missing, unsafe, incompatible and oversized artifacts are not verified.
+        result = null;
+      }
+    }
+    return {task,result};
+  }
+
+  getLogPage(input, cursor = 0, limit = 10) {
+    const id = this.resolveThreadId(input);
+    if (!id) throw new Error('Thread not found');
+    if (!Number.isSafeInteger(cursor) || cursor < 0 || !Number.isInteger(limit) || limit < 1 || limit > 20) throw new Error('Invalid log pagination');
+    const errors = [];
+    // Explicit metadata-only page; no arbitrary files, prompts or raw command output.
+    const rows = withReadOnlyDb(this.historyDbPath, db => db.prepare(
+      'SELECT rowid AS cursor, item_type, created_at_ms FROM thread_items WHERE thread_id = ? AND rowid > ? ORDER BY rowid LIMIT ?'
+    ).all(id,cursor,limit+1), [], errors);
+    if (errors.length) throw new Error('History database unavailable');
+    const entries = rows.slice(0,limit).map(r=>({cursor:r.cursor,type:typeof r.item_type==='string' ? r.item_type.slice(0,40) : 'unknown',at:r.created_at_ms ?? null}));
+    return {entries,nextCursor:entries.at(-1)?.cursor ?? cursor,hasMore:rows.length>limit};
   }
 
   getThreadDetail(input) {

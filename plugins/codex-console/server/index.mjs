@@ -10,6 +10,7 @@ import { ConsoleDB } from './console-db.mjs';
 import { CodexStore } from './codex-store.mjs';
 import { CodexRunner, DIAGNOSE_BLOCKER_PROMPT, buildExecEnv } from './runner.mjs';
 import { QuotaTracker } from './quota.mjs';
+import { compactReply, compactError, compactStatus, compactDelta, compactOperation } from './compact.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,6 +61,10 @@ const BOTH_META = {
   ui: { visibility: ['model', 'app'] },
 };
 
+// Metadata separates views; the actual host must honor visibility.
+const LEGACY_DETAIL_META = process.env.ALC_LEGACY_MODEL_DETAIL === '1' ? BOTH_META : APP_ONLY_META;
+const MODEL_META = { ui:{visibility:['model']} };
+
 function readAppHtml() {
   const htmlPath = process.env.CODEX_CONSOLE_HTML || path.join(PLUGIN_ROOT, 'dist', 'app.html');
   if (!fs.existsSync(htmlPath)) {
@@ -90,6 +95,30 @@ const server = new McpServer({
   name: 'codex-console',
   version: '1.0.0',
 });
+
+// Small JSON text-only responses; full legacy structured UI contracts unchanged.
+const selector = {threadId:z.string().min(4).max(256).optional(),taskId:z.string().min(1).max(80).optional()};
+function compactTool(name,description,inputSchema,handler,budget=1500) {
+  server.registerTool(name,{description,inputSchema,_meta:MODEL_META},async args=>{
+    try { return compactReply(await handler(args),budget); } catch { return compactError(); }
+  });
+}
+compactTool('task_status','Read compact task status (exactly one threadId or taskId). No history.',selector,
+  args=>compactStatus(store,args),600);
+compactTool('task_result','Read bounded worker-claimed result; not independent verification.',selector,
+  args=>compactStatus(store,args,true));
+compactTool('task_delta','Read changed compact result using revision from previous response.',{...selector,revision:z.string().regex(/^[a-f0-9]{64}$/).optional()},
+  args=>compactDelta(store,args));
+compactTool('get_operation_status','Read operation state without prompt, output or raw errors.',{opId:z.string().min(3).max(128)},
+  ({opId})=>compactOperation(consoleDb.getOp(opId)),600);
+compactTool('task_logs','Explicit cursor page of history event metadata; full log text remains in UI.',{threadId:z.string().min(4).max(256),cursor:z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),limit:z.number().int().min(1).max(20).optional()},
+  ({threadId,cursor=0,limit=10})=>store.getLogPage(threadId,cursor,limit),2500);
+compactTool('task_list','List up to ten recent task IDs and states, without history.',{limit:z.number().int().min(1).max(10).optional()},
+  ({limit=5})=>{
+    const snap=store.getSnapshot({limit,includeManagedAgents:false});
+    if(!snap.connected) throw new Error('State database unavailable');
+    return {tasks:snap.tasks.map(t=>({threadId:t.id,status:t.status?.code})),scope:'recent'};
+  },4000);
 
 // UI Resource
 server.registerResource(
@@ -160,7 +189,7 @@ server.registerTool(
       includeSubagents: z.boolean().optional().describe('是否包含子代理线程'),
       limit: z.number().int().min(1).max(200).optional().describe('返回条数上限，默认 40'),
     },
-    _meta: BOTH_META,
+    _meta: LEGACY_DETAIL_META,
   },
   async (args = {}) => {
     const snap = store.getSnapshot({ limit: Math.max(120, args.limit || 40) });
@@ -206,7 +235,7 @@ server.registerTool(
     inputSchema: {
       threadId: z.string().min(4).describe('Codex 会话 UUID 或前 8 位短 ID'),
     },
-    _meta: BOTH_META,
+    _meta: LEGACY_DETAIL_META,
   },
   async ({ threadId }) => {
     let detail;
@@ -252,7 +281,7 @@ server.registerTool(
     });
 
     return ok(
-      `已启动只读${isDiagnose ? '卡点诊断' : '提问'}（操作ID: ${op.id}，目标会话: ${match.title} [${match.shortId}]）。请稍后在控制台或通过 console_get_op 查看结果。`,
+      `已启动只读${isDiagnose ? '卡点诊断' : '提问'}（操作ID: ${op.id}，目标会话: ${match.title} [${match.shortId}]）。请稍后在控制台或通过 get_operation_status 查看结果。`,
       { op }
     );
   }

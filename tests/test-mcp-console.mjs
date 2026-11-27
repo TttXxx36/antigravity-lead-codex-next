@@ -304,6 +304,12 @@ async function runTests() {
     assert.equal(openTool?._meta?.ui?.resourceUri, 'ui://codex-console/app.html');
     assert.equal(openTool?._meta?.['com.google.antigravity/ui']?.entrypoints?.length, 2);
 
+    for (const name of ['task_status','task_result','task_delta','get_operation_status','task_logs','task_list']) {
+      assert.deepEqual(toolsRes.result.tools.find(t=>t.name===name)?._meta?.ui?.visibility,['model']);
+    }
+    for (const name of ['get_codex_task_detail','list_codex_tasks','console_get_op']) {
+      assert.deepEqual(toolsRes.result.tools.find(t=>t.name===name)?._meta?.ui?.visibility,['app']);
+    }
     // 3. Verify bundled single-file HTML resource
     const resRead = await rpc('resources/read', { uri: 'ui://codex-console/app.html' });
     assert.equal(resRead.result.contents[0].mimeType, 'text/html;profile=mcp-app');
@@ -328,6 +334,50 @@ async function runTests() {
     const demoAgent = snap.managedAgents.find((m) => m.id === 'demo-task-1');
     assert.equal(demoAgent.summary, 'Resume turn verified all 18 tests cleanly.');
     assert.equal(demoAgent.changedFiles.length, 2);
+
+    const compactCall=async(name,args,budget=1500)=>{
+      const reply=(await rpc('tools/call',{name,arguments:args})).result;
+      assert.ok(reply && !reply.isError,JSON.stringify(reply));
+      assert.equal(reply.structuredContent,undefined);
+      assert.equal(reply.content.length,1);
+      assert.ok(Buffer.byteLength(reply.content[0].text,'utf8')<=budget);
+      return JSON.parse(reply.content[0].text);
+    };
+    const small=await compactCall('task_status',{threadId:agyTask.id},600);
+    assert.equal(small.status,'running');
+    assert.equal(small.verification,'unknown');
+    assert.equal(small.summary,undefined);
+    const result=await compactCall('task_result',{threadId:agyTask.id});
+    assert.equal(result.summary,'Implemented JWT auth with 18 passing tests.');
+    const managed=await compactCall('task_status',{taskId:'demo-task-1'},600);
+    assert.equal(managed.status,'running');
+    const current=await compactCall('task_delta',{threadId:agyTask.id});
+    assert.equal(current.changed,true);
+    const unchanged=await compactCall('task_delta',{threadId:agyTask.id,revision:current.revision});
+    assert.equal(unchanged.changed,false);
+    assert.equal(unchanged.result,undefined);
+    const page=await compactCall('task_logs',{threadId:agyTask.id,limit:1});
+    assert.equal(page.entries.length,1);
+    assert.equal(page.hasMore,true);
+    assert.equal(page.entries[0].text,undefined);
+    const page2=await compactCall('task_logs',{threadId:agyTask.id,cursor:page.nextCursor,limit:1});
+    assert.equal(page2.entries.length,1);
+    assert.ok(page2.nextCursor>page.nextCursor);
+    assert.equal(page2.hasMore,false);
+    const absent=(await rpc('tools/call',{name:'get_operation_status',arguments:{opId:'not-found'}})).result;
+    assert.equal(absent.isError,true);
+    assert.equal(absent.structuredContent,undefined);
+    const traversal=(await rpc('tools/call',{name:'task_result',arguments:{taskId:'../secret'}})).result;
+    assert.equal(traversal.isError,true);
+    const both=(await rpc('tools/call',{name:'task_status',arguments:{threadId:agyTask.id,taskId:'demo-task-1'}})).result;
+    assert.equal(both.isError,true);
+    const listing=await compactCall('task_list',{limit:2},4000);
+    assert.equal(listing.tasks.length,2);
+    assert.equal(listing.tasks[0].title,undefined);
+    const legacy=(await rpc('tools/call',{name:'get_codex_task_detail',arguments:{threadId:agyTask.id}})).result;
+    assert.ok(legacy.structuredContent.messages.length>0);
+    assert.ok(Buffer.byteLength(JSON.stringify(legacy))>Buffer.byteLength(JSON.stringify(small)));
+    console.log('[PASS] D09 compact MCP text-only response, bounded payload, delta, cursor, legacy UI metadata and invalid selectors');
 
     // 4b. Verify dual-window quota picks minimum remaining (5h 51% < weekly 88%)
     assert.equal(snap.quota?.available, true);

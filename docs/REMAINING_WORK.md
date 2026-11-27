@@ -15,7 +15,7 @@
 | [D06](decisions/D06.md) 审批门禁与执行边界 | V1.1 | D04,D05 | BLOCKED | PR #8 候选四环境 CI PASS；可信宿主授权/真实 sandbox 未验收；可继续 D07 候选 |
 | [D07](decisions/D07.md) 任务结果与进程生命周期正确性 | V1.1 | D04,D06 | BLOCKED | PR #9 四环境 44/44 outcome PASS；真实宿主进程树未验收；可继续 D08 候选 |
 | [D08](decisions/D08.md) 历史任务定位与 Windows 发布门禁 | V1.1 | D05,D06,D07 | BLOCKED | PR #10 四环境 CI PASS；实机宿主未验收；D09 候选可继续 |
-| [D09](decisions/D09.md) 模型可见的轻量 MCP 接口 | V1.2 | D08 | PROPOSED | 未实施；状态/结果/增量/日志拆分，宿主兼容，保留 UI |
+| [D09](decisions/D09.md) 模型可见的轻量 MCP 接口 | V1.2 | D08 | IN_PROGRESS | 候选轻量接口与旧 UI 兼容，CI 待测；实际宿主及 Token 待验收 |
 | [D10](decisions/D10.md) 结构化通信与短报告协议 | V1.2 | D09 | PROPOSED | 未实施；版本化 task/result/delta、字段预算、程序证据、拒绝乱序 |
 | [D11](decisions/D11.md) 共享黑板与会话复用 | V1.2 | D10 | PROPOSED | 未实施；rev、增量 resume、受控压缩重建、跨任务隔离 |
 | [D12](decisions/D12.md) Token 遥测、预算与动态模型路由 | V1.2 | D01,D10,D11 | PROPOSED | 未实施；真实/估算/unknown 区分、预算、路由、避免重复累加 |

@@ -302,15 +302,21 @@
       "depends": [
         "D08"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
+      "status": "IN_PROGRESS",
+      "evidence": "Compact MCP candidate, CI pending",
       "next": "状态/结果/增量/日志拆分，宿主兼容，保留 UI",
       "branch": "dev/d09",
-      "approval": null,
+      "approval": "2026-11-27 user approved A and verified candidate development",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D09 compact MCP synthetic and cumulative regression",
+          "status": "NOT_RUN",
+          "ref": "pending CI"
+        }
+      ]
     },
     {
       "id": "D10",
