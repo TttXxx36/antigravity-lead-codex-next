@@ -102,8 +102,21 @@ class StreamTests(unittest.TestCase):
         with patch.object(d.subprocess,"Popen",side_effect=launch):
             with self.assertRaises(FileExistsError):
                 self.invoke("print('{\"type\":\"event\"}',flush=True)")
-        self.assertEqual(len(children),1)
-        self.assertIsNotNone(children[0].returncode,"owned process must be reaped on segment conflict")
+        # Windows terminate_owned_process_tree invokes taskkill through
+        # subprocess.run, which also passes the patched Popen boundary.
+        workers=[p for p in children if isinstance(p.args,(tuple,list))
+                 and p.args[0]==sys.executable and p.args[1:3]==["-u","-c"]]
+        helpers=[p for p in children if p not in workers]
+        self.assertEqual(len(workers),1)
+        if os.name=="nt":
+            self.assertLessEqual(len(helpers),1)
+            for p in helpers:
+                self.assertEqual(pathlib.Path(p.args[0]).name.lower(),"taskkill.exe")
+                self.assertEqual(p.args[1:],["/PID",str(workers[0].pid),"/T","/F"])
+        else:
+            self.assertEqual(helpers,[])
+        for p in children:
+            self.assertIsNotNone(p.returncode,"owned worker and any termination helper must be reaped")
         self.assertEqual(target.read_bytes(),b"existing evidence")
         self.assertFalse((self.root/"stream-segments.json").exists())
 

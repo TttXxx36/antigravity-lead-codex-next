@@ -596,7 +596,15 @@
         "tested_commit": "78dddef0ff98e575a4f9f938df3580e1a451dad2",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46011543805",
         "limitations": "Cumulative D22 follow-up implements bounded append-only raw log segments and task-global sequence with digest-bound prior checkpoint; CI pending. Legacy upgrade epoch explicitly scoped, per-turn cursor retained. Actual host/UI/escaped descendants and independent D14 branch backport/validation remain blocked."
-      }
+      },
+      "observations": [
+        {
+          "name": "Windows segment conflict test counted taskkill as worker; two Windows jobs failed, Linux/macOS passed",
+          "status": "FAIL",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46038749403",
+          "tested_commit": "4fa984ac887fb92684b82e54e2579f64cafdbd32"
+        }
+      ]
     },
     {
       "id": "D15",
@@ -1239,6 +1247,12 @@
           "status": "FAIL",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46035541198",
           "tested_commit": "007c01e6edfc30ce7f750717e3e0226d878a8af5"
+        },
+        {
+          "name": "Windows segment conflict test counted taskkill as worker; two Windows jobs failed, Linux/macOS passed",
+          "status": "FAIL",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46038796631",
+          "tested_commit": "9ade5de8629252d1b26f430f847bb07ec43fa299"
         }
       ],
       "candidate": {
