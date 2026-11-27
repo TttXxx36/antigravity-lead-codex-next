@@ -8,3 +8,7 @@ CI evidence NOT_RUN until exact-head verification.
 
 
 PR #18 Draft; initial code `1f99fb73decf91a088a8cb1098adac69ece1424b`, [initial CI 45975415764](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45975415764). Run observed in progress, no PASS inferred. This ledger-only follow-up records PR number and initial run; current head requires its own recheck. D16 remains IN_PROGRESS, no D17 branch or candidate-ready flag.
+
+
+## 2026-11-27 D16 follow-up
+Initial ledger head 34046f42ee0393b1bbfa6186ab866f626886d3aa / Run 45975558725 four-environment PASS, 20/20 cache tests, Linux Vite build and MCP delta passed. D15 evidence recheck 45975155258 PASS. Added bounded per-report mtime/digest-aware display cache, large legacy JSON metadata stamping, exact/prefix selector cache only for display, partial panel replacement for silent refresh, stale selection/failure and refresh coalescing safeguards. Added real SQLite query/open and logical content/wire byte benchmark on paired 30-call synthetic fixture; p95 is measured, not estimated; metadata stat syscalls/physical storage I/O not counted. Temporary Linux build transfer emits only generated public-to-repo static bundle chunks and git blob SHA, no token, no write permission; remove transfer step after importing exact verified blob. Dist not updated yet. Formal host, actual browser interaction and physical I/O remain unverified. No D17 start until candidate gate.

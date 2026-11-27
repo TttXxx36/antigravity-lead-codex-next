@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {QueryCache,displayStamp,revisionEnvelope} from '../plugins/codex-console/server/query-cache.mjs';
+import {QueryCache,DisplayReportCache,displayStamp,revisionEnvelope} from '../plugins/codex-console/server/query-cache.mjs';
 
 test('same-key concurrent calls coalesce; callers cannot mutate cache',async()=>{
  const c=new QueryCache();let reads=0;
@@ -46,4 +46,22 @@ test('unchanged revision omits payload; actual changes visible',()=>{
  const same=revisionEnvelope({tasks:[{id:1,status:'running'}],fetchedAt:2},first.revision);
  assert.deepEqual(same,{revision:first.revision,changed:false});
  const changed=revisionEnvelope({tasks:[{id:1,status:'completed'}],fetchedAt:2},first.revision);assert.equal(changed.changed,true);
+});
+
+test('report cache honors mtime, rejects stale digest and unsafe identities',()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'d16-report-'));
+ try{
+  const dir=path.join(root,'runs','task-1');fs.mkdirSync(dir,{recursive:true});
+  const file=path.join(dir,'result.json');
+  const cache=new DisplayReportCache(root);
+  const task={task_id:'task-1',run_dir:dir,status:'completed'};
+  fs.writeFileSync(file,JSON.stringify({report:{summary:'a'}}));
+  assert.equal(cache.read(task).report.summary,'a');assert.equal(cache.read(task).report.summary,'a');assert.equal(cache.reads,1);
+  fs.writeFileSync(file,JSON.stringify({report:{summary:'changed'}}));
+  assert.equal(cache.read(task).report.summary,'changed');assert.equal(cache.reads,2);
+  assert.equal(cache.read({...task,result_ref:{turn:null,sha256:'0'.repeat(64)}}),null);
+  assert.equal(cache.read({...task,task_id:'../bad'}),null);
+  assert.equal(cache.read({...task,status:'running'}),null);
+  fs.unlinkSync(file);assert.equal(cache.read(task),null);
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
 });

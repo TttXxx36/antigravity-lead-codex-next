@@ -562,8 +562,8 @@
         "D15"
       ],
       "status": "IN_PROGRESS",
-      "evidence": "Opt-in app query cache and delta endpoints, UI source polling changes, tests; prebuilt bundle and performance acceptance pending",
-      "next": "Verify exact current head CI; rebuild/commit dist/app.html, report mtime cache and paired p95/query/I/O; actual host and dependency formal acceptance still pending",
+      "evidence": "Run 45975558725 exact-head 20/20 and cumulative PASS; follow-up report mtime cache, partial UI panels and same-fixture real read benchmark; build transfer/recheck pending",
+      "next": "Verify updated CI; retrieve generated bundle and verify git blob hash, commit it; validate benchmark p95/query/logical I/O; host evidence remains blocked",
       "branch": "dev/d16",
       "approval": "2026-11-27 user authorized A candidate development; display-only, no real model or production data writes",
       "pr": 18,
@@ -571,10 +571,15 @@
       "merged": false,
       "checks": [
         {
-          "name": "D16 initial candidate CI",
+          "name": "Initial display cache and cumulative CI",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45975558725",
+          "tested_commit": "34046f42ee0393b1bbfa6186ab866f626886d3aa"
+        },
+        {
+          "name": "D16 corrected source and paired benchmark",
           "status": "NOT_RUN",
-          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45975415764",
-          "tested_commit": "1f99fb73decf91a088a8cb1098adac69ece1424b"
+          "ref": "Latest head pending"
         }
       ]
     },

@@ -10,7 +10,7 @@ import { ConsoleDB } from './console-db.mjs';
 import { CodexStore } from './codex-store.mjs';
 import { CodexRunner, DIAGNOSE_BLOCKER_PROMPT, buildExecEnv } from './runner.mjs';
 import { QuotaTracker } from './quota.mjs';
-import { QueryCache, displayStamp, revisionEnvelope } from './query-cache.mjs';
+import { QueryCache, DisplayReportCache, displayStamp, revisionEnvelope } from './query-cache.mjs';
 import { runtimePaths } from './platform.mjs';
 import { compactReply, compactError, compactStatus, compactDelta, compactOperation } from './compact.mjs';
 
@@ -44,11 +44,12 @@ const quotaTracker = new QuotaTracker({
 
 const queryDeltaEnabled=process.env.ALC_QUERY_CACHE==='1';
 const displayCache=new QueryCache();
+const reportCache=new DisplayReportCache(runtimePaths().dispatchStateDir);
 const quotaCache=new QueryCache({ttlMs:15000,maxEntries:1,maxBytes:65536});
 const viewStamp=()=>displayStamp([store.stateDbPath,store.goalsDbPath,store.queueDbPath,store.historyDbPath,consoleDb.dbPath],runtimePaths().dispatchStateDir);
 const localQuota=force=>quotaCache.get('quota',{stamp:()=> 'local-rollout',load:()=>quotaTracker.getFastQuota(),force});
 const displaySnapshot=async(limit,force=false)=>({
-  ...await displayCache.get('snapshot:'+limit,{stamp:viewStamp,load:()=>store.getSnapshot({limit}),force,cacheable:v=>v.connected&&!v.health?.errors?.length}),
+  ...await displayCache.get('snapshot:'+limit,{stamp:viewStamp,load:()=>store.getSnapshot({limit,reportCache}),force,cacheable:v=>v.connected&&!v.health?.errors?.length}),
   quota:await localQuota(force),runtime:runner.getRuntimeInfo(),queryDelta:true
 });
 
@@ -485,9 +486,10 @@ server.registerTool('console_thread_delta',{
 },async({threadId,revision,force=false})=>{
   if(!queryDeltaEnabled)return fail('D16 query delta disabled');
   try{
-    const exact=store.resolveThreadId(threadId);
-    if(!exact)return fail('Thread not found');
-    const detail=await displayCache.get('detail:'+exact,{stamp:viewStamp,load:()=>store.getThreadDetail(exact),force,cacheable:v=>v.task&&!v.errors?.length});
+    // Raw selector is part of the key; resolve exact/ambiguous identity on a
+    // fresh load. State DB stamp/TTL invalidates prefix changes. No cached
+    // result is ever used by the execution/authorization path.
+    const detail=await displayCache.get('detail:'+threadId,{stamp:viewStamp,load:()=>store.getThreadDetail(threadId),force,cacheable:v=>v.task&&!v.errors?.length});
     if(!detail.task)return fail('Thread not found');
     return ok('thread delta',revisionEnvelope(detail,revision));
   }catch(err){return fail(err.message);}
