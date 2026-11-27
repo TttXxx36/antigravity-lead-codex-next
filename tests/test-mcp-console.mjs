@@ -234,6 +234,8 @@ async function runTests() {
   let closed;
   try {
     createSyntheticCodexHome(codexHome, dispatchDir);
+    const globalConfig=path.join(tmpRoot,'empty-gitconfig');
+    fs.writeFileSync(globalConfig,'');
     const allowed = ['PATH', 'Path', 'SystemRoot', 'WINDIR', 'COMSPEC', 'PATHEXT', 'TEMP', 'TMP'];
     const env = Object.fromEntries(allowed.filter(k => process.env[k] !== undefined).map(k => [k, process.env[k]]));
     // Use a native Node executable, not Bash, on all platforms. Quota probes
@@ -245,7 +247,7 @@ async function runTests() {
         CODEX_BIN: process.execPath,
         CODEX_HOME: codexHome,
         AGY_DISPATCH_STATE_DIR: dispatchDir,
-        GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: os.devNull, GIT_TERMINAL_PROMPT: '0',
+        GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: globalConfig, GIT_TERMINAL_PROMPT: '0',
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     });

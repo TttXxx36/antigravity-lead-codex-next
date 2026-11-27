@@ -16,10 +16,15 @@ test('literal names and rename ordering',()=>{
 });
 test('real git porcelain -z rename on native filesystem',()=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'d08-git-'));
- const env={...process.env,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:os.devNull,GIT_TERMINAL_PROMPT:'0'};
+ const globalConfig=path.join(root,'empty-gitconfig');
+ fs.writeFileSync(globalConfig,'');
+ const allowed=['PATH','Path','SystemRoot','WINDIR','COMSPEC','PATHEXT','TEMP','TMP'];
+ const env={...Object.fromEntries(allowed.filter(k=>process.env[k]!==undefined).map(k=>[k,process.env[k]])),HOME:root,USERPROFILE:root,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:globalConfig,GIT_TERMINAL_PROMPT:'0'};
  const git=(...args)=>execFileSync('git',['-c','core.hooksPath='+path.join(root,'no-hooks'),'-c','user.name=Mock','-c','user.email=mock@example.invalid',...args],{cwd:root,env,encoding:'utf8'});
  try{
+  // Keep the synthetic Git configuration outside the worktree index.
   git('init','-b','main');
+  fs.writeFileSync(path.join(root,'.git','info','exclude'),'empty-gitconfig\n');
   fs.writeFileSync(path.join(root,'旧 文件.txt'),'fixture');
   git('add','--','旧 文件.txt');git('commit','-m','fixture');
   git('mv','--','旧 文件.txt','新 文件.txt');
