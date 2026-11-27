@@ -728,7 +728,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Integrated exact-head 4-platform cumulative PASS; 44/44 scheduler tests incl abrupt owner death, native MCP bypass denial",
-      "next": "Candidate CI passed on exact integrated head; formal host/model/independent-acceptance gates remain BLOCKED.",
+      "next": "Verify cumulative follow-up; preserve trusted authority/real host gate and backport standalone changes before formal merge.",
       "branch": "dev/d17",
       "approval": "2026-11-27 user authorized A candidate development; no production worker/model or cleanup authorization",
       "pr": 19,
@@ -761,6 +761,11 @@
           "status": "PASS",
           "tested_commit": "5dc22853841b9d8b1df61661962e5f97dcc64bd9",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46012973770"
+        },
+        {
+          "name": "Unresolved scheduler ticket evidence and hardened offline cleanup preview",
+          "status": "NOT_RUN",
+          "ref": "docs/decisions/D17.md"
         }
       ],
       "observations": [
@@ -772,10 +777,10 @@
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "5dc22853841b9d8b1df61661962e5f97dcc64bd9",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46012973770",
-        "limitations": "D16 ancestry integrated; D17 ancestry evidence restored; new exact-head CI pending. Real host cancellation/cleanup approval remains BLOCKED."
+        "limitations": "D16 ancestry integrated; D17 ancestry evidence restored; new exact-head CI pending. Real host cancellation/cleanup approval remains BLOCKED. New cumulative read-only evidence follow-up pending CI; no positive authority added."
       }
     },
     {
@@ -789,7 +794,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Exact-head 4-platform cumulative PASS; 36/36 state-machine tests and native MCP receipts",
-      "next": "Candidate CI passed on exact integrated head; formal host/model/independent-acceptance gates remain BLOCKED.",
+      "next": "Verify cumulative follow-up; preserve trusted authority/real host gate and backport standalone changes before formal merge.",
       "branch": "dev/d18",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no real model, permission or merge grant",
       "pr": 20,
@@ -829,13 +834,18 @@
           "status": "PASS",
           "tested_commit": "b2eabc3a24c1cb8fae06b249c1c8ed8961f44c7b",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46013467970"
+        },
+        {
+          "name": "Revision-bound independent acceptance preview and tamper refusal",
+          "status": "NOT_RUN",
+          "ref": "docs/decisions/D18.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "b2eabc3a24c1cb8fae06b249c1c8ed8961f44c7b",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46013467970",
-        "limitations": "Mock subprocesses, real local Git/SQLite and MCP; trusted host acceptance/completed, actual host crash recovery and active cancellation unverified. No automatic merge."
+        "limitations": "Mock subprocesses, real local Git/SQLite and MCP; trusted host acceptance/completed, actual host crash recovery and active cancellation unverified. No automatic merge. New cumulative read-only evidence follow-up pending CI; no positive authority added."
       }
     },
     {

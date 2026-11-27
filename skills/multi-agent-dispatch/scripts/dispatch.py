@@ -2650,7 +2650,52 @@ def scheduler_known_terminal(result):
             and result.get("task_status") in ("completed","failed","partial","blocked"))
 
 
+def scheduler_reconciliation_packet(state, key):
+    """Describe one unresolved slot without inferring process death or granting release."""
+    if not re.fullmatch(r"[a-f0-9]{32}",key):
+        raise ValueError("D17: invalid ticket")
+    ticket=scheduler_registry(state)["tickets"].get(key)
+    if not ticket or ticket["status"] not in ("active","uncertain"):
+        raise ValueError("D17: reconciliation requires an active or uncertain ticket")
+    tid=ticket["task_id"]
+    task=state["tasks"].get(tid)
+    ops=sorted(((k,v) for k,v in request_records(state).items()
+                if v["task_id"].casefold()==tid.casefold()),key=lambda x:x[1]["ordinal"])
+    latest_key,latest=ops[-1] if ops else (None,None)
+    rec=orchestrator_lookup(state,tid)
+    event=rec["events"][-1] if rec else None
+    lease=event["lease"] if event else None
+    bound=bool(lease and lease["ticket"]==key and lease["owner_pid"]==ticket["owner_pid"])
+    reasons=["trusted_owned_process_tree_exit_evidence_required",
+             "trusted_reconciliation_authority_required"]
+    if any(op["status"] in ("pending","uncertain") for _,op in ops):
+        reasons.append("unsettled_request")
+    if task is None or task.get("active_turn_id") or not scheduler_known_terminal(task) or task.get("stream_integrity")=="incomplete":
+        reasons.append("terminal_task_unconfirmed")
+    if lease:
+        reasons.append("orchestration_lease_outstanding")
+    if not bound:
+        reasons.append("ticket_to_latest_result_binding_unverified")
+    ref=task.get("result_ref") if task else None
+    # Only a validated digest/turn shape is returned. Latest task metadata is
+    # not evidence that this particular ticket's process tree terminated.
+    packet={"version":1,"operation":"scheduler_reconcile_preview","ticket":key,
+            "ticketSequence":ticket["seq"],"ticketStatus":ticket["status"],
+            "ticketDigest":request_hash(ticket),"taskId":tid,"kind":ticket["kind"],
+            "taskRecordDigest":request_hash(task) if task is not None else None,
+            "latestRequestId":latest_key,"latestRequestStatus":latest["status"] if latest else None,
+            "latestResultSha256":ref["sha256"] if ref and orchestrator_result_ref(ref) else None,
+            "orchestrationAuditDigest":event["digest"] if event else None,
+            "orchestrationLeaseMatchesTicket":bound,"blockers":reasons,
+            "processExitProof":"NOT_RUN","authority":"NOT_CONFIGURED",
+            "slotReleased":False,"workerTerminated":False,"cleanupAuthorized":False}
+    packet["evidenceDigest"]=request_hash(packet)
+    return packet
+
+
 def scheduler_status_cmd(args):
+    if args.subcommand=="scheduler-reconcile-preview" and not STATE_FILE.exists():
+        raise ValueError("D17: scheduler state not found")
     with locked_state() as state:
         registry=scheduler_registry(state)
         if args.subcommand=="scheduler-cancel":
@@ -2662,6 +2707,8 @@ def scheduler_status_cmd(args):
                 raise ValueError("D17: only a queued ticket may be cancelled; no active process kill")
             rec.update(status="cancelled",reason="operator_cancelled",updated_at=utc_now())
             payload={"ticket":key,"status":"cancelled"}
+        elif args.subcommand=="scheduler-reconcile-preview":
+            payload=scheduler_reconciliation_packet(state,args.ticket)
         else:
             payload={"enabled":scheduler_config() is not None,"tickets":[
                 {"ticket":key,"seq":t["seq"],"task_id":t["task_id"],"kind":t["kind"],
@@ -3591,10 +3638,34 @@ def risk_review_command(args):
 
 
 
+def orchestrator_acceptance_packet(state,rec,expected_revision):
+    e=rec["events"][-1]
+    if type(expected_revision) is not int or expected_revision!=e["revision"] or e["status"]!="verifying" or e["lease"] is not None:
+        raise ValueError("D18: current verifying revision required for acceptance packet")
+    artifact_ok=orchestrator_artifact_matches(state,rec)
+    risk=risk_registry(state).get(rec["task_id"])
+    current_risk=bool(risk and risk["revision"]==e["revision"] and risk["auditDigest"]==e["digest"]
+                      and risk["artifactSha256"]==e["result_ref"]["sha256"])
+    git_ok=bool(current_risk and all(risk["evidence"]["checks"][k]=="PASS" for k in RISK_CHECKS[:5]))
+    packet={"version":1,"operation":"independent_acceptance_preview","taskId":rec["task_id"],
+            "revision":e["revision"],"protocolRevision":e["protocol_rev"],"requestId":e["request_id"],
+            "scopeDigest":rec["scope"],"envelopeDigest":e["envelope"],"auditDigest":e["digest"],
+            "artifactSha256":e["result_ref"]["sha256"],"riskReceiptDigest":risk["digest"] if current_risk else None,
+            "base":risk["base"] if current_risk else None,"head":risk["head"] if current_risk else None,
+            "checks":{"workerArtifact":"PASS" if artifact_ok else "FAIL",
+                      "pinnedGitChecks":"PASS" if git_ok else "FAIL" if current_risk else "NOT_RUN",
+                      "worktree":"NOT_RUN","projectTests":"NOT_RUN","independentReview":"NOT_RUN",
+                      "trustedAuthority":"NOT_CONFIGURED"},
+            "readyForIndependentReview":artifact_ok and git_ok,
+            "accepted":False,"mergeAuthorized":False,"stateChanged":False}
+    packet["evidenceDigest"]=request_hash(packet)
+    return packet
+
+
 def orchestrator_command(args):
     kind=args.subcommand
     tid=validate_task_id(args.task_id)
-    if kind in ("orchestrator-status","orchestrator-audit","orchestrator-recover") and not STATE_FILE.exists():
+    if kind in ("orchestrator-status","orchestrator-audit","orchestrator-recover","orchestrator-acceptance-preview") and not STATE_FILE.exists():
         raise ValueError("D18: orchestration not found")
     with locked_state() as state:
         registry=orchestrator_registry(state,create=kind=="orchestrator-queue")
@@ -3656,6 +3727,8 @@ def orchestrator_command(args):
                 reason="trusted_acceptance_unavailable" if orchestrator_artifact_matches(state,rec) else "artifact_invalid"
                 orchestrator_append(rec,"verify_blocked",reason)
         payload=orchestrator_public(state,rec)
+        if kind=="orchestrator-acceptance-preview":
+            payload=orchestrator_acceptance_packet(state,rec,args.expected_revision)
         if kind=="orchestrator-audit":
             cursor=args.cursor
             if cursor<0 or cursor>len(rec["events"]) or not 1<=args.limit<=10:
@@ -4444,23 +4517,46 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
             expected=WORKTREES_DIR.resolve().joinpath(*rel.parts)
             if not path.is_dir() or path.resolve(strict=True)!=expected:
                 raise ValueError("invalid worktree")
-            git=get_git_bin()
-            if not git:raise ValueError("git missing")
+            # Reuse D19 bounded, offline Git probes (no inherited GIT_*,
+            # fsmonitor, hooks, external diff, lazy fetch or protocols).
+            # Git status may invoke configured clean/process filters; refuse
+            # such repos and gitlinks before running status. This is a preview,
+            # not an OS sandbox or a race-free authorization to delete.
+            repo_path=Path(repo).resolve(strict=True)
+            deadline=time.monotonic()+25
             def probe(cwd,*argv):
-                return subprocess.run([git,"-C",str(cwd),*argv],capture_output=True,timeout=10,
-                                      env={**os.environ,"GIT_OPTIONAL_LOCKS":"0","LC_ALL":"C"})
-            current=probe(path,"symbolic-ref","--short","HEAD")
-            top=probe(path,"rev-parse","--show-toplevel")
-            if current.returncode or current.stdout.decode("utf-8").strip()!=branch or top.returncode or Path(top.stdout.decode("utf-8").strip()).resolve()!=expected:
+                return risk_git(cwd,list(argv),deadline)
+            current_rc,current=probe(path,"symbolic-ref","--short","HEAD")
+            top_rc,top=probe(path,"rev-parse","--show-toplevel")
+            repo_rc,repo_top=probe(repo_path,"rev-parse","--show-toplevel")
+            wc_rc,wc=probe(path,"rev-parse","--path-format=absolute","--git-common-dir")
+            rc,common=probe(repo_path,"rev-parse","--path-format=absolute","--git-common-dir")
+            if (current_rc!=0 or current.decode("utf-8").strip()!=branch or top_rc!=0
+                or Path(top.decode("utf-8").strip()).resolve()!=expected or repo_rc!=0
+                or Path(repo_top.decode("utf-8").strip()).resolve()!=repo_path or wc_rc!=0 or rc!=0
+                or Path(wc.decode("utf-8").strip()).resolve()!=Path(common.decode("utf-8").strip()).resolve()):
                 reasons.append("worktree_identity_mismatch")
-            dirty=probe(path,"status","--porcelain=v1","-z","--untracked-files=all","--ignored=matching")
-            if dirty.returncode or dirty.stdout:
-                reasons.append("dirty_untracked_or_ignored_files")
-            target=probe(repo,"symbolic-ref","--short","HEAD")
-            head=probe(path,"rev-parse","--verify","HEAD")
-            if (target.returncode or target.stdout.decode("utf-8").strip()==branch or head.returncode
-                or probe(repo,"merge-base","--is-ancestor",head.stdout.decode("ascii").strip(),"HEAD").returncode):
-                reasons.append("unmerged_or_unknown_commits")
+            else:
+                filter_rc,filter_output=probe(path,"config","--null","--get-regexp",r"^filter\.")
+                stage_rc,staged=probe(path,"ls-files","--stage","-z")
+                if filter_rc!=1 or filter_output:
+                    reasons.append("configured_filters_or_unknown")
+                elif stage_rc!=0 or (staged and not staged.endswith(b"\0")) or any(x.startswith(b"160000 ") for x in staged.split(b"\0")):
+                    reasons.append("gitlinks_or_index_unknown")
+                else:
+                    dirty_rc,dirty=probe(path,"status","--porcelain=v1","-z","--untracked-files=all","--ignored=matching")
+                    if dirty_rc!=0 or dirty:
+                        reasons.append("dirty_untracked_or_ignored_files")
+                target_rc,target=probe(repo_path,"symbolic-ref","--short","HEAD")
+                head_rc,head=probe(path,"rev-parse","--verify","HEAD^{commit}")
+                base_rc,base=probe(repo_path,"rev-parse","--verify","HEAD^{commit}")
+                hs,bs=head.decode("ascii").strip(),base.decode("ascii").strip()
+                if (target_rc!=0 or target.decode("utf-8").strip()==branch or head_rc!=0 or base_rc!=0
+                    or not risk_sha(hs) or not risk_sha(bs)
+                    or probe(repo_path,"merge-base","--is-ancestor",hs,bs)[0]!=0):
+                    reasons.append("unmerged_or_unknown_commits")
+                elif probe(path,"rev-parse","--verify","HEAD^{commit}")!=(0,head) or probe(repo_path,"rev-parse","--verify","HEAD^{commit}")!=(0,base):
+                    reasons.append("worktree_heads_changed")
         except (OSError,ValueError,UnicodeError,StateIntegrityError,subprocess.TimeoutExpired):
             reasons.append("worktree_probe_failed")
     # D17 has no trusted approval bridge. Do not remove/prune/delete even when
@@ -4574,7 +4670,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_risk.add_argument("--approve-git-checks",action="store_true",help="Explicit local operator request for fixed Git checks; not approval to merge")
     p_risk_status=sub.add_parser("orchestrator-risk-status",allow_abbrev=False,help="Read historical D19 receipt")
     p_risk_status.add_argument("--task-id",required=True)
-    for operation in ("orchestrator-queue","orchestrator-retry","orchestrator-cancel","orchestrator-verify","orchestrator-status","orchestrator-audit","orchestrator-recover"):
+    for operation in ("orchestrator-queue","orchestrator-retry","orchestrator-cancel","orchestrator-verify","orchestrator-status","orchestrator-audit","orchestrator-recover","orchestrator-acceptance-preview"):
         p_orch=sub.add_parser(operation,allow_abbrev=False,help="D18 explicit local orchestration; no automatic execution or merge")
         p_orch.add_argument("--task-id",required=True)
         if operation in ("orchestrator-queue","orchestrator-retry"):
@@ -4582,7 +4678,7 @@ def build_parser() -> argparse.ArgumentParser:
             p_orch.add_argument("--prompt",required=True,help="Exact bounded v2 task envelope; not an approval grant")
         if operation=="orchestrator-queue":
             p_orch.add_argument("--cwd",required=True)
-        if operation in ("orchestrator-retry","orchestrator-cancel","orchestrator-verify"):
+        if operation in ("orchestrator-retry","orchestrator-cancel","orchestrator-verify","orchestrator-acceptance-preview"):
             p_orch.add_argument("--expected-revision",type=int,required=True)
         if operation=="orchestrator-audit":
             p_orch.add_argument("--cursor",type=int,default=0)
@@ -4590,6 +4686,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("scheduler-status",allow_abbrev=False,help="Read bounded local scheduler metadata")
     p_cancel=sub.add_parser("scheduler-cancel",allow_abbrev=False,help="Cancel queued ticket only; never kills an active worker")
     p_cancel.add_argument("--ticket",required=True)
+    p_reconcile=sub.add_parser("scheduler-reconcile-preview",allow_abbrev=False,help="Read unresolved slot evidence; never releases or kills")
+    p_reconcile.add_argument("--ticket",required=True)
     p_cln = sub.add_parser("cleanup", allow_abbrev=False, help="D17 read-only cleanup preflight; trusted human approval unavailable.")
     p_cln.add_argument("--task-id", required=True)
     p_cln.add_argument("--delete-branch", action="store_true")
@@ -4614,6 +4712,7 @@ def main() -> int:
         "state-recover": cmd_state_storage,
         "scheduler-status": scheduler_status_cmd,
         "scheduler-cancel": scheduler_status_cmd,
+        "scheduler-reconcile-preview": scheduler_status_cmd,
     }
     try:
         if args.subcommand=='app-server-status':

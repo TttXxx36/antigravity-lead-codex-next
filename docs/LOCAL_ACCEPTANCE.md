@@ -28,8 +28,8 @@ W=真实 Windows x64/桌面；H=实际宿主/系统边界；A=另行授权（真
 | D14 | W/H/E | UI push/reconnect、活动取消、逃逸后代；新增 append-only 256 KiB 原始日志分段及 taskSeq 跨轮序号候选待 CI；旧版升级 epoch 单独标识，仍有总字节上限，真实 UI/重连须实测 |
 | D15 | W/H | 仅插件自有 SQLite，宿主停止后的迁移/恢复激活、掉电、旧版兼容；禁止生产库试验 |
 | D16 | W/H | 真实浏览器及旧宿主 UI、物理 I/O、可比较 p95 |
-| D17 | W/H/A/E | 实际调度/活动取消/逃逸后代和可信 quota；不自动回收不确定 slot，cleanup 仅预览、可信删除授权缺失 |
-| D18 | H/A/E | 可信独立验收 completed bridge、真实恢复/取消审批；默认 verifying 阻塞，worker 退出不等于完成 |
+| D17 | W/H/A/E | 实际调度/活动取消/逃逸后代和可信 quota；不自动回收不确定 slot；scheduler-reconcile-preview 导出绑定票据证据，cleanup 使用有界离线 Git 检查，可信回收/删除仍待宿主授权 |
+| D18 | H/A/E | 可信独立验收 completed bridge、真实恢复/取消审批；orchestrator-acceptance-preview 导出绑定 revision/结果/risk 的独立验收包，不授予 completed；可信验收仍待宿主授权 |
 | D19 | H/A | 独立人/可信宿主审查、真实任务 scope 和 worktree 测试 |
 | D20 | W/H/A/E | 实际 App Server 启动/协议与真实任务/权限/usage parity；仅实验探测，CLI 默认，真实生产路由未启用 |
 | D21 | H/A | 历史基线与候选真实工作负载、质量、成功率、P0、真实 usage 和模型/effort/cache；合成轮询不是生产 Token |
