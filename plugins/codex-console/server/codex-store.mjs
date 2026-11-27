@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -645,16 +646,24 @@ export class CodexStore {
         const canonical = path.join(root, 'runs', taskId);
         if (path.resolve(task.run_dir) !== expected || actual !== canonical ||
             fs.lstatSync(expected).isSymbolicLink()) throw new Error('Unexpected run directory');
-        const turns = fs.readdirSync(expected, { withFileTypes:true })
-          .filter(e=>e.isDirectory() && /^turn-[A-Za-z0-9_-]+$/.test(e.name))
-          .map(e=>path.join(expected,e.name,'result.json')).sort().reverse();
-        const latest = [...turns, path.join(expected,'result.json')].find(p=>fs.existsSync(p));
-        if (latest) {
-          const stat = fs.lstatSync(latest);
-          if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 262144 ||
-              fs.realpathSync(latest) !== path.join(actual,path.relative(expected,latest))) throw new Error('Invalid result artifact');
-          result = JSON.parse(fs.readFileSync(latest,'utf8'));
-        }
+        const ref = task.result_ref;
+        // No inference from directory ordering or old artifacts. Only the
+        // state-published result of the current completed turn is eligible.
+        if (!['completed','failed','partial','blocked','timed_out'].includes(task.status)
+            || task.active_turn_id || !ref || !/^[a-f0-9]{64}$/.test(ref.sha256)
+            || !(ref.turn === null || (typeof ref.turn === 'string' && /^turn-[A-Za-z0-9_-]+$/.test(ref.turn)))) throw new Error('No current result reference');
+        const latest = path.join(expected, ...(ref.turn === null ? [] : [ref.turn]), 'result.json');
+        const stat = fs.lstatSync(latest);
+        if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 262144 ||
+            fs.realpathSync(latest) !== path.join(actual,path.relative(expected,latest))) throw new Error('Invalid result artifact');
+        const bytes = fs.readFileSync(latest);
+        if (bytes.length > 262144 || crypto.createHash('sha256').update(bytes).digest('hex') !== ref.sha256) throw new Error('Result digest mismatch');
+        const candidate = JSON.parse(bytes.toString('utf8'));
+        if (candidate?.task_id !== taskId || (candidate.turn_id ?? null) !== ref.turn ||
+            candidate.session_id !== task.session_id || candidate.exit_code !== task.exit_code ||
+            candidate.task_status !== task.task_status || !candidate.report ||
+            candidate.report.status !== candidate.task_status) throw new Error('Result identity mismatch');
+        result = candidate;
       } catch {
         // Missing, unsafe, incompatible and oversized artifacts are not verified.
         result = null;

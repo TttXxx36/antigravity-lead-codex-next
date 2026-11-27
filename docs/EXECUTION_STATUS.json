@@ -303,16 +303,22 @@
         "D08"
       ],
       "status": "IN_PROGRESS",
-      "evidence": "Compact MCP candidate, CI pending",
-      "next": "状态/结果/增量/日志拆分，宿主兼容，保留 UI",
+      "evidence": "Initial four environments PASS; result identity/digest and positive op follow-up pending",
+      "next": "Verify follow-up exact head; then D10 candidate",
       "branch": "dev/d09",
       "approval": "2026-11-27 user approved A and verified candidate development",
-      "pr": null,
+      "pr": 11,
       "accepted": false,
       "merged": false,
       "checks": [
         {
-          "name": "D09 compact MCP synthetic and cumulative regression",
+          "name": "initial D09 compact MCP and cumulative CI",
+          "status": "PASS",
+          "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45938576927",
+          "tested_commit": "7bc5d42d0b9ef987a45fa91a881d47a04efe8863"
+        },
+        {
+          "name": "D09 artifact boundary follow-up",
           "status": "NOT_RUN",
           "ref": "pending CI"
         }

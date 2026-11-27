@@ -24,8 +24,8 @@ export function compactStatus(store,args,includeResult=false) {
     const out={taskId:id(task.task_id),threadId:id(task.session_id),status:status(task.status),exitCode:num(task.exit_code),verification:'unknown'};
     if(!includeResult) return out;
     // A report from a prior resume is not current terminal verification.
-    const terminal=['completed','failed','partial','timed_out','cancelled','stopped'].includes(task.status);
-    return {...out,reportAvailable:!!result,summary:terminal?clip(result?.report?.summary ?? result?.summary,240):null,
+    const terminal=['completed','failed','partial','blocked','timed_out'].includes(task.status);
+    return {...out,reportAvailable:terminal && !!result,summary:terminal?clip(result?.report?.summary ?? result?.summary,240):null,
       risks:terminal && Array.isArray(result?.report?.risks_or_followups)?result.report.risks_or_followups.slice(0,2).map(v=>clip(v,80)):[],
       reportTrust:'worker_claim',verification:'unknown'};
   }
@@ -33,7 +33,7 @@ export function compactStatus(store,args,includeResult=false) {
   if(!t) throw new Error('Thread not found');
   const out={threadId:id(t.id),taskId:id(t.dispatchTask?.taskId),status:status(t.status?.code),exitCode:num(t.dispatchTask?.exitCode),verification:'unknown'};
   if(!includeResult) return out;
-  return {...out,summary:clip(t.latestReply,220),reportTrust:'worker_claim'};
+  return {...out,summary:clip(t.latestReply,220),reportTrust:'thread_preview_not_current_result'};
 }
 export function compactDelta(store,args) {
   const value=compactStatus(store,args,true);

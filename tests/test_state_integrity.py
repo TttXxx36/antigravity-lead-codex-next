@@ -192,6 +192,10 @@ with d.locked_state() as state:
             self.assertEqual(result["task_status"],"completed")
             self.assertFalse(result["verification_passed"])
             self.assertEqual(result["verification_status"],"unknown")
+            import hashlib
+            first_ref = json.loads(d.STATE_FILE.read_bytes())["tasks"]["mock-task"]["result_ref"]
+            self.assertIsNone(first_ref["turn"])
+            self.assertEqual(first_ref["sha256"],hashlib.sha256((Path(result["run_dir"])/"result.json").read_bytes()).hexdigest())
             # Legacy network request is deliberately not inherited on resume.
             with d.locked_state() as state:
                 state["tasks"]["mock-task"]["network"] = True
@@ -211,6 +215,10 @@ with d.locked_state() as state:
             self.assertTrue((Path(resumed["run_dir"])/"result.json").is_file())
             state=json.loads(d.STATE_FILE.read_bytes())
             self.assertEqual(state["tasks"]["mock-task"]["status"],"completed")
+            import hashlib
+            ref = state["tasks"]["mock-task"]["result_ref"]
+            self.assertEqual(ref["turn"], resumed["turn_id"])
+            self.assertEqual(ref["sha256"], hashlib.sha256((Path(resumed["run_dir"])/"result.json").read_bytes()).hexdigest())
             self.assertEqual(len(state["tasks"]),1)
 
     def test_resume_lock_refuses_parallel_resume(self):

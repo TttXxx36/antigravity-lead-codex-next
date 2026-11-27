@@ -367,6 +367,60 @@ async function runTests() {
     const absent=(await rpc('tools/call',{name:'get_operation_status',arguments:{opId:'not-found'}})).result;
     assert.equal(absent.isError,true);
     assert.equal(absent.structuredContent,undefined);
+    // Positive operation lookup; no prompt/output is serialized.
+    const fixtureOps=new DatabaseSync(path.join(pluginData,'console.sqlite'));
+    fixtureOps.prepare("INSERT INTO console_ops(id,thread_id,op_type,prompt,status,output_text,started_at,duration_ms) VALUES(?,?,?,?,?,?,?,?)").run('op-fixture',agyTask.id,'mock','PRIVATE_PROMPT','succeeded','PRIVATE_OUTPUT',1,7);
+    fixtureOps.close();
+    const op=await compactCall('get_operation_status',{opId:'op-fixture'},600);
+    assert.deepEqual(op,{opId:'op-fixture',threadId:agyTask.id,status:'succeeded',durationMs:7});
+    // State-published terminal artifact with exact identity and digest.
+    const stateFile=path.join(dispatchDir,'state.json');
+    const originalState=fs.readFileSync(stateFile,'utf8');
+    const fixtureState=JSON.parse(originalState);
+    const fixtureId='boundary-test';
+    const fixtureRun=path.join(dispatchDir,'runs',fixtureId);
+    const artifact=path.join(fixtureRun,'result.json');
+    fs.mkdirSync(fixtureRun,{recursive:true});
+    const value={task_id:fixtureId,session_id:'session-fixture',exit_code:0,task_status:'completed',report:{status:'completed',summary:'current fixture',verification_passed:true}};
+    const record={task_id:fixtureId,run_dir:fixtureRun,session_id:value.session_id,exit_code:0,task_status:'completed',status:'completed'};
+    fixtureState.tasks[fixtureId]=record;
+    const publish=bytes=>{
+      fs.writeFileSync(artifact,bytes);
+      record.result_ref={turn:null,sha256:crypto.createHash('sha256').update(bytes).digest('hex')};
+      fs.writeFileSync(stateFile,JSON.stringify(fixtureState));
+    };
+    const readFixture=()=>compactCall('task_result',{taskId:fixtureId});
+    publish(JSON.stringify(value));
+    let found=await readFixture();
+    assert.equal(found.reportAvailable,true);assert.equal(found.summary,'current fixture');assert.equal(found.verification,'unknown');
+    record.status='running';fs.writeFileSync(stateFile,JSON.stringify(fixtureState));
+    assert.equal((await readFixture()).reportAvailable,false);
+    record.status='completed';fs.writeFileSync(stateFile,JSON.stringify(fixtureState));
+    fs.writeFileSync(artifact,JSON.stringify({...value,report:{...value.report,summary:'stale changed'}}));
+    assert.equal((await readFixture()).reportAvailable,false);
+    publish(JSON.stringify({...value,task_id:'different'}));
+    assert.equal((await readFixture()).reportAvailable,false);
+    publish(JSON.stringify({...value,report:{...value.report,summary:'x'.repeat(263000)}}));
+    assert.equal((await readFixture()).reportAvailable,false);
+    publish(JSON.stringify(value));
+    record.result_ref.turn='turn-missing';fs.writeFileSync(stateFile,JSON.stringify(fixtureState));
+    assert.equal((await readFixture()).reportAvailable,false);
+    publish(JSON.stringify(value));
+    fs.unlinkSync(artifact);
+    const outside=path.join(tmpRoot,'outside-result.json');
+    fs.writeFileSync(outside,JSON.stringify(value));
+    let linked=false;
+    try { fs.symlinkSync(outside,artifact,'file');linked=true; } catch(err) { console.log('[SKIP] file symlink unavailable: '+err.code); }
+    if(linked){assert.equal((await readFixture()).reportAvailable,false);fs.unlinkSync(artifact);}
+    // Directory junction on Windows exercises the escape even if file links are unavailable.
+    const redirect=path.join(tmpRoot,'outside-run');fs.mkdirSync(redirect);
+    fs.writeFileSync(path.join(redirect,'result.json'),JSON.stringify(value));
+    fs.rmSync(fixtureRun,{recursive:true,force:true});
+    fs.symlinkSync(redirect,fixtureRun,process.platform==='win32'?'junction':'dir');
+    assert.equal((await readFixture()).reportAvailable,false);
+    fs.unlinkSync(fixtureRun);
+    fs.writeFileSync(stateFile,originalState);
+    console.log('[PASS] D09 positive op, current digest-bound artifact, running/stale/missing/oversized/identity/link rejection');
     const traversal=(await rpc('tools/call',{name:'task_result',arguments:{taskId:'../secret'}})).result;
     assert.equal(traversal.isError,true);
     const both=(await rpc('tools/call',{name:'task_status',arguments:{threadId:agyTask.id,taskId:'demo-task-1'}})).result;
