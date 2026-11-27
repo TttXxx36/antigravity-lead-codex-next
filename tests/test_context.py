@@ -37,6 +37,22 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(d.context_session(event("b"),"a",True),"b")
         for raw,prev,rebuild in ((event("b"),"a",False),(event("a"),"a",True),("",None,False),(event("a")+"\n"+event("b"),None,False),(json.dumps({"type":"item.completed","thread_id":"a"}),None,False)):
             with self.assertRaises(d.StateIntegrityError):d.context_session(raw,prev,rebuild)
+    def test_sandbox_narrowing_and_legacy_session_protection(self):
+        b=d.initial_context(self.initial,"workspace-write","a"*40)
+        record=self.record|{"context_board":b,"context_digest":d.context_digest(b),"sandbox":"workspace-write"}
+        cp={"summary":"reviewed","decisions":[],"pending":["test"]}
+        _,next_board,prompt=d.context_prepare(json.dumps(self.delta|{"checkpoint":cp}),record,True,"read-only")
+        self.assertEqual(next_board["constraints"]["sandbox"],"read-only")
+        self.assertNotIn('"sandbox":"workspace-write"',prompt)
+        record=record|{"protocol_rev":2,"sandbox":"read-only","context_board":next_board,"context_digest":d.context_digest(next_board)}
+        with self.assertRaises(ValueError):
+            d.context_prepare(json.dumps(self.delta|{"rev":3,"base_rev":2}),record,False,"workspace-write")
+        state={"tasks":{"task-1":record|{"session_id":"new"}}}
+        for session in ("session-a","new"):
+            with self.assertRaises(d.StateIntegrityError):
+                d.context_protect_legacy_session(state,"legacy",session)
+        d.context_protect_legacy_session(state,"legacy","unrelated")
+
     def test_retired_or_other_session_rejected(self):
         self.board["retired_sessions"]=["old"]
         for session in ("old","foreign"):

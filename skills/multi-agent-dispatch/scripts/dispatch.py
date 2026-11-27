@@ -1104,7 +1104,7 @@ def initial_context(envelope: dict[str, Any], sandbox: str, base_sha: str | None
             "retired_sessions":[],"last_result_ref":None}
 
 
-def context_prepare(raw: str, record: dict[str, Any], rebuild: bool) -> tuple[dict[str, Any],dict[str, Any],str]:
+def context_prepare(raw: str, record: dict[str, Any], rebuild: bool, sandbox: str | None = None) -> tuple[dict[str, Any],dict[str, Any],str]:
     old = record.get("context_board")
     if not isinstance(old,dict) or old.get("version") != 1 or old.get("task_id") != record["task_id"] or old.get("rev") != record.get("protocol_rev") or context_digest(old) != record.get("context_digest"):
         raise ValueError("D11: missing or inconsistent task context")
@@ -1113,12 +1113,20 @@ def context_prepare(raw: str, record: dict[str, Any], rebuild: bool) -> tuple[di
     if not isinstance(value,dict) or set(value) != (keys | {"checkpoint"} if rebuild else keys):
         raise ValueError("D11: invalid delta envelope")
     context_check_text(value)
+    if record.get("protocol_version",2) != 2 or old["constraints"]["network"] is not False:
+        raise ValueError("D11: incompatible context constraints")
+    effective_sandbox = sandbox or old["constraints"]["sandbox"]
+    if effective_sandbox not in ("read-only","workspace-write") or (old["constraints"]["sandbox"]=="read-only" and effective_sandbox!="read-only"):
+        raise ValueError("D11: context sandbox escalation denied")
+    if record.get("sandbox",old["constraints"]["sandbox"]) != old["constraints"]["sandbox"]:
+        raise ValueError("D11: persisted sandbox does not match context")
     stable=old["stable"]
     envelope=parse_task_envelope(json.dumps({k:value[k] for k in keys}|stable,ensure_ascii=False),record["task_id"],record["protocol_rev"])
     # Normal resume only sends the delta plus revision and existing identity.
     prompt="[Task delta v2; preserve prior constraints]\n"+json.dumps({k:value[k] for k in sorted(keys)},ensure_ascii=False,separators=(",",":"))
     next_board=json.loads(json.dumps(old,ensure_ascii=False))
     next_board["rev"]=envelope["rev"]
+    next_board["constraints"]["sandbox"]=effective_sandbox
     if rebuild:
         cp=value["checkpoint"]
         if not isinstance(cp,dict) or set(cp)!={"summary","decisions","pending"} or not protocol_text(cp["summary"],1200) or not protocol_strings(cp["decisions"],8,160) or not protocol_strings(cp["pending"],8,160):
@@ -1129,7 +1137,7 @@ def context_prepare(raw: str, record: dict[str, Any], rebuild: bool) -> tuple[di
             next_board["retired_sessions"].append(record["session_id"])
         next_board.update(generation=old["generation"]+1,turns=1,prompt_bytes=0,checkpoint=cp)
         prompt="[Rebuild task context; preserve all constraints]\n"+json.dumps(
-            {"task":envelope,"constraints":old["constraints"],"checkpoint":cp},
+            {"task":envelope,"constraints":next_board["constraints"],"checkpoint":cp},
             ensure_ascii=False,separators=(",",":"))
     else:
         next_board["turns"]+=1
@@ -1175,6 +1183,16 @@ def context_assert_session_owner(state: dict[str,Any], tid: str, session: str | 
     for other,rec in state["tasks"].items():
         if other!=tid and (rec.get("session_id")==session or session in (rec.get("context_board") or {}).get("retired_sessions",[])):
             raise StateIntegrityError("D11: session belongs to another task")
+
+
+def context_protect_legacy_session(state: dict[str,Any], tid: str, session: str | None) -> None:
+    # A legacy record cannot claim a blackboard session or retired identity.
+    if session is None:
+        return
+    for other,rec in state["tasks"].items():
+        board=rec.get("context_board")
+        if other!=tid and isinstance(board,dict) and (session==rec.get("session_id") or session in board.get("retired_sessions",[])):
+            raise StateIntegrityError("D11: legacy task cannot use a blackboard session")
 
 
 def build_worker_prompt(
@@ -1723,6 +1741,8 @@ def execute_single_task(
     with locked_state() as state:
         if board is not None:
             context_assert_session_owner(state,tid,session_id,board)
+        else:
+            context_protect_legacy_session(state,tid,session_id)
         if state["tasks"].get(tid, {}).get("status") != "reserved":
             raise StateIntegrityError("Task reservation missing or changed")
         state["tasks"][tid] = task_record
@@ -1899,7 +1919,7 @@ def _cmd_resume(args: argparse.Namespace) -> int:
     if task_record.get("context_board") is not None:
         if not args.protocol_v2:
             raise ValueError("D11: blackboard task requires v2 delta envelope")
-        envelope,board,prompt_text=context_prepare(prompt_text,task_record,args.rebuild_context)
+        envelope,board,prompt_text=context_prepare(prompt_text,task_record,args.rebuild_context,args.sandbox)
     else:
         if args.rebuild_context:
             raise ValueError("D11: rebuild requires a blackboard task")
@@ -1910,9 +1930,11 @@ def _cmd_resume(args: argparse.Namespace) -> int:
     session_id = args.session_id or (task_record["session_id"] if task_record else None)
     if not session_id:
         raise ValueError("No session_id available to resume (pass --session-id or valid --task-id).")
-    if board is not None:
-        with locked_state() as state:
+    with locked_state() as state:
+        if board is not None:
             context_assert_session_owner(state,task_record["task_id"],session_id,task_record["context_board"])
+        else:
+            context_protect_legacy_session(state,task_record["task_id"],session_id)
 
     workdir = Path(args.cwd or (task_record["workdir"] if task_record else ".")).resolve()
     if not workdir.exists():
@@ -2014,6 +2036,8 @@ def _cmd_resume(args: argparse.Namespace) -> int:
                 context_assert_session_owner(state,resume_tid,session_id,task_record["context_board"])
             current.update(protocol_meta(envelope))
             current.update(context_state_fields(board))
+        if board is None:
+            context_protect_legacy_session(state,resume_tid,session_id)
         current["status"] = "running"
         current["active_turn_id"] = turn_id
         current["updated_at"] = utc_now()
@@ -2074,6 +2098,8 @@ def _cmd_resume(args: argparse.Namespace) -> int:
             context_assert_session_owner(state,resume_tid,new_session_id,board)
             board["last_result_ref"] = current["result_ref"]
             current.update(context_state_fields(board))
+        else:
+            context_protect_legacy_session(state,resume_tid,new_session_id)
         current.pop("active_turn_id", None)
     print(json.dumps(result.get("protocol_result",result), ensure_ascii=False, separators=(",",":") if envelope else None, indent=None if envelope else 2))
     return task_exit_code(result)

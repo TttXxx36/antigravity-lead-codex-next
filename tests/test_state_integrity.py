@@ -296,6 +296,10 @@ with d.locked_state() as state:
                 sandbox="workspace-write",network=False,isolation="inplace",timeout=15,
                 files_hint=None,task_id=None,dry_run=False,protocol_v2=True,blackboard=True)
             self.assertIn("STABLE_GOAL_UNIQUE",calls[0][1])
+            # Reload persisted context in a fresh Python process (no worker call).
+            probe=self.worker("\nimport json\nwith d.locked_state() as state:\n    rec=state[\"tasks\"][\"board-task\"]\n    assert rec[\"context_digest\"]==d.context_digest(rec[\"context_board\"])\n    assert rec[\"context_board\"][\"rev\"]==1\n")
+            _,err=probe.communicate(timeout=15)
+            self.assertEqual(probe.returncode,0,err.decode("utf8","replace"))
             self.assertEqual(resume(delta(2,1)),0)
             self.assertNotIn("STABLE_GOAL_UNIQUE",calls[1][1])
             self.assertEqual(calls[1][0][2],"resume")
