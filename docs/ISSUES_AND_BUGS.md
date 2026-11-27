@@ -59,3 +59,6 @@ RISK-03：候选安装器完成，Windows Server 2025 的原生安装/升级/恢
 RISK-03/BUG-005：四环境 Run 45936238126 success；Win11 ARM64、WinServer x64 SQLite 原始字节保持和生命周期通过。BUG-005 原生启动器已合入 D03；真实宿主缺失，D05 尚未合入。初次四环境 push/PR 同组取消是 CI 配置问题，已改 PR-only，最新四 job 通过；不计为产品 Bug。
 
 D06 RISK-04：候选执行层拒绝无可信授权的联网、危险 sandbox、未受管 resume/queue 和批清单权限绕过，取消自动额度 app-server 连接；可信宿主签发、OS 权限及真实外部写验证待补，未合并。
+
+## 实际四环境 CI（候选开发就绪，不是正式验收）
+[Run 45937059171](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45937059171) completed/success，精确 tested commit `b652c5877df2e5a91d5191e1f21fab8c208b3015`；Windows 11 ARM64、Windows Server x64、Ubuntu、macOS 四个 job 均成功。每环境执行5项执行策略、5项 dispatch/hook、18项治理测试（合计112次通过），并运行 D03/D04 平台/状态回归、真实本地 MCP synthetic 及 Windows 原生安装生命周期。真实模型测试未执行。D06 否决未授权操作的候选可作为后续开发基础；可信宿主签发任务/范围/有效期授权、实际 OS sandbox、外部写与真实宿主验证仍 BLOCKED；不得将全部拒绝冒充完整授权功能。PR #8 base dev/d05 保持 Draft，未合并。
