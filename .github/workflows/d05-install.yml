@@ -1,0 +1,55 @@
+name: D05 native installation
+on:
+  push:
+    branches: [dev/d05]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+permissions:
+  contents: read
+concurrency:
+  group: d05-install-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  install:
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/dev/d05') || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'dev/d05')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: State and platform Python regression
+        run: python -m unittest discover -s tests -p test_state*.py -v
+      - name: Platform Python regression
+        run: python -m unittest discover -s tests -p test_platform.py -v
+      - name: Platform Node regression
+        run: node --test tests/test-platform.mjs
+      - name: Governance ledger
+        run: python scripts/check_governance.py docs/EXECUTION_STATUS.json
+      - name: Prepare locked runtime dependencies
+        working-directory: plugins/codex-console
+        run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+      - name: Native MCP synthetic regression
+        run: node --no-warnings tests/test-mcp-console.mjs
+      - name: Windows installation lifecycle (mock native executable)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tests/test-install-windows.ps1
+      - name: Unix installer syntax and native MCP smoke
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          bash -n scripts/install.sh scripts/doctor.sh plugins/codex-console/bin/run-server.sh
+          node --no-warnings scripts/mcp-smoke.mjs plugins/codex-console/server/index.mjs

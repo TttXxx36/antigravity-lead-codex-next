@@ -158,15 +158,26 @@
         "D03",
         "D04"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "PowerShell install/doctor、备份回滚、node.exe stdio、Windows 11 实机",
+      "status": "IN_PROGRESS",
+      "evidence": "Native PowerShell installer candidate, synthetic lifecycle CI pending",
+      "next": "Hosted CI and actual Windows 11 desktop acceptance",
       "branch": "dev/d05",
-      "approval": null,
+      "approval": "2026-11-27 user approved A and conditional merge",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D05 hosted lifecycle",
+          "status": "NOT_RUN",
+          "ref": "pending CI"
+        },
+        {
+          "name": "actual Windows 11 Antigravity host",
+          "status": "NOT_RUN",
+          "ref": "requires desktop"
+        }
+      ]
     },
     {
       "id": "D06",

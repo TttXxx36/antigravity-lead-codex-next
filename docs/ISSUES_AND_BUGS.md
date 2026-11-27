@@ -52,3 +52,4 @@ D03 最终：RISK-01 路径/原生 exe 解析及长路径 fixture 已通过三�
 D04 候选 BUG-003/004、RISK-02：损坏状态拒绝覆盖，基础锁增加限时竞争、原子备份写入、任务 ID/路径校验；待 CI，不标关闭。
 ### D04 最终验收
 BUG-003、BUG-004：FIXED（PR #6 已合并）；RISK-02 针对重复 ID、路径穿越、大小写碰撞、原子预留和崩溃锁释放的回归 PASS，当前受信任状态目录模型下已处理。仍不声称恶意同 UID 改写或断电级事务安全。BUG-001/002 OPEN（D07）。[实测](https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/45934605595)。
+D05 RISK-03/BUG-005：原生安装及 MCP 配置候选；不删除数据，不自动联网。待托管生命周期与实际桌面验收。

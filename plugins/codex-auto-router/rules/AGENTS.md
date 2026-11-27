@@ -34,3 +34,6 @@
 6. **Brain → Hand → Brain → Hand Loop (`multi-agent-dispatch`)**:
    - Load `multi-agent-dispatch` (`~/.gemini/config/skills/multi-agent-dispatch/SKILL.md`) and run `python3 ~/.gemini/config/skills/multi-agent-dispatch/scripts/dispatch.py` (`run`, `batch`, `resume`, `review`). Default `--quality smart` balances model quality and quota across newest official Codex models; instruct Codex to self-verify inside its turn.
    - After Codex returns its compact JSON report, independently verify `git diff --stat` and tests, update `docs/BLACKBOARD.md` (and optional `codex-console` cross-session bindings), report back in Antigravity, and either iterate (`resume`) or—only after Gate 4 confirmation—merge `agy-worker/*` and run `dispatch.py cleanup --task-id <id> --delete-branch`.
+
+## Native Windows
+Use the configured native python.exe and absolute dispatch.py path with PowerShell's call operator and separate arguments; do not assume python3 or Bash. Read installed config for GEMINI_CONFIG_DIR/CODEX_HOME/AGY_DISPATCH_STATE_DIR. Approval gates remain unchanged; do not enable the optional hook before D06 validation.
