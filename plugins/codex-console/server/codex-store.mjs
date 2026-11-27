@@ -774,12 +774,17 @@ export class CodexStore {
       parsed=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes.subarray(0,n)));
     } finally {fs.closeSync(fd);}
     const entries=parsed?.entries;
-    if (parsed?.version!==1||parsed.taskId!==taskId||parsed.turnId!==turn||
+    if (![1,2].includes(parsed?.version)||parsed.taskId!==taskId||parsed.turnId!==turn||
         !Array.isArray(entries)||entries.length<1||entries.length>64) throw new Error('Invalid snapshot identity');
+    const taskSequence=parsed.version===2;
+    if(taskSequence&&(!Number.isSafeInteger(parsed.sequenceBase)||parsed.sequenceBase<0||
+       !['task','since_upgrade'].includes(parsed.sequenceScope)||
+       (turn==='initial'&&(parsed.sequenceBase!==0||parsed.sequenceScope!=='task'))))throw new Error('Invalid task sequence scope');
     const kinds=['queued','running','progress','heartbeat','process_exit','timed_out','stream_failed','launch_failed','interrupted'];
     let last=0, previous=null;
     const clean=entries.map(e=>{
       if (!e||!Number.isSafeInteger(e.seq)||e.seq<=0||(last&&e.seq!==last+1)||
+          (taskSequence&&(!Number.isSafeInteger(e.taskSeq)||e.taskSeq!==parsed.sequenceBase+e.seq))||
           !kinds.includes(e.kind)||!Number.isSafeInteger(e.at)||e.at<0||
           !Number.isSafeInteger(e.stdoutBytes)||e.stdoutBytes<0||e.stdoutBytes>4194304||
           !Number.isSafeInteger(e.stderrBytes)||e.stderrBytes<0||e.stderrBytes>1048576||
@@ -787,7 +792,7 @@ export class CodexStore {
           (previous&&(previous.stdoutBytes>e.stdoutBytes||previous.stderrBytes>e.stderrBytes||previous.lines>e.lines||
             ['process_exit','timed_out','stream_failed','launch_failed','interrupted'].includes(previous.kind)))) throw new Error('Invalid stream sequence');
       last=e.seq;previous=e;
-      return {seq:e.seq,kind:e.kind,at:e.at,stdoutBytes:e.stdoutBytes,stderrBytes:e.stderrBytes,lines:e.lines};
+      return {seq:e.seq,...(taskSequence?{taskSeq:e.taskSeq}:{}),kind:e.kind,at:e.at,stdoutBytes:e.stdoutBytes,stderrBytes:e.stderrBytes,lines:e.lines};
     });
     if(cursor>last) throw new Error('Cursor ahead of producer');
     const gap=cursor<clean[0].seq-1;
@@ -795,7 +800,7 @@ export class CodexStore {
     const page=available.slice(0,limit);
     return {taskId,turnId:turn,taskStatus:typeof task.status==='string'&&/^[a-z_]{1,24}$/.test(task.status)?task.status:'unknown',
       current:turn===current,gap,entries:page,nextCursor:page.at(-1)?.seq??cursor,hasMore:available.length>limit,
-      verification:'unknown'};
+      ...(taskSequence?{sequenceScope:parsed.sequenceScope}:{}),verification:'unknown'};
   }
 
   getLogPage(input, cursor = 0, limit = 10) {
