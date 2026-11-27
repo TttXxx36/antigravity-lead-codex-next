@@ -221,6 +221,7 @@ class StreamTests(unittest.TestCase):
                 d.cmd_resume(resume(4))
             self.assertEqual(len(calls),3)
 
+
     def test_owned_process_exit_race_permission_error(self):
         import subprocess
         # A real short-lived child, with the observed macOS group error

@@ -40,6 +40,8 @@ jobs:
           node -p "JSON.stringify({platform:process.platform,arch:process.arch,node:process.version})"
           python -c "import platform,sys; print(platform.machine(),sys.version)"
           git rev-parse HEAD
+      - name: Display cache and delta regression
+        run: node --test tests/test-query-cache.mjs
       - name: SQLite state migration and recovery regression
         run: python -m unittest discover -s tests -p test_sqlite_state.py -v
       - name: Bounded streaming and event replay regression
@@ -79,6 +81,18 @@ jobs:
       - name: Prepare locked runtime dependencies
         working-directory: plugins/codex-console
         run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+      - name: Build updated UI source (Linux, no publish)
+        if: runner.os == 'Linux'
+        working-directory: plugins/codex-console
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build:ui
+      - name: Verify tracked UI bundle matches reproducible build
+        if: runner.os == 'Linux'
+        working-directory: plugins/codex-console
+        run: |
+          git hash-object dist/app.html
+          git diff --exit-code -- dist/app.html
       - name: Native MCP synthetic regression
         run: node --no-warnings tests/test-mcp-console.mjs
       - name: Windows installation lifecycle (mock native executable)

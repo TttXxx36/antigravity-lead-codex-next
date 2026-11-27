@@ -51,6 +51,10 @@ const state = {
   selectedGit: null,
 
   loadingSnapshot: false,
+  queryDelta: false,
+  snapshotRevision: undefined,
+  detailRevision: undefined,
+  detailRequest: 0,
   sendingMessage: false,
   searchQuery: '',
   composerText: '',
@@ -227,12 +231,37 @@ async function callTool(name, args = {}) {
   return res?.structuredContent ?? {};
 }
 
-async function refreshSnapshot({ silent = false } = {}) {
-  if (state.loadingSnapshot) return;
+let snapshotFlight=null, refreshAgain=false;
+function refreshSnapshot(options={}){
+  if(snapshotFlight){if(!options.silent||options.force)refreshAgain=true;return snapshotFlight;}
+  snapshotFlight=refreshSnapshotOnce(options).finally(()=>{
+    snapshotFlight=null;
+    if(refreshAgain){refreshAgain=false;return refreshSnapshot({silent:true,force:true});}
+  });
+  return snapshotFlight;
+}
+async function refreshSnapshotOnce({ silent = false, force = false } = {}) {
   state.loadingSnapshot = true;
   if (!silent) render();
+  let changed = !silent;
   try {
-    const data = await callTool('console_snapshot', { limit: 180 });
+    let data;
+    if(state.queryDelta){
+      try{
+        const reply=await callTool('console_snapshot_delta',{limit:180,revision:state.snapshotRevision,force:force||!silent});
+        state.snapshotRevision=reply.revision;
+        if(reply.changed)data=reply.value;
+      }catch(err){
+        if(!/D16 query delta disabled|unknown tool|not found|not supported/i.test(err.message))throw err;
+        state.queryDelta=false;state.snapshotRevision=undefined;state.detailRevision=undefined;
+      }
+    }
+    if(!state.queryDelta){
+      data=await callTool('console_snapshot',{limit:180});
+      state.queryDelta=data.queryDelta===true;
+    }
+    if(data){
+    changed=true;
     state.connected = Boolean(data.connected);
     state.stats = data.stats || state.stats;
     state.tasks = data.tasks || [];
@@ -256,15 +285,17 @@ async function refreshSnapshot({ silent = false } = {}) {
     if (!state.selectedBindingId && state.bindings.length) {
       state.selectedBindingId = state.bindings[0].id;
     }
-    if (state.selectedThreadId) {
-      await loadThreadDetail(state.selectedThreadId, { silent: true });
+    }
+    if (state.selectedThreadId && state.activeTab === 'tasks') {
+      changed=(await loadThreadDetail(state.selectedThreadId,{silent:true,force:force||!silent,renderAfter:false}))||changed;
     }
     scheduleAutoRefresh();
   } catch (err) {
+    state.connected=false;state.snapshotRevision=undefined;changed=true;
     if (!silent) showToast(err.message, 'error');
   } finally {
     state.loadingSnapshot = false;
-    render();
+    if(changed)render({incremental:silent&&state.queryDelta});
   }
 }
 
@@ -286,18 +317,37 @@ async function refreshQuotaLive({ silent = false } = {}) {
   }
 }
 
-async function loadThreadDetail(threadId, { silent = false } = {}) {
-  if (!threadId) return;
-  state.selectedThreadId = threadId;
-  try {
-    const detail = await callTool('get_codex_task_detail', { threadId });
-    state.selectedDetail = detail;
-    state.selectedGit = detail.git || null;
-  } catch (err) {
-    if (!silent) showToast(err.message, 'error');
-  } finally {
-    render();
-  }
+async function loadThreadDetail(threadId,{silent=false,force=false,renderAfter=true}={}){
+  if(!threadId)return false;
+  let changed=state.selectedThreadId!==threadId||state.selectedDetail?.task?.id!==threadId;
+  if(changed){state.selectedDetail=null;state.selectedGit=null;state.detailRevision=undefined;}
+  state.selectedThreadId=threadId;
+  const request=++state.detailRequest;
+  const current=()=>request===state.detailRequest&&threadId===state.selectedThreadId;
+  if(changed&&renderAfter)render();
+  try{
+    let detail;
+    if(state.queryDelta){
+      const response=await callTool('console_thread_delta',{threadId,revision:state.detailRevision,force});
+      if(!current())return false;
+      state.detailRevision=response.revision;
+      if(response.changed)detail=response.value;
+    }else{
+      detail=await callTool('get_codex_task_detail',{threadId});
+    }
+    if(!current())return false;
+    if(detail){if(state.selectedDetail?.task?.cwd!==detail.task?.cwd)state.selectedGit=null;state.selectedDetail=detail;changed=true;if(!state.queryDelta)state.selectedGit=detail.git||null;}
+    if(state.queryDelta&&state.detailSubTab==='git'&&state.selectedDetail?.task?.cwd){
+      const {git}=await callTool('console_git_inspect',{cwd:state.selectedDetail.task.cwd});
+      if(!current())return false;
+      if(JSON.stringify(git)!==JSON.stringify(state.selectedGit)){state.selectedGit=git;changed=true;}
+    }
+  }catch(err){
+    if(!current())return false;
+    state.selectedDetail=null;state.selectedGit=null;state.detailRevision=undefined;changed=true;
+    if(!silent)showToast(err.message,'error');
+  }finally{if(current()&&renderAfter&&changed)render();}
+  return changed;
 }
 
 async function updateThreadPref(threadId, patch, toastMsg = '') {
@@ -307,7 +357,7 @@ async function updateThreadPref(threadId, patch, toastMsg = '') {
       const next = state.tasks.find((t) => !t.isSubagent && !t.hidden && t.id !== threadId);
       if (next) state.selectedThreadId = next.id;
     }
-    await refreshSnapshot({ silent: true });
+    await refreshSnapshot({ silent: true, force:true });
     if (toastMsg) showToast(toastMsg);
   } catch (err) {
     showToast(err.message, 'error');
@@ -404,7 +454,7 @@ function copyText(str) {
 // ---------------- Selectors ----------------
 
 function selectedTask() {
-  return state.selectedDetail?.task || state.tasks.find((t) => t.id === state.selectedThreadId) || null;
+  return (state.selectedDetail?.task?.id===state.selectedThreadId?state.selectedDetail.task:null) || state.tasks.find((t) => t.id === state.selectedThreadId) || null;
 }
 
 function selectedAgent() {
@@ -773,8 +823,8 @@ function renderGit(git) {
 function renderTaskDetailPane() {
   const task = selectedTask();
   if (!task) return `<main class="detail-pane"><div class="detail-empty">选择一个任务</div></main>`;
-  const detail = state.selectedDetail;
-  const git = state.selectedGit;
+  const detail = state.selectedDetail?.task?.id===task.id?state.selectedDetail:null;
+  const git = detail?state.selectedGit:null;
   const metaParts = [
     task.projectName,
     task.branch,
@@ -1029,7 +1079,8 @@ function renderModal() {
 
 // ---------------- Main Render & Event Binding ----------------
 
-function render() {
+let lastPanelMarkup=null;
+function render({incremental=false}={}) {
   const root = document.getElementById('root');
   if (!root) return;
 
@@ -1055,7 +1106,7 @@ function render() {
     workspaceHtml = `${renderCollabLeftRail()}${renderCollabDetailPane()}`;
   }
 
-  root.innerHTML = `
+  const markup = `
     <div class="app-frame">
       <div class="app-shell">
         <header class="topbar">
@@ -1092,7 +1143,27 @@ function render() {
     </div>
   `;
 
-  bindEvents();
+  const template=document.createElement('template');
+  template.innerHTML=markup;
+  const fresh=template.content;
+  const selectors=['.topbar','.workspace > :first-child','.workspace > :last-child','.modal-backdrop','.toast'];
+  const nextPanels=selectors.map(sel=>fresh.querySelector(sel)?.outerHTML??null);
+  // Only automatic refreshes take the partial path. Do not replace a live
+  // modal or composer while a user is editing it.
+  if(incremental&&lastPanelMarkup&&root.querySelector('.app-shell')&&!state.modal){
+    bindEvents(fresh);
+    for(let i=0;i<selectors.length;i++){
+      if(nextPanels[i]===lastPanelMarkup[i])continue;
+      const old=root.querySelector(selectors[i]),next=fresh.querySelector(selectors[i]);
+      if(old&&next)old.replaceWith(next);
+      else if(old)old.remove();
+      else if(next)root.querySelector('.app-shell').append(next);
+    }
+  }else{
+    root.replaceChildren(fresh);
+    bindEvents(root);
+  }
+  lastPanelMarkup=nextPanels;
 
   const nl = root.querySelector('.task-list');
   if (nl) nl.scrollTop = scrollTask;
@@ -1114,19 +1185,20 @@ function render() {
   }
 }
 
-function bindEvents() {
-  document.getElementById('btnRefresh')?.addEventListener('click', () => {
+function bindEvents(scope=document) {
+  const byId=id=>scope.querySelector('#'+id);
+  byId('btnRefresh')?.addEventListener('click', () => {
     refreshSnapshot();
-    refreshQuotaLive({ silent: true });
+    if(!state.queryDelta)refreshQuotaLive({ silent: true });
   });
-  document.getElementById('btnQuotaRing')?.addEventListener('click', () => refreshQuotaLive());
-  document.getElementById('btnQuotaRefresh')?.addEventListener('click', (e) => {
+  byId('btnQuotaRing')?.addEventListener('click', () => refreshQuotaLive());
+  byId('btnQuotaRefresh')?.addEventListener('click', (e) => {
     e.stopPropagation();
     refreshQuotaLive();
   });
 
   // Pixel cat click: freezes at its exact live runway position, hops in place & pops '喵~'
-  document.getElementById('btnCatPet')?.addEventListener('click', (e) => {
+  byId('btnCatPet')?.addEventListener('click', (e) => {
     const btn = e.currentTarget;
     const walker = btn?.querySelector('.cat-walker');
     const svg = btn?.querySelector('.cat-svg');
@@ -1167,73 +1239,75 @@ function bindEvents() {
     state.modal = 'spawn';
     render();
   };
-  document.getElementById('btnOpenSpawn')?.addEventListener('click', openSpawn);
-  document.getElementById('btnSpawnFromTab')?.addEventListener('click', openSpawn);
-  document.getElementById('btnSpawnEmpty')?.addEventListener('click', openSpawn);
+  byId('btnOpenSpawn')?.addEventListener('click', openSpawn);
+  byId('btnSpawnFromTab')?.addEventListener('click', openSpawn);
+  byId('btnSpawnEmpty')?.addEventListener('click', openSpawn);
 
   const openBinding = () => {
     state.modal = 'binding';
     render();
   };
-  document.getElementById('btnNewBinding')?.addEventListener('click', openBinding);
-  document.getElementById('btnNewBindingEmpty')?.addEventListener('click', openBinding);
+  byId('btnNewBinding')?.addEventListener('click', openBinding);
+  byId('btnNewBindingEmpty')?.addEventListener('click', openBinding);
 
-  document.querySelectorAll('[data-tab]').forEach((el) =>
+  scope.querySelectorAll('[data-tab]').forEach((el) =>
     el.addEventListener('click', () => {
       state.activeTab = el.dataset.tab;
       render();
+      if(state.queryDelta&&state.activeTab==='tasks'&&state.selectedThreadId)loadThreadDetail(state.selectedThreadId,{silent:true});
     })
   );
-  document.querySelectorAll('[data-subtab]').forEach((el) =>
+  scope.querySelectorAll('[data-subtab]').forEach((el) =>
     el.addEventListener('click', () => {
       state.detailSubTab = el.dataset.subtab;
       render();
+      if(state.queryDelta&&state.detailSubTab==='git'&&state.selectedThreadId)loadThreadDetail(state.selectedThreadId,{silent:true});
     })
   );
 
-  document.getElementById('searchInput')?.addEventListener('input', (e) => {
+  byId('searchInput')?.addEventListener('input', (e) => {
     state.searchQuery = e.target.value;
     render();
   });
-  document.getElementById('btnToggleDesktop')?.addEventListener('click', () => {
+  byId('btnToggleDesktop')?.addEventListener('click', () => {
     state.showDesktopTasks = !state.showDesktopTasks;
     render();
   });
-  document.getElementById('btnToggleHidden')?.addEventListener('click', () => {
+  byId('btnToggleHidden')?.addEventListener('click', () => {
     state.showHiddenDrawer = !state.showHiddenDrawer;
     render();
   });
-  document.getElementById('btnToggleHistoryOrder')?.addEventListener('click', () => {
+  byId('btnToggleHistoryOrder')?.addEventListener('click', () => {
     state.historyNewestFirst = !state.historyNewestFirst;
     render();
     const sc = document.querySelector('.detail-scroll');
     if (sc) sc.scrollTop = 0;
   });
 
-  document.querySelectorAll('[data-select-thread]').forEach((el) =>
+  scope.querySelectorAll('[data-select-thread]').forEach((el) =>
     el.addEventListener('click', () => loadThreadDetail(el.dataset.selectThread))
   );
-  document.querySelectorAll('[data-select-agent]').forEach((el) =>
+  scope.querySelectorAll('[data-select-agent]').forEach((el) =>
     el.addEventListener('click', () => {
       state.selectedAgentId = el.dataset.selectAgent;
       render();
     })
   );
-  document.querySelectorAll('[data-select-binding]').forEach((el) =>
+  scope.querySelectorAll('[data-select-binding]').forEach((el) =>
     el.addEventListener('click', () => {
       state.selectedBindingId = el.dataset.selectBinding;
       render();
     })
   );
 
-  document.querySelectorAll('[data-pin-thread]').forEach((el) =>
+  scope.querySelectorAll('[data-pin-thread]').forEach((el) =>
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       const pinned = el.dataset.pinned === '1';
       updateThreadPref(el.dataset.pinThread, { pinned: !pinned }, !pinned ? '已置顶' : '已取消置顶');
     })
   );
-  document.querySelectorAll('[data-hide-thread]').forEach((el) =>
+  scope.querySelectorAll('[data-hide-thread]').forEach((el) =>
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       const isHidden = el.dataset.hidden === '1';
@@ -1245,12 +1319,12 @@ function bindEvents() {
     })
   );
 
-  const task = selectedTask();
-  document.getElementById('btnDetailPin')?.addEventListener('click', () => {
-    if (task) updateThreadPref(task.id, { pinned: !task.pinned }, !task.pinned ? '已置顶' : '已取消置顶');
+  const currentTask=()=>selectedTask();
+  byId('btnDetailPin')?.addEventListener('click', () => {
+    const task=currentTask();if (task) updateThreadPref(task.id, { pinned: !task.pinned }, !task.pinned ? '已置顶' : '已取消置顶');
   });
-  document.getElementById('btnDetailHide')?.addEventListener('click', () => {
-    if (task) {
+  byId('btnDetailHide')?.addEventListener('click', () => {
+    const task=currentTask();if (task) {
       updateThreadPref(
         task.id,
         { hidden: !task.hidden },
@@ -1258,20 +1332,20 @@ function bindEvents() {
       );
     }
   });
-  document.getElementById('btnCopyThreadId')?.addEventListener('click', () => task && copyText(task.id));
-  document.getElementById('btnRenameTask')?.addEventListener('click', () => {
+  byId('btnCopyThreadId')?.addEventListener('click', () => {const task=currentTask();if(task)copyText(task.id);});
+  byId('btnRenameTask')?.addEventListener('click', () => {
     state.modal = 'rename';
     render();
   });
-  document.getElementById('btnOpenReadonlyModal')?.addEventListener('click', () => {
+  byId('btnOpenReadonlyModal')?.addEventListener('click', () => {
     state.modal = 'readonly';
     render();
   });
-  const doDiag = () => task && triggerReadonly(task.id, '', 'diagnose_blocker');
-  document.getElementById('btnDiagnoseBlocker')?.addEventListener('click', doDiag);
-  document.getElementById('btnEmptyDiagnose')?.addEventListener('click', doDiag);
+  const doDiag = () => {const task=currentTask();if(task)triggerReadonly(task.id, '', 'diagnose_blocker');};
+  byId('btnDiagnoseBlocker')?.addEventListener('click', doDiag);
+  byId('btnEmptyDiagnose')?.addEventListener('click', doDiag);
 
-  const inp = document.getElementById('composerInput');
+  const inp = byId('composerInput');
   inp?.addEventListener('input', (e) => {
     state.composerText = e.target.value;
   });
@@ -1281,28 +1355,28 @@ function bindEvents() {
       sendComposer();
     }
   });
-  document.getElementById('composerMode')?.addEventListener('change', (e) => {
+  byId('composerMode')?.addEventListener('change', (e) => {
     state.composerMode = e.target.value;
     render(); // refresh dynamic hover tooltip for the newly chosen mode
   });
-  document.getElementById('chkAllowDup')?.addEventListener('change', (e) => {
+  byId('chkAllowDup')?.addEventListener('change', (e) => {
     state.allowDuplicate = e.target.checked;
   });
-  document.getElementById('btnSendCodex')?.addEventListener('click', sendComposer);
+  byId('btnSendCodex')?.addEventListener('click', sendComposer);
 
-  document.querySelectorAll('[data-send-back]').forEach((el) =>
+  scope.querySelectorAll('[data-send-back]').forEach((el) =>
     el.addEventListener('click', () => sendBack(el.dataset.sendBack))
   );
-  document.querySelectorAll('[data-open-file]').forEach((el) =>
+  scope.querySelectorAll('[data-open-file]').forEach((el) =>
     el.addEventListener('click', () => openFile(el.dataset.openFile))
   );
-  document.querySelectorAll('[data-jump-thread]').forEach((el) =>
+  scope.querySelectorAll('[data-jump-thread]').forEach((el) =>
     el.addEventListener('click', () => {
       state.activeTab = 'tasks';
       loadThreadDetail(el.dataset.jumpThread);
     })
   );
-  document.querySelectorAll('[data-del-binding]').forEach((el) =>
+  scope.querySelectorAll('[data-del-binding]').forEach((el) =>
     el.addEventListener('click', async () => {
       try {
         await callTool('manage_collab_binding', { action: 'delete', id: el.dataset.delBinding });
@@ -1316,14 +1390,14 @@ function bindEvents() {
   );
 
   // Modals
-  document.querySelectorAll('[data-close-modal]').forEach((el) =>
+  scope.querySelectorAll('[data-close-modal]').forEach((el) =>
     el.addEventListener('click', () => {
       state.modal = null;
       render();
     })
   );
 
-  document.getElementById('btnSubmitSpawn')?.addEventListener('click', async () => {
+  byId('btnSubmitSpawn')?.addEventListener('click', async () => {
     try {
       const res = await callTool('spawn_codex_worker', {
         cwd: document.getElementById('mSpawnCwd')?.value?.trim(),
@@ -1344,16 +1418,16 @@ function bindEvents() {
     }
   });
 
-  document.getElementById('btnSubmitReadonly')?.addEventListener('click', async () => {
-    const p = document.getElementById('mReadonlyPrompt')?.value?.trim();
+  byId('btnSubmitReadonly')?.addEventListener('click', async () => {
+    const task=currentTask();const p = document.getElementById('mReadonlyPrompt')?.value?.trim();
     if (!p || !task) return;
     state.modal = null;
     render();
     await triggerReadonly(task.id, p, 'custom');
   });
 
-  document.getElementById('btnSubmitBinding')?.addEventListener('click', async () => {
-    const changeKey = document.getElementById('mBindKey')?.value?.trim();
+  byId('btnSubmitBinding')?.addEventListener('click', async () => {
+    const task=currentTask();const changeKey = document.getElementById('mBindKey')?.value?.trim();
     if (!changeKey) return showToast('请填写 Change 标识', 'error');
     try {
       const res = await callTool('manage_collab_binding', {
@@ -1376,8 +1450,8 @@ function bindEvents() {
     }
   });
 
-  document.getElementById('btnSubmitRename')?.addEventListener('click', async () => {
-    if (!task) return;
+  byId('btnSubmitRename')?.addEventListener('click', async () => {
+    const task=currentTask();if (!task) return;
     await updateThreadPref(task.id, { customTitle: document.getElementById('mRenameInput')?.value ?? '' }, '已重命名');
     state.modal = null;
     render();
@@ -1392,7 +1466,7 @@ function scheduleAutoRefresh() {
     state.stats.runningCount > 0 ||
     state.stats.runningOpsCount > 0 ||
     active?.status?.code === 'running';
-  const ms = hot ? 4_000 : 12_000;
+  const ms = state.queryDelta ? (document.hidden ? 30_000 : hot ? 4_000 : 20_000) : (hot ? 4_000 : 12_000);
   if (state.autoRefreshTimer && state.lastPollMs === ms) return;
   if (state.autoRefreshTimer) clearInterval(state.autoRefreshTimer);
   state.lastPollMs = ms;
@@ -1400,6 +1474,12 @@ function scheduleAutoRefresh() {
     if (!state.modal && !state.sendingMessage) refreshSnapshot({ silent: true });
   }, ms);
 }
+
+document.addEventListener('visibilitychange',()=>{
+  if(!state.queryDelta)return;
+  scheduleAutoRefresh();
+  if(!document.hidden)refreshSnapshot({silent:true});
+});
 
 app.ontoolinput = () => {};
 

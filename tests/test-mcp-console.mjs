@@ -246,6 +246,7 @@ async function runTests() {
         ...env, HOME: tmpRoot, USERPROFILE: tmpRoot,
         CODEX_BIN: process.execPath,
         CODEX_HOME: codexHome,
+        ALC_QUERY_CACHE:'1',
         AGY_DISPATCH_STATE_DIR: dispatchDir,
         GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: globalConfig, GIT_TERMINAL_PROMPT: '0',
       },
@@ -559,6 +560,65 @@ async function runTests() {
       const reply=await rpc('tools/call',{name:detailName,arguments:{threadId:id}});
       assert.equal(reply.result?.structuredContent?.task?.id,id,JSON.stringify(reply));
     }
+    const view=async(name,args)=>(await rpc('tools/call',{name,arguments:args})).result.structuredContent;
+    const first=await view('console_snapshot_delta',{limit:50});
+    assert.equal(first.changed,true);
+    const same=await view('console_snapshot_delta',{limit:50,revision:first.revision});
+    assert.equal(same.changed,false);
+    assert.equal(same.value,undefined);
+    const detailDelta=await view('console_thread_delta',{threadId:'historical-0299'});
+    assert.equal(detailDelta.value.task.id,'historical-0299');
+    assert.equal(detailDelta.value.git,undefined);
+    assert.equal((await view('console_thread_delta',{threadId:'historical-0299',revision:detailDelta.revision})).changed,false);
+    await rpc('tools/call',{name:'console_toggle_pin',arguments:{threadId:'historical-0299',customTitle:'D16 changed'}});
+    const changedDetail=await view('console_thread_delta',{threadId:'historical-0299',revision:detailDelta.revision,force:true});
+    assert.equal(changedDetail.changed,true);assert.equal(changedDetail.value.task.title,'D16 changed');
+    console.log('[PASS] D16 app delta, ID detail, explicit refresh, no Git by default, legacy contracts retained');
+    // Paired same-fixture benchmark: real sqlite queries and real artifact
+    // reads, alternating baseline/candidate to reduce warmup bias.
+    process.env.CODEX_HOME=codexHome;process.env.AGY_DISPATCH_STATE_DIR=dispatchDir;
+    const {CodexStore,setDisplayReadMetrics}=await import('../plugins/codex-console/server/codex-store.mjs');
+    const {ConsoleDB}=await import('../plugins/codex-console/server/console-db.mjs');
+    const {QueryCache,DisplayReportCache,createDisplayStamp,revisionEnvelope}=await import('../plugins/codex-console/server/query-cache.mjs');
+    // Separate console DB instance only for read benchmark, no running ops in fixture.
+    const benchDb=new ConsoleDB(path.join(tmpRoot,'benchmark-console'));
+    try{
+      const benchStore=new CodexStore(benchDb);
+      const native=[benchStore.stateDbPath,benchStore.goalsDbPath,benchStore.queueDbPath,benchStore.historyDbPath,benchDb.dbPath];
+      const stampMetrics={fileReads:0,fileBytes:0};
+      const stamp=createDisplayStamp(native,dispatchDir,stampMetrics);
+      const reports=new DisplayReportCache(dispatchDir);
+      const cache=new QueryCache({ttlMs:5000});
+      const sample={baseline:{times:[],dbOpens:0,queries:0,fileReads:0,fileBytes:0,wireBytes:0},candidate:{times:[],dbOpens:0,queries:0,fileReads:0,fileBytes:0,wireBytes:0}};
+      const clock=()=>performance.now();
+      let previous=null,revision;
+      const normalize=x=>x.tasks.map(t=>[t.id,t.status.code,t.title]);
+      for(let i=0;i<30;i++){
+        for(const kind of (i%2?['candidate','baseline']:['baseline','candidate'])){
+          const m=sample[kind];setDisplayReadMetrics(m);
+          const started=clock();
+          if(kind==='baseline'){
+            const value=benchStore.getSnapshot({limit:180});
+            m.wireBytes+=Buffer.byteLength(JSON.stringify(value));
+            previous=normalize(value);
+          }else{
+            const value=await cache.get('snapshot',{stamp,load:()=>benchStore.getSnapshot({limit:180,reportCache:reports}),cacheable:v=>v.connected&&!v.health.errors.length});
+            const delta=revisionEnvelope(value,revision);revision=delta.revision;
+            m.wireBytes+=Buffer.byteLength(JSON.stringify(delta));
+            assert.deepEqual(normalize(value),previous);
+          }
+          m.times.push(clock()-started);
+        }
+      }
+      setDisplayReadMetrics(null);
+      sample.candidate.fileReads+=reports.reads+stampMetrics.fileReads;sample.candidate.fileBytes+=reports.readBytes+stampMetrics.fileBytes;
+      const p95=values=>Number(values.sort((a,b)=>a-b)[Math.ceil(values.length*.95)-1].toFixed(3));
+      const result=Object.fromEntries(Object.entries(sample).map(([k,m])=>[k,{samples:m.times.length,p95Ms:p95(m.times),dbOpens:m.dbOpens,queries:m.queries,fileReads:m.fileReads,fileBytes:m.fileBytes,wireBytes:m.wireBytes}]));
+      console.log('D16_BENCH '+JSON.stringify(result));
+      assert.ok(result.candidate.queries<result.baseline.queries,'candidate query count did not decrease');
+      assert.ok(result.candidate.fileBytes<result.baseline.fileBytes,'candidate logical content bytes did not decrease');
+      assert.ok(result.candidate.wireBytes<result.baseline.wireBytes,'candidate wire bytes did not decrease');
+    }finally{setDisplayReadMetrics(null);benchDb.db.close();}
     const ambiguous=await rpc('tools/call',{name:detailName,arguments:{threadId:'historical-0'}});
     assert.equal(ambiguous.result?.isError,true);
     assert.match(ambiguous.result?.structuredContent?.error||'',/Ambiguous/);

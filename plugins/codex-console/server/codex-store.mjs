@@ -8,13 +8,22 @@ import { runtimePaths } from './platform.mjs';
 
 const { codexHome: CODEX_HOME, dispatchStateDir: DISPATCH_STATE_DIR } = runtimePaths();
 
+let displayReadMetrics=null;
+export function setDisplayReadMetrics(metrics=null){displayReadMetrics=metrics;}
 function withReadOnlyDb(dbFile, fn, fallback, errors = []) {
   if (!fs.existsSync(dbFile)) { errors.push({source:path.basename(dbFile),code:'MISSING'}); return fallback; }
   let db = null;
   try {
     db = new DatabaseSync(dbFile, { readOnly: true });
     db.exec('PRAGMA busy_timeout = 2000;');
-    return fn(db);
+    if(!displayReadMetrics)return fn(db);
+    const metrics=displayReadMetrics;metrics.dbOpens++;
+    // Only the fixture benchmark enables this wrapper. Each get/all is a
+    // real query, not an estimated query count.
+    return fn({prepare(sql){const stmt=db.prepare(sql);return {
+      get(...args){metrics.queries++;return stmt.get(...args);},
+      all(...args){metrics.queries++;return stmt.all(...args);}
+    };}});
   } catch (err) {
     errors.push({source:path.basename(dbFile),code:err?.code || 'READ_ERROR',message:'SQLite read/schema incompatible'});
     return fallback;
@@ -82,6 +91,7 @@ function readDispatchState(errors = []) {
   try {
     if(fs.lstatSync(statePath).isSymbolicLink())throw new Error('Linked state file');
     const stateText=fs.readFileSync(statePath,'utf8');
+    if(displayReadMetrics){displayReadMetrics.fileReads++;displayReadMetrics.fileBytes+=Buffer.byteLength(stateText);}
     const raw=JSON.parse(stateText);
     if(raw&&typeof raw==='object'&&Object.hasOwn(raw,'storage')){
       // Python writes this ASCII-only marker in canonical key order. Reject
@@ -119,7 +129,9 @@ function readDispatchRunResult(runDir) {
 
   for (const p of candidates) {
     try {
-      const parsed = JSON.parse(fs.readFileSync(p, 'utf8'));
+      const text=fs.readFileSync(p,'utf8');
+      if(displayReadMetrics){displayReadMetrics.fileReads++;displayReadMetrics.fileBytes+=Buffer.byteLength(text);}
+      const parsed = JSON.parse(text);
       if (parsed && typeof parsed === 'object') return parsed;
     } catch {
       // try next candidate
@@ -352,7 +364,7 @@ export class CodexStore {
     return snap.tasks.find(t => t.id === id) || null;
   }
 
-  getSnapshot({ limit = 160, threadId = null, includeChildren = false, includeManagedAgents = true } = {}) {
+  getSnapshot({ limit = 160, threadId = null, includeChildren = false, includeManagedAgents = true, reportCache = null } = {}) {
     const errors = [];
     const prefsMap = this.consoleDb.getAllPrefs();
     const dispatchState = readDispatchState(errors);
@@ -562,7 +574,7 @@ export class CodexStore {
     // 7. Build managed subagents view (dispatch workers + active console spawns + codex subagents)
     const managedAgents = (includeManagedAgents ? dispatchTasksList : [])
       .map((t) => {
-        const result = readDispatchRunResult(t.run_dir);
+        const result = reportCache ? reportCache.read(t) : readDispatchRunResult(t.run_dir);
         const linkedThread = tasks.find((x) => x.id === t.session_id) || null;
         return {
           kind: 'dispatch',
