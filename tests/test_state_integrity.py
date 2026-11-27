@@ -354,6 +354,10 @@ with d.locked_state() as state:
             with self.assertRaisesRegex(ValueError,"usage unknown"):
                 d.cmd_resume(args)
             self.assertEqual(len(calls),2)
+            review=d.build_parser().parse_args(["review","--task-id","budget-test"])
+            with self.assertRaisesRegex(ValueError,"outside managed budget"):
+                d.cmd_review(review)
+            self.assertEqual(len(calls),2)
 
     def test_resume_lock_refuses_parallel_resume(self):
         d.reserve_run_dir("resume-race", {"backend":"mock"})

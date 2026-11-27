@@ -23,6 +23,8 @@ class BudgetTests(unittest.TestCase):
             self.assertIsNone(d.invocation_usage(raw)["counts"]["total_tokens"])
         self.assertIsNone(d.invocation_usage(self.event(dict(input_tokens=10,output_tokens=5,total_tokens=99)))["counts"]["total_tokens"])
         self.assertIsNone(d.invocation_usage(self.event(dict(input_tokens=True,output_tokens=-1)))["counts"]["input_tokens"])
+        self.assertIsNone(d.invocation_usage(self.event(dict(input_tokens=10,output_tokens=5,total_tokens=True)))["counts"]["total_tokens"])
+        self.assertIsNone(d.invocation_usage(a+"\n"+json.dumps({"type":"turn.failed"}))["counts"]["total_tokens"])
     def test_unknown_not_zero_and_no_double_settle(self):
         s=d.finish_usage(d.new_usage_store(),d.invocation_usage(self.event(dict(input_tokens=0,output_tokens=0))),10,"initial")
         self.assertEqual(d.usage_summary(s)["counts"]["total_tokens"],0)
@@ -38,6 +40,7 @@ class BudgetTests(unittest.TestCase):
             with self.assertRaises(ValueError):d.budget_timeout(limits,s,60)
         self.assertEqual(d.budget_timeout(d.make_budget(max_seconds=10),s,60),8)
         with self.assertRaises(ValueError):d.budget_timeout(d.make_budget(max_tokens=10),d.new_usage_store(True),60)
+        with self.assertRaises(d.StateIntegrityError):d.budget_timeout(d.make_budget(3),s|{"attempts":-1},60)
         for v in (0,-1,True,1.5):
             with self.assertRaises(ValueError):d.make_budget(v)
     def test_cache_route(self):
@@ -45,6 +48,9 @@ class BudgetTests(unittest.TestCase):
         high={"slug":"mock-high","supported_efforts":["high","xhigh"]}
         cache={"flagship":high,"wide_fast":low,"listed_models":[low,high],"client_version":"fixture"}
         with patch.object(d,"discover_frontier_models",return_value=cache):
+            d.validate_cached_route("mock-fast","low")
+            with self.assertRaises(ValueError):d.validate_cached_route("mock-fast","xhigh")
+            with self.assertRaises(ValueError):d.validate_cached_route("retired-model",None)
             self.assertEqual(d.budget_route("low","x",None,None,None,"smart",False)["effort"],"low")
             self.assertEqual(d.budget_route("extreme","x",None,None,None,"smart",False)["model"],"mock-high")
             with self.assertRaises(ValueError):d.budget_route("low","x",None,"mock-fast","xhigh","smart",False)

@@ -1259,7 +1259,11 @@ def invocation_usage(events: str) -> dict[str,Any]:
             ev=json.loads(line)
         except (ValueError,RecursionError):
             continue
-        if not isinstance(ev,dict) or ev.get("type")!="turn.completed":
+        if not isinstance(ev,dict):
+            continue
+        if ev.get("type") in ("error","turn.failed"):
+            invalid=True
+        if ev.get("type")!="turn.completed":
             continue
         if not isinstance(ev.get("usage"),dict):
             invalid=True
@@ -1269,6 +1273,8 @@ def invocation_usage(events: str) -> dict[str,Any]:
         model=model if isinstance(model,str) and re.fullmatch(r"[A-Za-z0-9_.:/-]{1,128}",model) else None
         turn=ev.get("turn_id")
         turn=turn if isinstance(turn,str) and re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}",turn) else None
+        if "total_tokens" in ev["usage"] and counts["total_tokens"] is None:
+            invalid=True
         samples.append((turn,counts,model))
     # Multiple terminal records with no identity are ambiguous, even identical.
     # Identical repeated identified events are deduplicated, never summed.
@@ -1309,6 +1315,16 @@ def new_usage_store(prior_unknown=False):
 
 
 def budget_timeout(limits,store,requested):
+    if not isinstance(limits,dict) or set(limits)!={"turns","tokens","seconds"}:
+        raise StateIntegrityError("D12: malformed persisted budget")
+    make_budget(limits["turns"],limits["tokens"],limits["seconds"])
+    if not isinstance(store,dict) or store.get("version")!=1 or type(store.get("prior_unknown")) is not bool or usage_int(store.get("attempts")) is None or usage_int(store.get("duration_ms")) is None:
+        raise StateIntegrityError("D12: malformed persisted usage")
+    for field in ("known_sums","unknown_turns"):
+        if not isinstance(store.get(field),dict) or set(store[field])!=set(USAGE_FIELDS) or any(usage_int(v) is None for v in store[field].values()):
+            raise StateIntegrityError("D12: malformed persisted usage counts")
+    if any(v>store["attempts"] for v in store["unknown_turns"].values()):
+        raise StateIntegrityError("D12: invalid unknown attempt counts")
     if type(requested) is not int or requested<=0:
         raise ValueError("D12: timeout must be positive")
     if limits["turns"] is not None and (store["prior_unknown"] or store["attempts"]>=limits["turns"]):
@@ -1347,6 +1363,15 @@ def usage_summary(store):
     return {"attempts":store["attempts"],"duration_ms":store["duration_ms"],
             "counts":{k:None if store["prior_unknown"] or store["unknown_turns"][k] else store["known_sums"][k] for k in USAGE_FIELDS},
             "actual_model":store["last_model"],"gemini_source":"unknown","gemini_tokens":None}
+
+
+def validate_cached_route(model,effort):
+    if model is None and effort is None:
+        return
+    cache=discover_frontier_models()
+    match=next((m for m in cache["listed_models"] if m["slug"]==model),None)
+    if match is None or (effort is not None and effort not in match["supported_efforts"]):
+        raise ValueError("D12: inherited route no longer confirmed by local capabilities cache")
 
 
 def budget_route(difficulty,prompt,files_hint,model,effort,quality,prefer_wide):
@@ -1691,7 +1716,7 @@ def execute_single_task(
     budget: dict[str,Any] | None = None,
     use_budget_route: bool = False,
 ) -> dict[str, Any]:
-    limits=make_budget(**{}) if budget is None else make_budget(budget['turns'],budget['tokens'],budget['seconds'])
+    limits=make_budget() if budget is None else make_budget(budget['turns'],budget['tokens'],budget['seconds'])
     store=new_usage_store()
     timeout=budget_timeout(limits,store,timeout)
     if blackboard and not protocol_v2:
@@ -2126,6 +2151,7 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         raise RuntimeError(f"Unsupported backend: {backend}")
 
     if task_record.get("budget_route"):
+        validate_cached_route(model_used,effort_used)
         if (model_used,effort_used)!=(task_record.get("model"),task_record.get("effort")):
             if not protocol_text(args.route_reason,320):
                 raise ValueError("D12: model/effort change requires explicit route reason")
@@ -2270,6 +2296,9 @@ def cmd_review(args: argparse.Namespace) -> int:
         if not task_record:
             raise ValueError(f"Unknown task_id: {args.task_id}")
 
+    if task_record and any(v is not None for v in task_record.get("budget",make_budget()).values()):
+        raise ValueError("D12: associated review is outside managed budget settlement; use reviewed managed resume")
+
     workdir = Path(args.cwd or (task_record["workdir"] if task_record else ".")).resolve()
     if not workdir.exists():
         raise ValueError(f"Workdir does not exist: {workdir}")
@@ -2410,6 +2439,9 @@ def cmd_status(args: argparse.Namespace) -> int:
             usage_store=rec.pop("usage_store",None)
             if usage_store is not None:
                 rec["usage_summary"]=usage_summary(usage_store)
+                rec["usage_summary"]["pending"]=rec.get("status") in ("reserved","running","interrupted")
+                if rec["usage_summary"]["pending"]:
+                    rec["usage_summary"]["counts"]={k:None for k in USAGE_FIELDS}
             board = rec.pop("context_board",None)
             if board is not None:
                 rec["context"] = {k:board[k] for k in ("rev","generation","turns","prompt_bytes")}
