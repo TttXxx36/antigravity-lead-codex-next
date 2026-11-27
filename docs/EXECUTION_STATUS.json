@@ -545,7 +545,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "D14 EPERM standalone backport PASS 4/4, 36/36 streaming tests; cleanup sync pending",
-      "next": "Candidate CI passed on exact integrated head; formal host/model/independent-acceptance gates remain BLOCKED.",
+      "next": "Validate D14 cumulative follow-up and backport to standalone D14 before formal dependency merge; real host tests deferred.",
       "branch": "dev/d14",
       "approval": "2026-11-27 user authorized A candidate development; no real model or expanded authority",
       "pr": 16,
@@ -579,13 +579,18 @@
           "status": "PASS",
           "tested_commit": "78dddef0ff98e575a4f9f938df3580e1a451dad2",
           "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46011543805"
+        },
+        {
+          "name": "D14 append-only raw segment rotation and cross-turn task sequence",
+          "status": "NOT_RUN",
+          "ref": "docs/decisions/D14.md"
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "78dddef0ff98e575a4f9f938df3580e1a451dad2",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46011543805",
-        "limitations": "Opt-in v2; bounded raw log cap stops rather than rotates; metadata rolling window and per-turn cursors only; real host push/cancel/reconnect and escaped descendants remain unverified; no merge. Historical PASS applies to old head; EPERM backport requires fresh CI. Verified D06 cleanup denial synchronized; current head needs CI."
+        "limitations": "Cumulative D22 follow-up implements bounded append-only raw log segments and task-global sequence with digest-bound prior checkpoint; CI pending. Legacy upgrade epoch explicitly scoped, per-turn cursor retained. Actual host/UI/escaped descendants and independent D14 branch backport/validation remain blocked."
       }
     },
     {
@@ -992,7 +997,7 @@
       ],
       "status": "BLOCKED",
       "evidence": "Exact 007c01e6edfc30ce7f750717e3e0226d878a8af5 strict Run 46035541198 four PASS; 153/153 canonical RC and independent supply-chain replay PASS; BUG-009 CANDIDATE_PASS. Formal closure not granted.",
-      "next": "Consolidated local acceptance per docs/LOCAL_ACCEPTANCE.md; address independent E capability limitations and A authorization gates; formal D05–D21 dependency acceptance/merge and D22 explicit approval still required. Evidence-only commit is not the tested source SHA.",
+      "next": "Recheck new D14 cumulative changes before local candidate readiness; continue remaining offline gaps.",
       "branch": "dev/d22",
       "approval": "2026-11-27 user authorized A candidate development D06-D22; no formal release, merge, permission or real model grant",
       "pr": 24,
@@ -1217,10 +1222,10 @@
         }
       ],
       "candidate": {
-        "ready": true,
+        "ready": false,
         "tested_commit": "007c01e6edfc30ce7f750717e3e0226d878a8af5",
         "ref": "https://github.com/TttXxx36/antigravity-lead-codex-next/actions/runs/46035541198",
-        "limitations": "Offline source-only integrated candidate ready; actual Windows x64 and Antigravity/Codex host, real model and trusted authority, existing E capability gaps, independent card acceptance and formal dependencies/release remain blocked. No standalone native binary distribution or full legal clearance."
+        "limitations": "Offline source-only integrated candidate ready; actual Windows x64 and Antigravity/Codex host, real model and trusted authority, existing E capability gaps, independent card acceptance and formal dependencies/release remain blocked. No standalone native binary distribution or full legal clearance. New D14 cumulative code revision requires exact-head CI."
       }
     }
   ],

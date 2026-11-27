@@ -25,7 +25,7 @@ W=真实 Windows x64/桌面；H=实际宿主/系统边界；A=另行授权（真
 | D11 | H/A | 真实会话连续性、断线重连、checkpoint 完整性及实际 Token |
 | D12 | H/A | provider usage 字段语义、模型/effort/cache、预算与真实基准；未知用量不得伪造 |
 | D13 | H/A | 跨 store reconciliation、实际掉电、可信新请求授权、Git 指纹限制 |
-| D14 | W/H/E | UI push/reconnect、活动取消、逃逸后代；超限停止，完整 raw-log 轮换与跨轮全局序号未实现 |
+| D14 | W/H/E | UI push/reconnect、活动取消、逃逸后代；新增 append-only 256 KiB 原始日志分段及 taskSeq 跨轮序号候选待 CI；旧版升级 epoch 单独标识，仍有总字节上限，真实 UI/重连须实测 |
 | D15 | W/H | 仅插件自有 SQLite，宿主停止后的迁移/恢复激活、掉电、旧版兼容；禁止生产库试验 |
 | D16 | W/H | 真实浏览器及旧宿主 UI、物理 I/O、可比较 p95 |
 | D17 | W/H/A/E | 实际调度/活动取消/逃逸后代和可信 quota；不自动回收不确定 slot，cleanup 仅预览、可信删除授权缺失 |
