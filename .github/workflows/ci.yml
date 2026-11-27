@@ -110,9 +110,11 @@ jobs:
           npm ci --ignore-scripts --no-audit --no-fund
           npm run build:ui
       - name: Audit installed build dependency notices (offline)
+        id: build_inventory
         if: runner.os == 'Linux'
         run: python scripts/audit_dependency_notices.py --root plugins/codex-console --phase build --out dependency-audit/build.json
       - name: Collect npm advisory, registry-signature and SBOM evidence (Linux, no fixes)
+        id: npm_security
         if: runner.os == 'Linux'
         working-directory: plugins/codex-console
         shell: bash
@@ -143,14 +145,14 @@ jobs:
         if: runner.os == 'Linux'
         run: node scripts/validate_sbom_schema.mjs
       - name: Inspect locked native binary tarballs from existing npm cache (Linux, offline)
-        if: runner.os == 'Linux'
+        if: ${{ !cancelled() && runner.os == 'Linux' && steps.build_inventory.conclusion == 'success' }}
         shell: bash
         run: python scripts/native_tarball_review.py --root plugins/codex-console --cache "$(npm config get cache)" --out dependency-audit/native-tarball-report.json
       - name: Collect bundled UI original notices (Linux, no publish)
-        if: runner.os == 'Linux'
+        if: ${{ !cancelled() && runner.os == 'Linux' && steps.build_inventory.conclusion == 'success' }}
         run: node scripts/collect_ui_notices.mjs --bootstrap
       - name: Require successful security audits (Linux)
-        if: runner.os == 'Linux'
+        if: ${{ !cancelled() && runner.os == 'Linux' && steps.npm_security.conclusion == 'success' }}
         shell: bash
         run: |
           python - <<'PY'
