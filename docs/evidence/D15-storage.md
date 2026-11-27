@@ -1,0 +1,7 @@
+# D15 — SQLite state migration and rollback
+
+
+## 2026-11-27 D15 candidate implementation
+Base `12726d05db0b5149ae4c8232e65669958d8d40d9` (D14 tested code b7bc081c680e94f87a3012d5fa1f0f54d93116b5 / Run 45973849986 PASS). Default JSON unchanged. Explicit state-migrate --confirm-quiescent under existing OS lock, backup exact JSON bytes and reject active/uncertain operations, create separate plugin-owned versioned WAL database, verify row counts and SHA256 metadata/task manifest, publish incompatible-to-legacy state.json marker last. SQLite authoritative only after marker; old binaries fail closed instead of writing stale JSON. Single Python transaction path, row-delta writes, FULL sync, previous snapshot backup before commit, no automatic task deletion. State marker or DB corruption never falls back. Read-only Node MCP reconstructs consistent transaction and verifies checksums; native Codex DB untouched. state-rollback --confirm-quiescent exports current DB to JSON atomically and preserves database/backup. state-recover --source initial|previous only exports verified recovery copy, no activation or silent data loss; corrupt DB requires manual reconciliation. Inactive database after interrupted publish retained. Explicitly stop all old CLI/MCP instances, including untracked calls, before migration; process quiescence confirmation not proof. No production data migrated. Full-snapshot reads still present; D16 handles cache/index query optimization. CI pending.
+
+CI evidence: NOT_RUN until actual verification.

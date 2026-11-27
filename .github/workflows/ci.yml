@@ -40,6 +40,8 @@ jobs:
           node -p "JSON.stringify({platform:process.platform,arch:process.arch,node:process.version})"
           python -c "import platform,sys; print(platform.machine(),sys.version)"
           git rev-parse HEAD
+      - name: SQLite state migration and recovery regression
+        run: python -m unittest discover -s tests -p test_sqlite_state.py -v
       - name: Bounded streaming and event replay regression
         run: python -m unittest discover -s tests -p test_streaming.py -v
       - name: Durable request and loop guard regression

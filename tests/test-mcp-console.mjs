@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -438,7 +438,40 @@ async function runTests() {
     fs.symlinkSync(redirect,fixtureRun,process.platform==='win32'?'junction':'dir');
     assert.equal((await readFixture()).reportAvailable,false);
     fs.unlinkSync(fixtureRun);
+
+    // D15 cross-language test: real Python migration, read-only native MCP,
+    // transactional corruption rejection and inverse migration on isolated fixture.
+    const quiet=JSON.parse(originalState);
+    for(const task of Object.values(quiet.tasks)){
+      if(['running','reserved','interrupted'].includes(task.status))task.status='completed';
+      delete task.active_turn_id;
+    }
+    fs.writeFileSync(stateFile,JSON.stringify(quiet));
+    const python=process.platform==='win32'?'python':'python3';
+    const dispatchScript=path.join(ROOT,'skills','multi-agent-dispatch','scripts','dispatch.py');
+    const nativeState=path.join(codexHome,'state_5.sqlite');
+    const nativeBefore=crypto.createHash('sha256').update(fs.readFileSync(nativeState)).digest('hex');
+    const storageCmd=(...args)=>JSON.parse(execFileSync(python,[dispatchScript,...args],{
+      env:{...env,CODEX_HOME:codexHome,AGY_DISPATCH_STATE_DIR:dispatchDir,PYTHONUTF8:'1',PYTHONIOENCODING:'utf-8'},
+      encoding:'utf8',timeout:20000
+    }));
+    const migrated=storageCmd('state-migrate','--confirm-quiescent');
+    assert.equal(migrated.status,'migrated');
+    assert.equal((await compactCall('task_status',{taskId:'demo-task-1'},600)).status,'completed');
+    const marker=JSON.parse(fs.readFileSync(stateFile,'utf8'));
+    const owned=path.join(dispatchDir,marker.database);
+    const checkDb=new DatabaseSync(owned);
+    try {
+      const row=checkDb.prepare('SELECT payload_sha256 FROM dispatch_tasks WHERE task_id=?').get('demo-task-1');
+      checkDb.prepare('UPDATE dispatch_tasks SET payload_sha256=? WHERE task_id=?').run('0'.repeat(64),'demo-task-1');
+      assert.equal((await rpc('tools/call',{name:'task_status',arguments:{taskId:'demo-task-1'}})).result.isError,true);
+      checkDb.prepare('UPDATE dispatch_tasks SET payload_sha256=? WHERE task_id=?').run(row.payload_sha256,'demo-task-1');
+    }finally{checkDb.close();}
+    assert.equal(storageCmd('state-rollback','--confirm-quiescent').status,'rolled_back');
+    assert.equal((await compactCall('task_status',{taskId:'demo-task-1'},600)).status,'completed');
+    assert.equal(crypto.createHash('sha256').update(fs.readFileSync(nativeState)).digest('hex'),nativeBefore);
     fs.writeFileSync(stateFile,originalState);
+    console.log('[PASS] D15 actual Python migration / MCP read / corrupt manifest rejection / inverse migration / native DB hash preserved');
     console.log('[PASS] D09 positive op, current digest-bound artifact, running/stale/missing/oversized/identity/link rejection');
     const traversal=(await rpc('tools/call',{name:'task_result',arguments:{taskId:'../secret'}})).result;
     assert.equal(traversal.isError,true);

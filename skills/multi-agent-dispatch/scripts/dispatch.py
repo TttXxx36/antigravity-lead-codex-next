@@ -17,6 +17,7 @@ import hashlib
 import json
 import os
 import ntpath
+import sqlite3
 import queue
 import threading
 import re
@@ -257,7 +258,7 @@ def atomic_write_bytes(target: Path, payload: bytes) -> None:
         temp.unlink(missing_ok=True)
 
 
-def decode_state(raw: bytes) -> dict[str, Any]:
+def strict_state_json(raw: bytes) -> Any:
     def unique_keys(pairs):
         result = {}
         for key, value in pairs:
@@ -269,7 +270,11 @@ def decode_state(raw: bytes) -> dict[str, Any]:
     def reject_constant(value):
         raise ValueError("Non-finite state JSON number")
 
-    data = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_keys, parse_constant=reject_constant)
+    return json.loads(raw.decode("utf-8"), object_pairs_hook=unique_keys, parse_constant=reject_constant)
+
+
+def decode_state(raw: bytes) -> dict[str, Any]:
+    data = strict_state_json(raw)
     if not isinstance(data, dict) or not isinstance(data.get("tasks"), dict):
         raise ValueError("state must contain a tasks object")
     rr = data.get("rr_counter", 0)
@@ -292,6 +297,259 @@ def preserve_corrupt_state(raw: bytes) -> Path:
     return target
 
 
+
+# D15: explicit, plugin-owned SQLite migration. state.json is either the
+# authoritative legacy document OR an incompatible-to-legacy storage marker.
+# The marker is published last, never used as a second write destination.
+def state_bytes(data):
+    return json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+                      allow_nan=False).encode("utf-8")
+
+
+def state_digest(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+
+def storage_marker(raw):
+    value = strict_state_json(raw)
+    if not isinstance(value, dict) or "storage" not in value:
+        return None
+    if (set(value) != {"storage", "database", "backup", "backup_sha256"} or
+            value.get("storage") != "sqlite-v1" or
+            not isinstance(value.get("database"), str) or
+            not re.fullmatch(r"dispatch-state-[0-9a-f]{32}\.sqlite", value["database"]) or
+            not isinstance(value.get("backup_sha256"), str) or
+            not re.fullmatch(r"[0-9a-f]{64}", value["backup_sha256"]) or
+            value.get("backup") != "state.pre-sqlite-" + value["backup_sha256"] + ".json"):
+        raise StateIntegrityError("D15: invalid storage marker; no fallback")
+    return value
+
+
+def owned_storage_path(name):
+    reject_link(STATE_DIR)
+    root = STATE_DIR.resolve()
+    native = CODEX_HOME.resolve()
+    if root == native or root.is_relative_to(native):
+        raise StateIntegrityError("D15: plugin state cannot reside inside native Codex home")
+    if Path(name).name != name:
+        raise StateIntegrityError("D15: invalid storage filename")
+    path = STATE_DIR / name
+    reject_link(path)
+    return path
+
+
+def store_rows(data):
+    validated = decode_state(state_bytes(data))
+    request_records(validated)
+    tasks = validated.pop("tasks")
+    meta = state_bytes(validated).decode("utf-8")
+    rows = []
+    seen = set()
+    for tid in sorted(tasks):
+        validate_task_id(tid)
+        if tid.casefold() in seen or tasks[tid].get("task_id",tid) != tid:
+            raise StateIntegrityError("D15: invalid or ambiguous task identity")
+        seen.add(tid.casefold())
+        payload = state_bytes(tasks[tid]).decode("utf-8")
+        rows.append((tid, payload, state_digest(payload.encode("utf-8"))))
+    meta_sha = state_digest(meta.encode("utf-8"))
+    manifest = state_digest((meta_sha+"\n"+"\n".join(tid+"\t"+sha for tid,_,sha in rows)).encode("ascii"))
+    return meta, meta_sha, rows, manifest
+
+
+def store_open(marker, initialize=False):
+    path = owned_storage_path(marker["database"])
+    for suffix in ("-wal","-shm","-journal"):
+        reject_link(Path(str(path)+suffix))
+    if initialize:
+        with path.open("xb"):
+            pass
+    if not path.is_file():
+        raise StateIntegrityError("D15: authoritative database missing; no JSON fallback")
+    db = sqlite3.connect(path.absolute().as_uri()+"?mode=rw",uri=True,timeout=3,isolation_level=None)
+    try:
+        db.execute("PRAGMA busy_timeout=3000")
+        if initialize:
+            mode=db.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+        else:
+            mode=db.execute("PRAGMA journal_mode").fetchone()[0]
+        if mode.lower() != "wal":
+            raise StateIntegrityError("D15: expected SQLite WAL mode")
+        db.execute("PRAGMA synchronous=FULL")
+        return db
+    except BaseException:
+        db.close()
+        raise
+
+
+def store_read(db):
+    if db.execute("PRAGMA user_version").fetchone()[0] != 1:
+        raise StateIntegrityError("D15: unsupported state schema")
+    meta = db.execute("SELECT meta_json,meta_sha256,revision,task_count,manifest_sha256 FROM dispatch_meta WHERE id=1").fetchone()
+    if meta is None:
+        raise StateIntegrityError("D15: missing metadata")
+    payload, digest, rev, count, manifest = meta
+    if (not isinstance(payload,str) or state_digest(payload.encode("utf-8"))!=digest or
+            type(rev) is not int or rev<1 or type(count) is not int or count<0):
+        raise StateIntegrityError("D15: metadata integrity failure")
+    data=strict_state_json(payload.encode("utf-8"))
+    if not isinstance(data,dict) or "tasks" in data:
+        raise StateIntegrityError("D15: invalid metadata object")
+    rows=db.execute("SELECT task_id,payload,payload_sha256 FROM dispatch_tasks ORDER BY task_id").fetchall()
+    if len(rows)!=count:
+        raise StateIntegrityError("D15: task count mismatch")
+    tasks={}
+    for tid, body, checksum in rows:
+        validate_task_id(tid)
+        if not isinstance(body,str) or state_digest(body.encode("utf-8"))!=checksum:
+            raise StateIntegrityError("D15: task checksum mismatch")
+        tasks[tid]=strict_state_json(body.encode("utf-8"))
+    data["tasks"]=tasks
+    if store_rows(data)[3]!=manifest:
+        raise StateIntegrityError("D15: state manifest mismatch")
+    return data, rev
+
+
+def store_write(db,data,revision,previous=None):
+    meta,digest,rows,manifest=store_rows(data)
+    old={} if previous is None else {tid:body for tid,body,_ in store_rows(previous)[2]}
+    if not set(old).issubset(data["tasks"]):
+        raise StateIntegrityError("D15: automatic task deletion unsupported")
+    changed=[row for row in rows if old.get(row[0])!=row[1]]
+    db.executemany("INSERT INTO dispatch_tasks(task_id,payload,payload_sha256) VALUES(?,?,?) "
+                   "ON CONFLICT(task_id) DO UPDATE SET payload=excluded.payload,payload_sha256=excluded.payload_sha256",changed)
+    db.execute("INSERT INTO dispatch_meta(id,meta_json,meta_sha256,revision,task_count,manifest_sha256) VALUES(1,?,?,?,?,?) "
+               "ON CONFLICT(id) DO UPDATE SET meta_json=excluded.meta_json,meta_sha256=excluded.meta_sha256,"
+               "revision=excluded.revision,task_count=excluded.task_count,manifest_sha256=excluded.manifest_sha256",
+               (meta,digest,revision,len(rows),manifest))
+    checked,rev=store_read(db)
+    if rev!=revision or state_bytes(checked)!=state_bytes(data):
+        raise StateIntegrityError("D15: transaction verification mismatch")
+
+
+def preserve_named_state(name, raw):
+    target=owned_storage_path(name)
+    if target.exists():
+        if target.read_bytes()!=raw:
+            raise StateIntegrityError("D15: backup name collision; original untouched")
+    else:
+        atomic_write_bytes(target,raw)
+    return target
+
+
+@contextlib.contextmanager
+def sqlite_locked_state(marker):
+    try:
+        with contextlib.closing(store_open(marker)) as db:
+            db.execute("BEGIN IMMEDIATE")
+            try:
+                data,rev=store_read(db)
+                previous=state_bytes(data)
+                yield data
+                if state_bytes(data)!=previous:
+                    # Recovery snapshot is a backup, never a competing writer.
+                    backup={"version":1,"database":marker["database"],"revision":rev,
+                            "sha256":state_digest(previous),"payload":previous.decode("utf-8")}
+                    atomic_write_bytes(owned_storage_path(marker["database"]+".previous.json"),state_bytes(backup))
+                    store_write(db,data,rev+1,strict_state_json(previous))
+                db.execute("COMMIT")
+            except BaseException:
+                if db.in_transaction:
+                    db.execute("ROLLBACK")
+                raise
+    except sqlite3.Error as exc:
+        raise StateIntegrityError("D15: database unavailable or transaction failed; no fallback") from exc
+
+
+def require_storage_quiescent(data):
+    if any(rec.get("status") in ("reserved","running","interrupted") or rec.get("active_turn_id")
+           for rec in data["tasks"].values()):
+        raise StateIntegrityError("D15: stop and reconcile active tasks before storage change")
+    if any(op["status"] in ("pending","uncertain") for op in request_records(data).values()):
+        raise StateIntegrityError("D15: reconcile outstanding request reservations")
+
+
+def cmd_state_storage(args):
+    action=args.subcommand
+    if action in ("state-migrate","state-rollback") and not args.confirm_quiescent:
+        raise ValueError("D15: stop all old CLI/MCP instances and explicitly confirm quiescence")
+    ensure_state_dirs()
+    reject_link(STATE_DIR)
+    reject_link(LOCK_FILE)
+    with exclusive_state_lock(LOCK_FILE):
+        reject_link(STATE_FILE)
+        if not STATE_FILE.is_file():
+            raise StateIntegrityError("D15: existing state required")
+        raw=STATE_FILE.read_bytes()
+        marker=storage_marker(raw)
+        if action=="state-migrate":
+            if marker:
+                with sqlite_locked_state(marker) as data:
+                    count=len(data["tasks"])
+                result={"status":"already_migrated","database":marker["database"],"tasks":count}
+            else:
+                data=decode_state(raw)
+                store_rows(data)
+                require_storage_quiescent(data)
+                sha=state_digest(raw)
+                marker={"storage":"sqlite-v1","database":"dispatch-state-"+uuid.uuid4().hex+".sqlite",
+                        "backup":"state.pre-sqlite-"+sha+".json","backup_sha256":sha}
+                preserve_named_state(marker["backup"],raw)
+                with contextlib.closing(store_open(marker,initialize=True)) as db:
+                    db.execute("BEGIN IMMEDIATE")
+                    try:
+                        db.execute("PRAGMA user_version=1")
+                        db.execute("CREATE TABLE dispatch_meta(id INTEGER PRIMARY KEY CHECK(id=1),meta_json TEXT NOT NULL,"
+                                   "meta_sha256 TEXT NOT NULL,revision INTEGER NOT NULL,task_count INTEGER NOT NULL,manifest_sha256 TEXT NOT NULL)")
+                        db.execute("CREATE TABLE dispatch_tasks(task_id TEXT PRIMARY KEY,payload TEXT NOT NULL,payload_sha256 TEXT NOT NULL)")
+                        store_write(db,data,1)
+                        if db.execute("PRAGMA quick_check").fetchone()[0]!="ok":
+                            raise StateIntegrityError("D15: new database quick_check failed")
+                        db.execute("COMMIT")
+                        db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                    except BaseException:
+                        if db.in_transaction:
+                            db.execute("ROLLBACK")
+                        raise
+                # Last operation: a crash before this leaves original JSON authoritative.
+                atomic_write_bytes(STATE_FILE,state_bytes(marker))
+                result={"status":"migrated","database":marker["database"],"backup":marker["backup"],"tasks":len(data["tasks"])}
+        elif action=="state-rollback":
+            if marker is None:
+                result={"status":"already_json","tasks":len(decode_state(raw)["tasks"])}
+            else:
+                with sqlite_locked_state(marker) as data:
+                    require_storage_quiescent(data)
+                    exported=state_bytes(data)
+                preserve_named_state("state.rollback-"+state_digest(exported)+".json",exported)
+                atomic_write_bytes(STATE_FILE,exported)
+                result={"status":"rolled_back","database_preserved":marker["database"],"tasks":len(data["tasks"])}
+        elif action=="state-recover":
+            if marker is None:
+                raise StateIntegrityError("D15: recovery export requires active storage marker")
+            if args.source=="initial":
+                recovered=owned_storage_path(marker["backup"]).read_bytes()
+                if state_digest(recovered)!=marker["backup_sha256"]:
+                    raise StateIntegrityError("D15: initial backup checksum mismatch")
+            else:
+                backup=strict_state_json(owned_storage_path(marker["database"]+".previous.json").read_bytes())
+                if (not isinstance(backup,dict) or backup.get("version")!=1 or
+                        backup.get("database")!=marker["database"] or not isinstance(backup.get("payload"),str)):
+                    raise StateIntegrityError("D15: invalid recovery snapshot")
+                recovered=backup["payload"].encode("utf-8")
+                if state_digest(recovered)!=backup.get("sha256"):
+                    raise StateIntegrityError("D15: recovery checksum mismatch")
+            recovered_data=decode_state(recovered)
+            store_rows(recovered_data)
+            target=preserve_named_state("state.recovery-"+state_digest(recovered)+".json",recovered)
+            result={"status":"recovery_exported_not_activated","file":target.name,"source":args.source,
+                    "tasks":len(recovered_data["tasks"]),"warning":"Review possible post-backup changes before any manual activation"}
+        else:
+            raise ValueError("D15: unknown storage operation")
+    print(json.dumps(result,ensure_ascii=False))
+    return 0
+
+
 @contextlib.contextmanager
 def locked_state() -> Iterator[dict[str, Any]]:
     """Serialize read/modify/write; never reset malformed existing state."""
@@ -304,10 +562,16 @@ def locked_state() -> Iterator[dict[str, Any]]:
             data = {"rr_counter": 0, "tasks": {}}
         else:
             try:
-                data = decode_state(raw)
+                marker = storage_marker(raw)
+                if marker is None:
+                    data = decode_state(raw)
             except (ValueError, UnicodeError) as exc:
                 backup = preserve_corrupt_state(raw)
                 raise StateIntegrityError(f"Invalid dispatcher state; original untouched; copy: {backup}") from exc
+            if marker is not None:
+                with sqlite_locked_state(marker) as data:
+                    yield data
+                return
         snapshot = json.dumps(data, sort_keys=True)
         yield data
         if json.dumps(data, sort_keys=True) != snapshot or raw is None:
@@ -3128,6 +3392,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_rev.add_argument("--timeout", type=int, default=300)
     p_rev.add_argument("--dry-run", action="store_true")
 
+    for operation in ("state-migrate","state-rollback"):
+        p_storage=sub.add_parser(operation,allow_abbrev=False,help="Explicit offline state migration/rollback; stop all CLI/MCP instances first.")
+        p_storage.add_argument("--confirm-quiescent",action="store_true")
+    p_recover=sub.add_parser("state-recover",allow_abbrev=False,help="Export validated recovery backup without activating it.")
+    p_recover.add_argument("--source",choices=("initial","previous"),default="previous")
+
     p_st = sub.add_parser("status", help="Inspect tracked task metadata and round-robin state.")
     p_st.add_argument("--task-id", default=None)
 
@@ -3150,6 +3420,9 @@ def main() -> int:
         "review": cmd_review,
         "status": cmd_status,
         "cleanup": cmd_cleanup,
+        "state-migrate": cmd_state_storage,
+        "state-rollback": cmd_state_storage,
+        "state-recover": cmd_state_storage,
     }
     try:
         if args.subcommand in ('run', 'resume', 'review'):

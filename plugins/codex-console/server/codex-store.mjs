@@ -29,11 +29,56 @@ function withReadOnlyDb(dbFile, fn, fallback, errors = []) {
   }
 }
 
+
+function readOwnedStateDb(marker) {
+  if (Object.keys(marker).sort().join(',')!=='backup,backup_sha256,database,storage' ||
+      marker.storage!=='sqlite-v1'||typeof marker.database!=='string'||
+      !/^dispatch-state-[a-f0-9]{32}\.sqlite$/.test(marker.database)||
+      !/^[a-f0-9]{64}$/.test(marker.backup_sha256||'')||
+      marker.backup!=='state.pre-sqlite-'+marker.backup_sha256+'.json') throw new Error('Invalid storage marker');
+  const root=fs.realpathSync(DISPATCH_STATE_DIR);
+  const native=fs.existsSync(CODEX_HOME)?fs.realpathSync(CODEX_HOME):path.resolve(CODEX_HOME);
+  const rel=path.relative(native,root);
+  if (!rel || (!rel.startsWith('..'+path.sep)&&rel!=='..'&&!path.isAbsolute(rel))) throw new Error('Native DB path not allowed');
+  const file=path.join(root,marker.database);
+  if(fs.lstatSync(file).isSymbolicLink()||fs.realpathSync(file)!==file) throw new Error('Unsafe state database');
+  for(const suffix of ['-wal','-shm','-journal']){
+    const side=file+suffix;
+    if(fs.existsSync(side)&&(fs.lstatSync(side).isSymbolicLink()||fs.realpathSync(side)!==side))throw new Error('Unsafe state sidecar');
+  }
+  const hash=s=>crypto.createHash('sha256').update(s,'utf8').digest('hex');
+  const db=new DatabaseSync(file,{readOnly:true});
+  try {
+    db.exec('PRAGMA busy_timeout=3000; PRAGMA query_only=ON; BEGIN;');
+    if(db.prepare('PRAGMA user_version').get().user_version!==1)throw new Error('Unsupported state version');
+    const meta=db.prepare('SELECT meta_json,meta_sha256,revision,task_count,manifest_sha256 FROM dispatch_meta WHERE id=1').get();
+    if(!meta||typeof meta.meta_json!=='string'||hash(meta.meta_json)!==meta.meta_sha256||
+       !Number.isSafeInteger(meta.revision)||meta.revision<1||!Number.isSafeInteger(meta.task_count)||meta.task_count<0)throw new Error('Invalid metadata');
+    const data=JSON.parse(meta.meta_json);
+    if(!data||typeof data!=='object'||Array.isArray(data)||Object.hasOwn(data,'tasks')||!Number.isSafeInteger(data.rr_counter)||data.rr_counter<0)throw new Error('Invalid metadata body');
+    const rows=db.prepare('SELECT task_id,payload,payload_sha256 FROM dispatch_tasks ORDER BY task_id').all();
+    if(rows.length!==meta.task_count)throw new Error('Task count mismatch');
+    const tasks=Object.create(null), seen=new Set(), manifest=[];
+    for(const row of rows){
+      const id=row.task_id;
+      if(typeof id!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$/.test(id)||id.includes('..')||id.endsWith('.')||/\.lock$/i.test(id)||
+         seen.has(id.toLowerCase())||typeof row.payload!=='string'||hash(row.payload)!==row.payload_sha256)throw new Error('Invalid task row');
+      const record=JSON.parse(row.payload);
+      if(!record||typeof record!=='object'||Array.isArray(record)||(Object.hasOwn(record,'task_id')&&record.task_id!==id))throw new Error('Invalid task identity');
+      seen.add(id.toLowerCase());tasks[id]=record;manifest.push(id+'\t'+row.payload_sha256);
+    }
+    if(hash(meta.meta_sha256+'\n'+manifest.join('\n'))!==meta.manifest_sha256)throw new Error('Invalid state manifest');
+    db.exec('COMMIT');
+    return {...data,tasks};
+  }finally{db.close();}
+}
+
 function readDispatchState(errors = []) {
   const statePath = path.join(DISPATCH_STATE_DIR, 'state.json');
   if (!fs.existsSync(statePath)) return { tasks: {} };
   try {
     const raw = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    if(raw&&typeof raw==='object'&&Object.hasOwn(raw,'storage'))return readOwnedStateDb(raw);
     if (!raw || typeof raw !== 'object' || !raw.tasks || Array.isArray(raw.tasks) || typeof raw.tasks !== 'object') throw new Error('Invalid state');
     return raw;
   } catch {

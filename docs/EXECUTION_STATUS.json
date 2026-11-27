@@ -525,15 +525,21 @@
         "D04",
         "D14"
       ],
-      "status": "PROPOSED",
-      "evidence": "未实施",
-      "next": "插件自有 WAL、迁移/备份/回滚、原生 Codex DB 只读",
+      "status": "IN_PROGRESS",
+      "evidence": "D15 explicit plugin-owned SQLite WAL migration, transaction validation, backups, inverse migration and read-only MCP candidate; CI pending",
+      "next": "Four-environment cumulative CI; actual host migration/recovery, old binary shutdown and formal dependencies pending",
       "branch": "dev/d15",
-      "approval": null,
+      "approval": "2026-11-27 user authorized A candidate development; no production migration or native DB writes",
       "pr": null,
       "accepted": false,
       "merged": false,
-      "checks": []
+      "checks": [
+        {
+          "name": "D15 migration and cumulative regression",
+          "status": "NOT_RUN",
+          "ref": "pending CI"
+        }
+      ]
     },
     {
       "id": "D16",
