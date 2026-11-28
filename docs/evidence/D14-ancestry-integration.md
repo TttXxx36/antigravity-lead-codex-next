@@ -1,2 +1,0 @@
-# D14 candidate ancestry integration
-2026-11-27: integrate D13 6e2ab4e0673bb9246aa549d93a08488bb365c1d4 / Run 46011167570 was still running during integration. Preserve D14 bounded streaming, metadata-only replay and EPERM fix; D14 cleanup denial implementation matches D13 verified code. Carry forward D13 request-ID implementation through merge ancestry and apply only corrected managed-session MCP description to D14 index. Exact-head CI required; real host/streaming event acceptance remains BLOCKED.

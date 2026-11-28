@@ -1,2 +1,0 @@
-# D10 candidate ancestry integration
-2026-11-27: integrate D09 candidate 61ed00c712fc0d5bf9a7f24eb5e4aed7f98fbb78 / Run 46006153189 completed/success. Four checkout logs and cleanup denial assertions confirmed. Existing D10 cleanup function and test blob equal D09; D10 protocol code retained. Carry parent history/evidence and MCP metadata correction forward, no main merge. Current exact-head CI required; real models, host and dependencies remain BLOCKED.

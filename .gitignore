@@ -8,3 +8,6 @@ __pycache__/
 *.sqlite-shm
 *.sqlite-wal
 .env
+
+# D22 local unpublished source RC output
+rc-artifacts/

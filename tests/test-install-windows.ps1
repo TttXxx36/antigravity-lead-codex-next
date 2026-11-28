@@ -44,6 +44,10 @@ for(const file of files){
     $hashes=@($dbs | ForEach-Object { (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash })
     $first=& $install @params -Mode All
     $console=Join-Path $config 'plugins\codex-console'
+    $noticeSource=Join-Path $repo 'plugins\codex-console\UI-THIRD-PARTY-NOTICES.md'
+    $noticeInstalled=Join-Path $console 'UI-THIRD-PARTY-NOTICES.md'
+    $noticeHash=(Get-FileHash -LiteralPath $noticeSource -Algorithm SHA256).Hash
+    Check ((Get-FileHash -LiteralPath $noticeInstalled -Algorithm SHA256).Hash -eq $noticeHash) 'UI third-party notices not preserved on install'
     Check (Test-Path -LiteralPath (Join-Path $console 'mcp_config.json')) 'Install missing config'
     $m=(Get-Content -LiteralPath (Join-Path $console 'mcp_config.json') -Raw | ConvertFrom-Json).mcpServers.codex_console
     Check ($m.command -ieq $params.NodeBin) 'Expected native node.exe'
@@ -66,6 +70,7 @@ for(const file of files){
     $again=& $install @params -Mode All
     $diag=& $doctor -GeminiConfigDir $config
     Check ($diag.Status -eq 'PASS') 'Reinstall handshake failed'
+    Check ((Get-FileHash -LiteralPath $noticeInstalled -Algorithm SHA256).Hash -eq $noticeHash) 'UI third-party notices not preserved on reinstall'
     foreach($dir in @($data,$state,$codexHome)){Check ((Get-Content -LiteralPath (Join-Path $dir 'sentinel.txt') -Raw) -eq 'keep') 'Persistent data changed'}
     # Console-only install must not require Python or Git and must not install the skill.
     $consoleOnlyParams=$params.Clone()

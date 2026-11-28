@@ -1,2 +1,0 @@
-# D19 candidate ancestry integration
-2026-11-27: integrate D18 b2eabc3a24c1cb8fae06b249c1c8ed8961f44c7b / preserve D19 risk review implementation and test suite; D18 corrected managed-session MCP description applied to D19 index. D18 updated D17 ancestry and cleanup preview are now part of D19 history. D18/D19 exact-head cumulative CI pending; no formal merge, no trusted independent acceptance, no project-code execution or production write.

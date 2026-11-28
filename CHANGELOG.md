@@ -2,6 +2,15 @@
 
 All notable changes to **antigravity-lead-codex** will be documented in this file.
 
+## [Unreleased — v2.0.0-rc.1 source candidate] - 2026-11-27
+
+- D03–D21 candidate platform/state/install, policy/outcome, history/compact protocol, context/budget, idempotency/streaming, storage/cache/scheduler, deterministic orchestration, risk review, experimental App Server and paired measurement work. See ledger and exact-head CI; only D00–D04 formally DONE.
+- D22 offline deterministic source package, strict integrity verification, dual MIT notices, release gate and migration/rollback instructions. Candidate CI artifacts only; no tag or release.
+- CLI and JSON remain default; no real App Server worker path or unapproved permission expansion. Actual model/host/production migration not certified.
+- D21 fixture communication reductions are not measured Token savings.
+
+The following versions are historical upstream changelog entries, not Next release certification.
+
 ## [1.0.2] - 2026-11-25
 
 ### Added / 新增
