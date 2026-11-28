@@ -45,7 +45,7 @@ git checkout --detach c1f2ed2ab1e6ec065b054af94d9430f3d68d9a56
 git rev-parse HEAD
 ```
 
-输出必须等于上述完整 SHA。Git clone 不是规范 RC 归档；如从 [Releases](https://github.com/TttXxx36/antigravity-lead-codex-next/releases) 获取 RC，须确认实际 tag 已存在，并对照可信 SHA256SUMS、commit、版本及清单验证。[规范源码包校验方法](https://github.com/TttXxx36/antigravity-lead-codex-next/blob/c1f2ed2ab1e6ec065b054af94d9430f3d68d9a56/docs/RELEASE_CANDIDATE.md)。不要下载上游 Koala973 的安装脚本来安装本项目。
+输出必须等于上述完整 SHA。固定版本中的 README 是历史版本；请继续使用 [新版教程](https://github.com/TttXxx36/antigravity-lead-codex-next/blob/dev/d22/README.md)。Git clone 不是规范 RC 归档；如从 [Releases](https://github.com/TttXxx36/antigravity-lead-codex-next/releases) 获取 RC，须确认实际 tag 已存在，并对照可信 SHA256SUMS、commit、版本及清单验证。[规范源码包校验方法](https://github.com/TttXxx36/antigravity-lead-codex-next/blob/c1f2ed2ab1e6ec065b054af94d9430f3d68d9a56/docs/RELEASE_CANDIDATE.md)。不要下载上游 Koala973 的安装脚本来安装本项目。
 
 ## 4. Windows 11 原生安装（推荐先在隔离配置测试）
 
@@ -138,6 +138,27 @@ bash scripts/doctor.sh
 
 以下示例使用另一个**测试项目**，不是 Next 源码仓库，也不是你的生产项目。Worktree 需要 Git 至少一个 commit；未提交修改不会进入新 Worktree。先创建测试 Git 仓库并提交合成文件，或者选择干净的已有测试仓库。用 `--isolation worktree` 明确拒绝非 Git 回退。
 
+### 可选：亲手创建一个不含私有数据的练习仓库
+
+如果你从未使用 Git，在 Windows PowerShell 执行（Git 需已安装）。这里只在新建练习目录使用演示提交身份，不修改全局 Git 配置。
+
+```powershell
+$repo = Join-Path $testRoot 'demo-project'
+New-Item -ItemType Directory -Path $repo -ErrorAction Stop | Out-Null
+git -C $repo init
+git -C $repo config user.name 'RC Demo'
+git -C $repo config user.email 'demo@example.invalid'
+@'
+def add(a, b):
+    return a + b
+'@ | Set-Content -LiteralPath (Join-Path $repo 'calculator.py') -Encoding utf8
+git -C $repo add calculator.py
+git -C $repo commit -m 'Create disposable example'
+git -C $repo status --short
+```
+
+最后一条命令在干净仓库应无输出。现在可以用 `$repo` 作为下方目标，不需要改生产项目。可以明确要求 Codex 为 `calculator.add` 生成 `test_calculator.py`，用 `python -m unittest discover -v` 验收；先做 dry-run，实际调用须批准。
+
 ### 7.1 在 Windows 查看健康状态和预演
 
 继续使用 4.3 的变量（若新开终端，先还原相同路径）。
@@ -157,7 +178,8 @@ $dispatch = Join-Path $paths.GeminiConfigDir 'skills/multi-agent-dispatch/script
 把 `$repo` 改成你的隔离测试项目绝对路径（需有已提交 HEAD）：
 
 ```powershell
-$repo = 'C:\path\to\your-test-repo'
+# 如果上一节已创建练习仓库，保留 $repo；否则改成实际路径。
+# $repo = 'C:\path\to\your-test-repo'
 & $python $dispatch run --cwd $repo --isolation worktree --difficulty low --quality smart --prompt '为一个简单函数补充单元测试；仅修改测试文件；运行本地测试并汇报。' --dry-run
 ```
 

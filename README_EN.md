@@ -45,7 +45,7 @@ git checkout --detach c1f2ed2ab1e6ec065b054af94d9430f3d68d9a56
 git rev-parse HEAD
 ```
 
-Check the full SHA. A Git checkout is not the canonical source archive. For a future [Release](https://github.com/TttXxx36/antigravity-lead-codex-next/releases) asset, verify its trusted SHA256SUMS, manifest, source commit and version using the [RC guide](https://github.com/TttXxx36/antigravity-lead-codex-next/blob/c1f2ed2ab1e6ec065b054af94d9430f3d68d9a56/docs/RELEASE_CANDIDATE.md). Do not run upstream Koala973 installers for Next.
+Check the full SHA. The pinned source has an older README; keep using the [updated tutorial](https://github.com/TttXxx36/antigravity-lead-codex-next/blob/dev/d22/README_EN.md). A Git checkout is not the canonical source archive. For a future [Release](https://github.com/TttXxx36/antigravity-lead-codex-next/releases) asset, verify its trusted SHA256SUMS, manifest, source commit and version using the [RC guide](https://github.com/TttXxx36/antigravity-lead-codex-next/blob/c1f2ed2ab1e6ec065b054af94d9430f3d68d9a56/docs/RELEASE_CANDIDATE.md). Do not run upstream Koala973 installers for Next.
 
 ## 4. Windows native installation
 
@@ -130,6 +130,27 @@ Example prompts for Antigravity:
 
 Use a separate disposable test Git repository with a committed HEAD, never the Next checkout or production project. Uncommitted changes are not inherited into a worktree. Explicit --isolation worktree prevents non-Git inplace fallback.
 
+### Optional: create a disposable practice repository
+
+New to Git? Run this in PowerShell (Git installed). The example identity is local to this new repository; your global Git configuration is untouched.
+
+```powershell
+$repo = Join-Path $testRoot 'demo-project'
+New-Item -ItemType Directory -Path $repo -ErrorAction Stop | Out-Null
+git -C $repo init
+git -C $repo config user.name 'RC Demo'
+git -C $repo config user.email 'demo@example.invalid'
+@'
+def add(a, b):
+    return a + b
+'@ | Set-Content -LiteralPath (Join-Path $repo 'calculator.py') -Encoding utf8
+git -C $repo add calculator.py
+git -C $repo commit -m 'Create disposable example'
+git -C $repo status --short
+```
+
+A clean repository produces no output from the final command. Reuse `$repo` below instead of the placeholder. Ask Codex to add `test_calculator.py` for `calculator.add` and run `python -m unittest discover -v`; preview first, obtain approval before actual model execution.
+
 ```powershell
 $env:GEMINI_CONFIG_DIR = $paths.GeminiConfigDir
 $env:CODEX_HOME = $paths.CodexHome
@@ -140,7 +161,8 @@ $dispatch = Join-Path $paths.GeminiConfigDir 'skills/multi-agent-dispatch/script
 & $python $dispatch health
 & $python $dispatch status
 & $python $dispatch --help
-$repo = 'C:\path\to\your-test-repo'
+# Keep $repo from the practice exercise, or set an actual absolute path:
+# $repo = 'C:\path\to\your-test-repo'
 & $python $dispatch run --cwd $repo --isolation worktree --difficulty low --quality smart --prompt 'Add unit tests for a simple function; change tests only; run local tests and report.' --dry-run
 ```
 
